@@ -15,12 +15,12 @@
 | Developer | Ikram ul Wahid |
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
-| Current phase | Phase 01 — Empty Application Shell |
-| Overall status | **Phase 01 Verified** |
-| Last checkpoint | `P01-GATE` (Phase 01 Empty Application Shell verified) |
+| Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
+| Overall status | **Phase 02 In Progress (P02-M1 Verified)** |
+| Last checkpoint | `P02-M1` (Document schema and defaults — VERIFIED) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 41 modules, built in 953ms); `cargo build` (`docstudio.exe`, 13.4 MB) |
-| Last verified test run | `verify_phase01.js` (frontend structure, themes, 3-column grid, topbar, sections verified); `tauri info` |
+| Last verified build | `npm run build` (tsc & vite: 41 modules, built in 912ms, exit code 0) |
+| Last verified test run | `verify_phase01.js` (Phase 01 structural checks); P02-M1 TypeScript build (zero errors) |
 | Latest project commit | Untracked bootstrap (local verified) |
 
 ### Status vocabulary
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `NOT STARTED`
+**Initial status:** `IN PROGRESS` — P02-M1 VERIFIED
 
 ## Goal
 
@@ -263,7 +263,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 
 ## Checkpoints
 
-- `P02-M1`: Schema and defaults documented.
+- `P02-M1`: Schema and defaults documented (`VERIFIED`).
 - `P02-M2`: Native project save/open round-trip verified.
 - `P02-M3`: Document lifecycle actions verified.
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified.
@@ -1038,6 +1038,67 @@ Copy this template for each new checkpoint:
   - DEC-001 through DEC-004 remain pending as planned for later phases.
 - **Commit/reference:** Local verified
 - **Next action:** Proceed to Phase 02 (Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept) upon user instruction.
+
+---
+
+---
+
+### 2026-10-15 — [MINOR] P02-M1: Document Schema and Defaults
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED
+- **Scope completed:**
+  - Created `src/types/document.ts` — authoritative, versioned document schema (schema version 1).
+    - Primitive aliases: `ISODateString`, `DocUUID`.
+    - `DOCSTUDIO_SCHEMA_VERSION = 1 as const` sentinel.
+    - `DocumentMetadata` with 19 standard fields + `customFields: CustomMetadataField[]`.
+    - `EmbeddedLabProfile` — snapshot copied at creation; does not mutate with the live global profile.
+    - `PageSetup`, `PageMargins` (with `MarginPreset`), `PageSize`, `PageOrientation`.
+    - `TypographySettings` — font family, fallbacks, size, line-height, paragraph spacing.
+    - `PageTypographySettings` — body theme, monochrome toggle, display-header toggle, typography.
+    - `BodyThemeId` — 10 body theme literals.
+    - `FrontPageSettings` — cover enabled, theme, monochrome, visible fields, synopsis, logo/background assets, frame config.
+    - `CoverThemeId` — 10 cover theme literals.
+    - `CoverVisibleMetadataField` — union of `keyof Pick<DocumentMetadata, …>` and `` `custom:${DocUUID}` `` for user-defined fields.
+    - `CoverFrameSettings` — border style, thickness, color, corner radius, inset.
+    - `HeaderFooterSettings`, `HeaderFooterBand`, `HeaderFooterRow`, `HeaderFooterCell`, `WatermarkSettings`.
+    - `AssetRecord` — binary embedded as `base64Data`; MIME-typed; referenced by UUID.
+    - `ContentBlock` envelope with stable `id: DocUUID` and `data: AnyBlockData`.
+    - `SavedRevision` stub — supports Phase 07 revision history without a breaking schema change.
+    - `DocStudioDocument` root interface — full document envelope.
+  - Created `src/types/blocks.ts` — discriminated union `AnyBlockData` with 21 block types.
+    - Shared `InlineSpan` rich-text primitive (bold, italic, underline, strikethrough, color, highlight, href, verticalAlign, code).
+    - Standard blocks: `HeadingBlockData`, `ParagraphBlockData`, `CalloutBlockData`, `ListBlockData`, `TableBlockData`, `FormulaBlockData`, `ImageBlockData`, `SignatureBlockData`, `HorizontalLineBlockData`, `PageBreakBlockData`, `SectionBreakBlockData`, `MetadataBlockData`, `RevisionHistoryBlockData`.
+    - Lab-specific blocks: `ProcedureStepBlockData`, `EquipmentListBlockData`, `ObservationBlockData`, `MeasurementBlockData`, `CalculationBlockData`, `AcceptanceCriteriaBlockData`, `ReferenceBlockData`, `ExhibitBlockData`.
+    - `BlockType` helper alias derived from the union.
+  - Created `src/types/defaults.ts` — pure factory functions; no side-effects; no DOM/React imports.
+    - `newUUID()` — delegates to `crypto.randomUUID()` (available in WebView2/Chromium).
+    - `nowISO()` — convenience wrapper for `new Date().toISOString()`.
+    - `createDefaultMargins()`, `createDefaultPageSetup()`, `createDefaultTypography()`, `createDefaultPageTypography()`.
+    - `createDefaultCoverFrame()`, `createDefaultFrontPage()`.
+    - `createDefaultWatermark()`, `createDefaultHeader()`, `createDefaultFooter()`, `createDefaultHeaderFooter()`.
+    - `createDefaultMetadata(now)`, `createDefaultLabProfile()`.
+    - `createDefaultDocument(id, now)` — returns a fully valid `DocStudioDocument`.
+  - Updated `src/types/index.ts` — added re-exports `export * from './document'; export * from './blocks'; export * from './defaults';` alongside existing Phase 01 UI types (`ThemeMode`, `DocumentSessionStatus`, `SectionState`).
+- **Evidence:**
+  - `npm run build` (tsc && vite build) — exit code 0, zero TypeScript errors, 41 modules transformed, built in 912ms.
+  - All three type files contain no DOM, React, or CSS imports.
+  - All types are JSON-serializable (no `Date` objects, no functions, no circular references).
+- **Files created/modified:**
+  - `src/types/blocks.ts` — CREATED (new, 348 lines)
+  - `src/types/defaults.ts` — CREATED (new, 218 lines)
+  - `src/types/document.ts` — carried from prior session (603 lines)
+  - `src/types/index.ts` — MODIFIED (added Phase 02 re-exports)
+- **Not completed / limitations:**
+  - No UI wiring; this checkpoint is schema-only per scope.
+  - No persistence, editor, or renderer changes — deferred to P02-M2 through P02-M4.
+- **Decisions made:**
+  - Rich text stored as `InlineSpan[]` arrays (not ProseMirror/Slate JSON) to avoid editor library coupling at schema level.
+  - Formula content stored as raw LaTeX string; renderer library TBD in Phase 04.
+  - Assets stored as `base64Data` in JSON for schema v1; Phase 14 may migrate to zip bundle.
+  - `DocumentMetadataStatus` is an open string union to allow custom document-status values.
+- **Commit/reference:** Local verified
+- **Next action:** Proceed to P02-M2 (Native project save/open round-trip) upon user instruction.
 
 ---
 
