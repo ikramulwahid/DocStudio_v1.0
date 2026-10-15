@@ -294,28 +294,44 @@ export interface CoverFrameSettings {
 }
 
 /**
- * Which DocumentMetadata field keys are selected to appear on the cover page.
- * Also includes custom field IDs for user-defined fields.
+ * Which DocumentMetadata field keys are selected to appear on the cover page
+ * (and in any other visible-field picker, e.g. the metadata block).
+ *
+ * Covers every scalar field from the Document Information requirements
+ * (project_details.md §6): the required panel fields (including `createdAt`
+ * and `modifiedAt`), the optional fields, and the additional recommended
+ * fields.  User-defined fields are referenced separately via
+ * `custom:${CustomMetadataField.id}`; the `customFields` array itself is
+ * never a selectable display field.
  */
 export type CoverVisibleMetadataField =
   | keyof Pick<
       DocumentMetadata,
+      // Required panel fields
       | 'title'
       | 'subtitle'
       | 'organizationName'
       | 'documentId'
       | 'status'
+      | 'createdAt'
+      | 'modifiedAt'
+      // Optional panel fields
       | 'issueNumber'
       | 'issueDate'
       | 'documentHolder'
+      // Additional recommended fields
       | 'documentType'
       | 'revisionLabel'
+      | 'amendmentNumber'
       | 'effectiveDate'
+      | 'reviewDate'
       | 'preparedBy'
       | 'reviewedBy'
       | 'approvedBy'
       | 'department'
       | 'applicableStandard'
+      | 'clauseReferences'
+      | 'supersedes'
     >
   | `custom:${DocUUID}`; // references CustomMetadataField.id
 
@@ -368,20 +384,40 @@ export interface PageTypographySettings {
 // Header & Footer
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Page number format options (spec §9). */
+/**
+ * Page number format options (project_details.md §9).
+ * Applied per band via `HeaderFooterBand.pageNumberFormat` to any
+ * `{pageNumber}` token in that band's cell content; `'none'` suppresses it.
+ */
 export type PageNumberFormat = 'Page X of Y' | 'X/Y' | 'X' | 'none';
 
-/** Horizontal text alignment. */
+/**
+ * Horizontal text alignment for headings, table cells, image slots,
+ * formulae, and header/footer cells.
+ *
+ * Justified alignment is deliberately NOT part of this type: it is supported
+ * only for paragraphs and lives in `ParagraphAlignment`
+ * (see src/types/blocks.ts).  Unrelated elements keep left/center/right.
+ */
 export type HAlignment = 'left' | 'center' | 'right';
 
 /** Vertical alignment. */
 export type VAlignment = 'top' | 'middle' | 'bottom';
 
-/** A single cell in the header or footer grid. */
+/**
+ * A single cell in the header or footer grid.
+ * Cells hold plain text mixed with optional template tokens resolved by the
+ * renderer: `{documentId}`, `{organizationName}`, and `{pageNumber}`.
+ * `{pageNumber}` is formatted using the parent band's `pageNumberFormat`
+ * (a format of `'none'` renders it empty).
+ */
 export interface HeaderFooterCell {
   /** Stable ID. */
   readonly id: DocUUID;
-  /** Cell content text (may include template tokens in Phase 06). */
+  /**
+   * Cell content text.  May contain literal text and/or the template tokens
+   * `{documentId}`, `{organizationName}` and `{pageNumber}` documented above.
+   */
   content: string;
   hAlign: HAlignment;
   vAlign: VAlignment;
@@ -412,12 +448,23 @@ export interface WatermarkSettings {
   positionY: number;
 }
 
-/** Header or footer band configuration. */
+/**
+ * Header or footer band configuration (grid-based; project_details.md §9).
+ *
+ * Invariants:
+ * • `columnCount` is the grid width; every row must contain cells that
+ *   account for exactly `columnCount` columns (with no colSpan merges,
+ *   that means exactly `columnCount` cells per row).
+ * • The default layout — produced by `createDefaultHeader()` /
+ *   `createDefaultFooter()` in src/types/defaults.ts — is one row with
+ *   two columns.
+ */
 export interface HeaderFooterBand {
   enabled: boolean;
   rows: HeaderFooterRow[];
   /** Number of columns in the grid (all rows share this count). */
   columnCount: number;
+  /** Formatting applied to `{pageNumber}` tokens in this band's cells. */
   pageNumberFormat: PageNumberFormat;
   /** Whether this band is suppressed on the first body page. */
   suppressOnFirstPage: boolean;
@@ -460,7 +507,8 @@ export interface AssetRecord {
   /**
    * Base64-encoded binary content.
    * Kept in this envelope for schema v1 (single-file JSON).
-   * Phase 14 may move assets to a zip/archive bundle.
+   * A future schema revision beyond the v1.0 ten-phase roadmap may move
+   * assets to a zip/archive bundle.
    */
   base64Data: string;
 }
