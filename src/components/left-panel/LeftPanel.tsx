@@ -3,7 +3,14 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { SectionState } from '../../types';
 import './LeftPanel.css';
 
-export const LeftPanel: React.FC = () => {
+interface LeftPanelProps {
+  /** Duplicate-document handler (P02-M3). */
+  onDuplicate?: () => void;
+  /** Reset-settings handler (P02-M3). */
+  onReset?: () => void;
+}
+
+export const LeftPanel: React.FC<LeftPanelProps> = ({ onDuplicate, onReset }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
     frontPage: true,
@@ -182,12 +189,30 @@ export const LeftPanel: React.FC = () => {
           <div className="placeholder-box">
             <span className="placeholder-tag">Lifecycle & Reset</span>
             <p className="placeholder-text">
-              Duplicate document, restore saved revision, reset theme settings, or clear contents with confirmation.
+              Duplicate the current document or restore layout settings to defaults. Both keep the
+              current project untouched where applicable and ask for confirmation first.
             </p>
-            <div className="form-input-placeholder" style={{ justifyContent: 'center' }}>
-              Document actions currently disabled
-            </div>
-            <span className="placeholder-subtext">Destructive action safeguards and revision restore in Phase 02 &amp; 07.</span>
+            <button
+              type="button"
+              className={`doc-action-btn ${onDuplicate ? '' : 'disabled'}`}
+              disabled={!onDuplicate}
+              onClick={onDuplicate}
+              title="Create an independent unsaved copy of the current document"
+            >
+              Duplicate Document
+            </button>
+            <button
+              type="button"
+              className={`doc-action-btn ${onReset ? '' : 'disabled'}`}
+              disabled={!onReset}
+              onClick={onReset}
+              title="Reset page, theme, front-page and header/footer settings to defaults (keeps content)"
+            >
+              Reset Settings to Defaults
+            </button>
+            <span className="placeholder-subtext">
+              Revision restore arrives with Phase 07; additional statistics-driven actions with Phase 09.
+            </span>
           </div>
         </CollapsibleSection>
       </div>

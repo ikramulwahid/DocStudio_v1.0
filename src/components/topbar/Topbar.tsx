@@ -8,10 +8,14 @@ interface TopbarProps {
   onThemeChange: (theme: ThemeMode) => void;
   documentName?: string;
   sessionStatus?: DocumentSessionStatus;
+  /** New-document handler (P02-M3 lifecycle). Button stays disabled when absent. */
+  onNew?: () => void;
   /** Save handler (P02-M2 native .docstudio save). Button stays disabled when absent. */
   onSave?: () => void;
   /** Open handler (P02-M2 native .docstudio open). Button stays disabled when absent. */
   onOpen?: () => void;
+  /** Clear-contents handler (P02-M3 lifecycle). Button stays disabled when absent. */
+  onClear?: () => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -19,8 +23,10 @@ export const Topbar: React.FC<TopbarProps> = ({
   onThemeChange,
   documentName = 'Untitled-1.docstudio',
   sessionStatus = 'New',
+  onNew,
   onSave,
   onOpen,
+  onClear,
 }) => {
   return (
     <header className="topbar">
@@ -48,9 +54,10 @@ export const Topbar: React.FC<TopbarProps> = ({
         <nav className="topbar-actions" aria-label="Document actions">
           <button
             type="button"
-            className="topbar-btn disabled"
-            disabled
-            title="New Document (Phase 02: Document Lifecycle)"
+            className={`topbar-btn ${onNew ? '' : 'disabled'}`}
+            disabled={!onNew}
+            onClick={onNew}
+            title="New document"
           >
             <Icon name="new" size={14} />
             <span>New</span>
@@ -90,9 +97,10 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           <button
             type="button"
-            className="topbar-btn disabled"
-            disabled
-            title="Clear Document (Phase 02: Document Lifecycle)"
+            className={`topbar-btn ${onClear ? '' : 'disabled'}`}
+            disabled={!onClear}
+            onClick={onClear}
+            title="Clear document contents (keeps information and settings)"
           >
             <Icon name="clear" size={14} />
             <span>Clear Document</span>

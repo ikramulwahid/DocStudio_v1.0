@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 In Progress (P02-M1, P02-M1-R1, P02-M2, P02-M2-R1 Verified)** |
-| Last checkpoint | `P02-M2-R1` (Filesystem scope verification — VERIFIED, no config change needed) |
+| Overall status | **Phase 02 In Progress (P02-M1 → P02-M3 Verified; P02-M4 pending)** |
+| Last checkpoint | `P02-M3` (Document lifecycle actions and unsaved-change handling — VERIFIED, incl. manual test) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 52 modules, built in 1.09s, exit code 0) |
-| Last verified test run | `verify_p02_m2.mjs` (11/11 passed); manual 7-scenario scope test in `npx tauri dev` (all passed) |
-| Latest project commit | `opencode/p02-m2-native-save-open` `ff66587`; P02-M2-R1 branch commit pending push |
+| Last verified build | `npm run build` (tsc & vite: 54 modules, built in 1.10s, exit code 0) |
+| Last verified test run | `verify_p02_m3.mjs` (12/12 passed); `verify_p02_m2.mjs` (11/11 passed, no regression); manual 10-scenario lifecycle test in `npx tauri dev` (all passed) |
+| Latest project commit | `d7625cc` (P02-M2-R1, pushed); P02-M3 commit on `opencode/p02-m3-document-lifecycle` pushed with this checkpoint |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1 VERIFIED
+**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3 VERIFIED; P02-M4 pending
 
 ## Goal
 
@@ -267,7 +267,8 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 - `P02-M1-R1`: Schema review corrections (`VERIFIED`).
 - `P02-M2`: Native project save/open round-trip verified (`VERIFIED`).
 - `P02-M2-R1`: Filesystem scope verification for paths outside `$HOME` (`VERIFIED`).
-- `P02-M3`: Document lifecycle actions verified.
+- `P02-M3`: Document lifecycle actions verified (`VERIFIED`).
+- `P02-M4`: Multi-page PDF/rendering proof of concept verified.
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified.
 - `P02-GATE`: Phase 02 exit criteria met.
 
@@ -871,7 +872,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 (branch `opencode/p02-m2-filesystem-scope-check`) | Schema, save/open and fs-scope verified; P02-M3..M4 pending |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 (branch `opencode/p02-m3-document-lifecycle`) | Schema, save/open, fs scope and lifecycle verified; P02-M4 (renderer PoC) + gate pending |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
@@ -1203,6 +1204,44 @@ Copy this template for each new checkpoint:
 - **Decisions made:** none new; P02-M2's narrow-scope decision is confirmed correct by evidence.
 - **Commit/reference:** `opencode/p02-m2-filesystem-scope-check` (roadmap + documentation-comment commit)
 - **Next action:** Proceed to P02-M3 (Document lifecycle actions) upon user instruction.
+
+---
+
+### 2026-10-15 — [MINOR] P02-M3: Document Lifecycle Actions and Unsaved-Change Handling
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED (automated lifecycle verification + manual Windows integration test)
+- **Scope completed:**
+  - **New pure lifecycle layer** `src/services/document-actions.ts` (no React/Tauri imports, directly testable): `createNewDocument` (fresh UUID + timestamps, defaults), `duplicateDocument` (deep copy via JSON round-trip mirroring `.docstudio` semantics, fresh root UUID/timestamps, " (Copy)" title suffix, formal `documentId` blanked), `clearDocumentContents` (blocks removed; identity, metadata, lab profile, page/typography/front-page/header-footer/watermark settings, `savedRevisions` and `trackChangesEnabled` preserved; assets referenced only by removed blocks pruned, assets referenced by retained structures kept), `resetDocumentSettings` (page setup, page typography, front page, header/footer restored from the default factories with fresh nested IDs; content/metadata/assets preserved), `stampModifiedAt` (createdAt stable), `sessionFingerprint`/`isDirty`/`deriveSessionStatus` (baseline-comparison status derivation — never derived from file-path presence alone), and `resolveUnsavedChanges` (centralized Save/Discard/Cancel guard flow).
+  - **Confirmation UI** `src/components/common/ConfirmDialog.tsx` + `.css`: accessible modal (role=dialog, aria-modal, labelled title, initial focus on first action, Escape/backdrop dismiss) with no new dependency.
+  - **`src/App.tsx` rework of session state:** added a saved-baseline fingerprint (`baselineFingerprint`, advanced only after a successful save/open), derived `dirty` + `sessionStatus` on every render, guarded `handleNew`/`handleOpen` through `resolveUnsavedChanges`, new `handleDuplicate` (copies the current in-memory document, unsaved copy starts with an empty baseline so it is dirty/protected and shows Modified), confirmed `handleClear`/`handleReset`; `handleSave` now stamps `modifiedAt` before writing and returns success so the guard can abort on save cancel/failure; failed validation never replaces the active document.
+  - **UI wiring:** Topbar `New` and `Clear Document` buttons enabled (with titles); Left Panel `Document Actions` section replaced its placeholder with working `Duplicate Document` and `Reset Settings to Defaults` buttons passed through `Workspace`.
+  - **Verification script** `verify_p02_m3.mjs` (+ npm script `verify:p02-m3`): compiles the actual modules with tsc into a temp dir and runs 12 checks with the built-in assert module — no test framework introduced.
+- **Policies documented in `document-actions.ts`:**
+  - Timestamps: `createdAt` never changes; `modifiedAt` is stamped by every content/settings change AND by a successful save (project_details.md §6 policy).
+  - Duplicate: formal `metadata.documentId` is blanked so a copy can never silently carry a second controlled-looking document code; block IDs preserved inside the copy.
+  - Clear: saved revisions and change-tracking state are preserved (never silently discarded); asset pruning is reference-aware.
+  - Session status: `Modified` whenever the fingerprint differs from the baseline; otherwise `Saved` with a file path, `New` without one; a duplicate starts with an empty baseline so it is immediately dirty.
+- **Automated checks executed:**
+  - `npm run build` — exit code 0, 54 modules, built in 1.10s.
+  - `npm run verify:p02-m3` — 12 passed, 0 failed (new/ID freshness, duplicate data preservation + independent object graph, mutation isolation, clear preservation matrix, reset scope + fresh nested IDs, timestamp/status transitions, unchanged-not-falsely-modified, change detection, cancel aborts, save failure/cancel blocks replacement, failed-open preserves active document, schema validity of every transformation).
+  - `npm run verify:p02-m2` — 11 passed, 0 failed (no P02-M2 regression).
+  - `cargo check` — not run: no Rust code, Tauri plugin, or capability/permission change was made in this checkpoint (frontend-only + TypeScript verification).
+- **Manual integration test evidence (real Windows, `npx tauri dev`, executed by the project owner; agent drove build/fixture setup):** 10 scripted scenarios — startup New state; Duplicate (filename/status change, Modified); Save the copy; Clear confirmation Cancel vs Clear Contents; Unsaved-changes modal Cancel; guard-Save then Open; guard-Discard then malformed-file rejection with banner and preserved document; Reset Settings confirmed; New with dirty state via Discard; modal Escape/backdrop dismissal — **all passed** (owner: "verified, working ok"). Existing native Save/Open behavior verified unchanged within the same run.
+- **Actual errors encountered during development:** one broken JSDoc comment and one misplaced import in `App.tsx` during implementation (caught by `npm run build`, fixed, build clean); no runtime errors during manual testing.
+- **Decisions made:**
+  - Duplicate blanks the formal `documentId` (title gets " (Copy)") rather than auto-generating a look-alike code — the user assigns a new formal ID deliberately.
+  - Clear prunes only assets unreferenced by retained structures; revisions and track-changes state are kept.
+  - A duplicated document displays status `Modified` (empty baseline) so its work is protected by the unsaved guard immediately.
+  - Save success is signalled by a boolean from `handleSave` so the unsaved guard can abort a pending replacement on save cancel/failure.
+- **Not completed / limitations:**
+  - No content-editing UI exists yet, so in-session dirty states are reachable only via Clear/Reset/Duplicate/Save flows; the fingerprint mechanism covers future editors unchanged.
+  - Fingerprint comparison is plain `JSON.stringify` key-order-sensitive; safe within a session (all mutations build new objects) but not a canonical-JSON comparison across files.
+  - `Duplicate`/`Reset` live in the Left Panel actions section; `Save As` is not implemented (deferred; current save dialog covers first save, and re-save writes to the associated path).
+  - Confirmation modal has no focus-trap beyond initial focus + Escape; sufficient for current scope.
+  - Local test artifacts (`C:\Projects\DocStudio-Test\*`, Desktop copies) exist only on this machine and are not part of the repository.
+- **Commit/reference:** `opencode/p02-m3-document-lifecycle` (implementation + verification + roadmap commit)
+- **Next action:** Proceed to P02-M4 (Multi-page PDF/rendering proof of concept — the Phase 02 critical gate) upon user instruction.
 
 ---
 
