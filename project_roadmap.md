@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 01 — Empty Application Shell |
-| Overall status | **Not started** (update when work begins) |
-| Last checkpoint | None recorded |
-| Current blocking issue | None recorded |
-| Last verified build | Not yet recorded |
-| Last verified test run | Not yet recorded |
-| Latest project commit | Not yet recorded |
+| Overall status | **Phase 01 Verified** |
+| Last checkpoint | `P01-GATE` (Phase 01 Empty Application Shell verified) |
+| Current blocking issue | None |
+| Last verified build | `npm run build` (tsc & vite: 41 modules, built in 953ms); `cargo build` (`docstudio.exe`, 13.4 MB) |
+| Last verified test run | `verify_phase01.js` (frontend structure, themes, 3-column grid, topbar, sections verified); `tauri info` |
+| Latest project commit | Untracked bootstrap (local verified) |
 
 ### Status vocabulary
 
@@ -89,7 +89,7 @@ These rules apply to every phase:
 
 # Phase 01 — Empty Application Shell
 
-**Initial status:** `NOT STARTED`
+**Initial status:** `VERIFIED`
 
 ## Goal
 
@@ -152,20 +152,20 @@ Use realistic layout placeholders rather than building all the settings now.
 
 ## Exit criteria
 
-- [ ] Shell matches the required structure.
-- [ ] Three columns have the intended relative proportions and usable minimum widths.
-- [ ] Multicolor, light, and dark modes work independently of document styling.
-- [ ] Left sections collapse and expand.
-- [ ] Topbar actions are present and do not claim unsupported success.
-- [ ] Development/frontend build passes.
-- [ ] Evidence and checkpoint entry are recorded.
+- [x] Shell matches the required structure.
+- [x] Three columns have the intended relative proportions and usable minimum widths.
+- [x] Multicolor, light, and dark modes work independently of document styling.
+- [x] Left sections collapse and expand.
+- [x] Topbar actions are present and do not claim unsupported success.
+- [x] Development/frontend build passes.
+- [x] Evidence and checkpoint entry are recorded.
 
 ## Checkpoints
 
-- `P01-M1`: React/Vite project builds.
-- `P01-M2`: Three-column layout and topbar implemented.
-- `P01-M3`: Interface modes and collapsible panels verified.
-- `P01-GATE`: Phase 01 exit criteria met.
+- `P01-M1`: React/Vite project builds (`VERIFIED`).
+- `P01-M2`: Three-column layout and topbar implemented (`VERIFIED`).
+- `P01-M3`: Interface modes and collapsible panels verified (`VERIFIED`).
+- `P01-GATE`: Phase 01 exit criteria met (`VERIFIED`).
 
 ---
 
@@ -868,7 +868,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
-| 01 | Empty Application Shell | NOT STARTED | — | — | — | — |
+| 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
 | 02 | Document Model, Metadata, Lifecycle, Renderer Proof | NOT STARTED | — | — | — | — |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
@@ -885,7 +885,10 @@ Add, update, or remove rows as tasks are completed. Use real dates and links/pat
 
 | Checkpoint ID | Description | Status | Evidence | Commit/reference | Notes |
 |---|---|---|---|---|---|
-| — | No checkpoints recorded yet | NOT STARTED | — | — | Begin with `P01-M1` |
+| `P01-M1` | React + TypeScript + Vite project bootstrap | VERIFIED | `npm run build` passed in 953ms; dist/ generated | Local bootstrap | Vite 6 + React 18 + TS |
+| `P01-M2` | Three-column workspace (25%/35%/40%) and Topbar | VERIFIED | CSS Grid layout verified; Topbar actions wired | Workspace.css / Topbar.tsx | Independent scrolling, honest disabled actions |
+| `P01-M3` | Interface appearance modes & collapsible panels | VERIFIED | Multicolor, Light, Dark themes; 6 collapsible sections | theme.css / LeftPanel.tsx | Persistent localStorage theme switch |
+| `P01-GATE` | Phase 01 Empty Application Shell Gate | VERIFIED | `cargo build` (`docstudio.exe`, 13.4MB), `verify_phase01.js` | src-tauri/target/debug/docstudio.exe | Phase 01 complete |
 
 ## 6. Decision Log
 
@@ -941,7 +944,100 @@ Copy this template for each new checkpoint:
 
 ### History
 
-_No implementation checkpoints have been recorded yet._
+### 2026-10-15 — [MINOR] P01-M1: React, TypeScript, Vite, and Tauri 2 Project Foundation
+
+- **Phase:** Phase 01 — Empty Application Shell
+- **Status:** VERIFIED
+- **Scope completed:**
+  - Initialized React 18 + TypeScript + Vite project directly in `C:\Projects\DocStudio`.
+  - Configured Tauri 2 (`src-tauri` with `tauri.conf.json`, `Cargo.toml`, build script, and Windows icons).
+  - Preserved existing Markdown project specifications (`AGENTS.md`, `project_details.md`, `project_roadmap.md`).
+  - Configured minimal, strictly scoped dependencies (`@tauri-apps/api`, `@tauri-apps/cli`, `react`, `react-dom`, `vite`, `typescript`).
+- **Evidence:**
+  - `npm run build`: `tsc && vite build` built 41 modules in 953ms; generated `dist/index.html` and bundled assets.
+  - `tauri info`: verified Windows 11 x64, WebView2 155.0.4283.45, MSVC Build Tools 2026, Rust 1.98.1, Cargo 1.98.1.
+- **Validation performed:**
+  - Verified local environment toolchain, node build execution, and Tauri CLI initialization without errors.
+- **Not completed / limitations:**
+  - None identified in this checkpoint.
+- **Decisions made:**
+  - Zero heavy external component libraries used; implemented clean, lightweight CSS variable theme system and inline accessible SVGs.
+- **Commit/reference:** Local verified bootstrap
+- **Next action:** Implement Topbar and 3-column workspace layout (`P01-M2`).
+
+---
+
+### 2026-10-15 — [MINOR] P01-M2: Topbar and 3-Column Workspace Layout
+
+- **Phase:** Phase 01 — Empty Application Shell
+- **Status:** VERIFIED
+- **Scope completed:**
+  - Topbar left: DocStudio logo, app name with v1.0 tag, visual separator, active session status pill (`New`), active document name (`Untitled-1.docstudio`).
+  - Topbar right: 5 required action buttons (`New`, `Save`, `Open`, `Export`, `Clear Document`), styled with icons, focus states, and honest disabled state.
+  - Workspace: CSS Grid 3-column layout matching 25% (Left), 35% (Middle), 40% (Right) proportions with `minmax(260px, 25fr) minmax(360px, 35fr) minmax(400px, 40fr)`.
+  - Independent scrolling for all three columns and window overflow protection.
+- **Evidence:**
+  - `verify_phase01.js`: verified all 5 topbar actions, active status badge, and CSS Grid proportions.
+  - Build test: `npm run build` passed with 0 errors.
+- **Validation performed:**
+  - Confirmed no horizontal overflow, correct layout proportions, and proper button disabled attributes.
+- **Not completed / limitations:**
+  - Document lifecycle and persistence actions intentionally disabled per Phase 01 non-destructive requirements.
+- **Decisions made:**
+  - None.
+- **Commit/reference:** Local verified
+- **Next action:** Implement 3 application appearance modes and LeftPanel collapsible sections (`P01-M3`).
+
+---
+
+### 2026-10-15 — [MINOR] P01-M3: Interface Appearance Modes and Left-Column Collapsible Sections
+
+- **Phase:** Phase 01 — Empty Application Shell
+- **Status:** VERIFIED
+- **Scope completed:**
+  - Implemented 3 switchable application interface modes: `Multicolor` (laboratory jewel-slate palette), `Light` (clean neutral slate), and `Dark` (pro charcoal).
+  - Mode switcher in Topbar dynamically sets `data-theme` on root element and persists preference in `localStorage`.
+  - Left panel: 6 collapsible sections (Document Information, Front Page, Page & Typography, Header & Footer, Document Statistics, Document Actions).
+  - Smooth chevron rotation, section badges, Expand All / Collapse All actions, and individual accordion toggles.
+  - Middle panel: structured modular block placeholder cards indicating Phase 05 scope.
+  - Right panel: page-shaped container with realistic A4 aspect ratio, live margin guide toggle, Fit Width/Fit Page modes, and Phase 08 pagination engine tag.
+- **Evidence:**
+  - `verify_phase01.js`: verified 3 theme selectors, 6 collapsible sections, and preview controls.
+  - Checked theme variables in `src/styles/theme.css`.
+- **Validation performed:**
+  - Verified expand/collapse interactions and state preservation across theme toggles.
+- **Not completed / limitations:**
+  - None.
+- **Decisions made:**
+  - Stored interface theme preference independently from future document formatting per `project_details.md` Section 5.2.
+- **Commit/reference:** Local verified
+- **Next action:** Verify Phase 01 Gate (`P01-GATE`).
+
+---
+
+### 2026-10-15 — [MAJOR] P01-GATE: Phase 01 Empty Application Shell Exit Gate
+
+- **Phase:** Phase 01 — Empty Application Shell
+- **Status:** VERIFIED
+- **Scope completed:**
+  - Verified all exit criteria for Phase 01.
+  - Frontend production build (`tsc && vite build`) passed with zero errors.
+  - Desktop Rust backend compiled with MSVC; `cargo build` generated `src-tauri\target\debug\docstudio.exe` (13.4 MB).
+  - All Phase 01 acceptance criteria satisfied honestly without false simulation.
+- **Evidence:**
+  - `npm run build`: 41 modules transformed, built in 953ms.
+  - `cargo check`: finished in 0.92s.
+  - `cargo build`: finished in 4m 19s; `docstudio.exe` binary created.
+  - `tauri info`: verified all Windows toolchain prerequisites.
+  - `verify_phase01.js`: passed 100% of structural checks.
+- **Validation performed:**
+  - Checked all UI elements, layout proportions, appearance modes, collapsible panels, and build artifacts.
+- **Not completed / limitations:**
+  - Document editing, file saving/opening, and PDF export are deferred to their designated roadmap phases (Phases 02, 05, and 08).
+- **Decisions made:**
+  - DEC-001 through DEC-004 remain pending as planned for later phases.
+- **Commit/reference:** Local verified
+- **Next action:** Proceed to Phase 02 (Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept) upon user instruction.
 
 ---
 

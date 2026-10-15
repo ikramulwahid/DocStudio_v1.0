@@ -1,0 +1,231 @@
+:root {
+  /* Common typography tokens */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  
+  --topbar-height: 52px;
+  --toolbar-height: 44px;
+  
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -1px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-paper: 0 8px 24px -4px rgba(0, 0, 0, 0.18), 0 2px 6px -1px rgba(0, 0, 0, 0.08);
+
+  --transition-fast: 0.15s ease;
+  --transition-base: 0.25s ease;
+}
+
+/* ==========================================================================
+   Theme: Multicolor (Rich Laboratory Technical Palette)
+   ========================================================================== */
+[data-theme="multicolor"] {
+  --app-bg: #0f172a;
+  
+  /* Topbar */
+  --topbar-bg: linear-gradient(135deg, #090d16 0%, #0f172a 60%, #131d38 100%);
+  --topbar-border: #1e293b;
+  --topbar-text: #f8fafc;
+  --topbar-muted: #94a3b8;
+  --topbar-brand: #38bdf8;
+  --topbar-brand-bg: rgba(56, 189, 248, 0.15);
+  
+  /* Left Column (Settings Panel) */
+  --panel-left-bg: #f8fafc;
+  --panel-left-header-bg: #edf2f7;
+  --panel-left-border: #e2e8f0;
+  --panel-left-card: #ffffff;
+  --panel-left-card-border: #cbd5e1;
+  --panel-left-text: #0f172a;
+  --panel-left-text-muted: #64748b;
+  --panel-left-accent: #0284c7;
+  --panel-left-hover: #e2e8f0;
+  
+  /* Middle Column (Editor Panel) */
+  --panel-mid-bg: #f1f5f9;
+  --panel-mid-header-bg: #e2e8f0;
+  --panel-mid-border: #cbd5e1;
+  --panel-mid-canvas: #ffffff;
+  --panel-mid-canvas-border: #cbd5e1;
+  --panel-mid-text: #0f172a;
+  --panel-mid-text-muted: #64748b;
+  --panel-mid-accent: #6366f1;
+  
+  /* Right Column (Preview Panel) */
+  --panel-right-bg: #334155;
+  --panel-right-header-bg: #1e293b;
+  --panel-right-border: #475569;
+  --panel-right-paper: #ffffff;
+  --panel-right-paper-text: #1e293b;
+  --panel-right-paper-guide: #0284c7;
+  --panel-right-text: #f8fafc;
+  --panel-right-text-muted: #94a3b8;
+  --panel-right-accent: #38bdf8;
+  --panel-right-control-bg: rgba(255, 255, 255, 0.1);
+  --panel-right-control-hover: rgba(255, 255, 255, 0.2);
+  --panel-right-control-active: #0284c7;
+
+  /* Global Control States */
+  --button-disabled-bg: rgba(148, 163, 184, 0.15);
+  --button-disabled-text: #64748b;
+  --button-disabled-border: rgba(148, 163, 184, 0.2);
+  
+  /* Status Badges */
+  --status-new-bg: #dbeafe;
+  --status-new-text: #1d4ed8;
+  --status-new-dot: #2563eb;
+  
+  --badge-phase-bg: rgba(99, 102, 241, 0.12);
+  --badge-phase-text: #4f46e5;
+  --badge-phase-border: rgba(99, 102, 241, 0.25);
+  
+  /* Dividers */
+  --divider-color: #334155;
+  --column-divider: #cbd5e1;
+  --scrollbar-thumb: #94a3b8;
+  --scrollbar-track: #f1f5f9;
+}
+
+/* ==========================================================================
+   Theme: Light (Minimalist Monochrome Neutral Desktop Theme)
+   ========================================================================== */
+[data-theme="light"] {
+  --app-bg: #f8fafc;
+  
+  /* Topbar */
+  --topbar-bg: #ffffff;
+  --topbar-border: #e2e8f0;
+  --topbar-text: #0f172a;
+  --topbar-muted: #64748b;
+  --topbar-brand: #0f172a;
+  --topbar-brand-bg: #f1f5f9;
+  
+  /* Left Column */
+  --panel-left-bg: #ffffff;
+  --panel-left-header-bg: #f8fafc;
+  --panel-left-border: #e2e8f0;
+  --panel-left-card: #f8fafc;
+  --panel-left-card-border: #e2e8f0;
+  --panel-left-text: #0f172a;
+  --panel-left-text-muted: #64748b;
+  --panel-left-accent: #0f172a;
+  --panel-left-hover: #f1f5f9;
+  
+  /* Middle Column */
+  --panel-mid-bg: #f8fafc;
+  --panel-mid-header-bg: #ffffff;
+  --panel-mid-border: #e2e8f0;
+  --panel-mid-canvas: #ffffff;
+  --panel-mid-canvas-border: #e2e8f0;
+  --panel-mid-text: #0f172a;
+  --panel-mid-text-muted: #64748b;
+  --panel-mid-accent: #334155;
+  
+  /* Right Column */
+  --panel-right-bg: #e2e8f0;
+  --panel-right-header-bg: #ffffff;
+  --panel-right-border: #cbd5e1;
+  --panel-right-paper: #ffffff;
+  --panel-right-paper-text: #0f172a;
+  --panel-right-paper-guide: #64748b;
+  --panel-right-text: #0f172a;
+  --panel-right-text-muted: #64748b;
+  --panel-right-accent: #0f172a;
+  --panel-right-control-bg: #f1f5f9;
+  --panel-right-control-hover: #e2e8f0;
+  --panel-right-control-active: #0f172a;
+
+  /* Global Control States */
+  --button-disabled-bg: #f1f5f9;
+  --button-disabled-text: #94a3b8;
+  --button-disabled-border: #e2e8f0;
+  
+  /* Status Badges */
+  --status-new-bg: #f1f5f9;
+  --status-new-text: #334155;
+  --status-new-dot: #64748b;
+  
+  --badge-phase-bg: #f1f5f9;
+  --badge-phase-text: #334155;
+  --badge-phase-border: #cbd5e1;
+  
+  /* Dividers */
+  --divider-color: #e2e8f0;
+  --column-divider: #e2e8f0;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-track: #f8fafc;
+}
+
+/* ==========================================================================
+   Theme: Dark (Pro Deep Slate & Charcoal Desktop Theme)
+   ========================================================================== */
+[data-theme="dark"] {
+  --app-bg: #090d16;
+  
+  /* Topbar */
+  --topbar-bg: #0d121f;
+  --topbar-border: #1e293b;
+  --topbar-text: #f8fafc;
+  --topbar-muted: #94a3b8;
+  --topbar-brand: #38bdf8;
+  --topbar-brand-bg: rgba(56, 189, 248, 0.12);
+  
+  /* Left Column */
+  --panel-left-bg: #0f172a;
+  --panel-left-header-bg: #1e293b;
+  --panel-left-border: #1e293b;
+  --panel-left-card: #182235;
+  --panel-left-card-border: #283548;
+  --panel-left-text: #f8fafc;
+  --panel-left-text-muted: #94a3b8;
+  --panel-left-accent: #38bdf8;
+  --panel-left-hover: #1e293b;
+  
+  /* Middle Column */
+  --panel-mid-bg: #0b1120;
+  --panel-mid-header-bg: #131c2e;
+  --panel-mid-border: #1e293b;
+  --panel-mid-canvas: #131c2e;
+  --panel-mid-canvas-border: #243044;
+  --panel-mid-text: #f8fafc;
+  --panel-mid-text-muted: #94a3b8;
+  --panel-mid-accent: #818cf8;
+  
+  /* Right Column */
+  --panel-right-bg: #070a12;
+  --panel-right-header-bg: #0f172a;
+  --panel-right-border: #1e293b;
+  --panel-right-paper: #182235;
+  --panel-right-paper-text: #f8fafc;
+  --panel-right-paper-guide: #38bdf8;
+  --panel-right-text: #f8fafc;
+  --panel-right-text-muted: #94a3b8;
+  --panel-right-accent: #38bdf8;
+  --panel-right-control-bg: rgba(255, 255, 255, 0.08);
+  --panel-right-control-hover: rgba(255, 255, 255, 0.15);
+  --panel-right-control-active: #0284c7;
+
+  /* Global Control States */
+  --button-disabled-bg: rgba(255, 255, 255, 0.04);
+  --button-disabled-text: #475569;
+  --button-disabled-border: rgba(255, 255, 255, 0.06);
+  
+  /* Status Badges */
+  --status-new-bg: rgba(56, 189, 248, 0.15);
+  --status-new-text: #38bdf8;
+  --status-new-dot: #0284c7;
+  
+  --badge-phase-bg: rgba(129, 140, 248, 0.15);
+  --badge-phase-text: #a5b4fc;
+  --badge-phase-border: rgba(129, 140, 248, 0.25);
+  
+  /* Dividers */
+  --divider-color: #1e293b;
+  --column-divider: #1e293b;
+  --scrollbar-thumb: #334155;
+  --scrollbar-track: #0f172a;
+}

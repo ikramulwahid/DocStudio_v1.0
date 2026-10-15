@@ -1,0 +1,14 @@
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 25fr) minmax(360px, 35fr) minmax(400px, 40fr);
+  width: 100vw;
+  height: calc(100vh - var(--topbar-height));
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .workspace {
+    grid-template-columns: minmax(240px, 25fr) minmax(320px, 35fr) minmax(360px, 40fr);
+  }
+}
