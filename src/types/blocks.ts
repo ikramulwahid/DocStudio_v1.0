@@ -69,10 +69,19 @@ export interface HeadingBlockData {
 // Paragraph block
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Paragraph-specific horizontal alignment (project_details.md §10.2).
+ *
+ * Paragraphs support justified text; this is intentionally separate from
+ * `HAlignment` (used by headings, images, table cells, formulae, and
+ * header/footer cells), which does NOT include `justify`.
+ */
+export type ParagraphAlignment = 'left' | 'center' | 'right' | 'justify';
+
 export interface ParagraphBlockData {
   type: 'paragraph';
   spans: InlineSpan[];
-  hAlign: HAlignment;
+  hAlign: ParagraphAlignment;
   /**
    * Indentation level (0 = no indent, 1 = one level, etc.).
    * Each level corresponds to a fixed left offset applied by the renderer.
@@ -105,8 +114,16 @@ export interface CalloutBlockData {
 
 export type ListType = 'bullet' | 'numbered' | 'checklist';
 
-/** Bullet marker styles for unordered lists. */
-export type BulletStyle = 'disc' | 'circle' | 'square' | 'dash';
+/**
+ * Bullet marker styles for unordered lists (project_details.md §10.4).
+ *
+ * • `disc`   — solid (filled) bullet marker.
+ * • `circle` — hollow / circular (open) marker.
+ * • `square` — solid square marker.
+ * • `dash`   — dash / hyphen marker.
+ * • `arrow`  — arrowhead marker.
+ */
+export type BulletStyle = 'disc' | 'circle' | 'square' | 'dash' | 'arrow';
 
 /** Numbering styles for ordered lists. */
 export type NumberStyle = 'decimal' | 'lower-alpha' | 'upper-alpha' | 'lower-roman' | 'upper-roman';
@@ -205,6 +222,31 @@ export interface FormulaBlockData {
 
 export type ImageLayout = 'single' | 'side-by-side';
 
+/**
+ * Optional crop rectangle for an image (project_details.md §10.7 "Crop").
+ *
+ * Coordinate system — normalized fractions of the SOURCE image, origin at
+ * the top-left corner:
+ * • `x`, `y`           — top-left corner of the crop rectangle, expressed as
+ *                        a fraction of the source image's natural width/height.
+ * • `width`, `height`  — size of the crop rectangle, expressed as a fraction
+ *                        of the source image's natural width/height.
+ * All four values are in the range 0–1 and `x + width <= 1`,
+ * `y + height <= 1`.
+ *
+ * Example: `{ x: 0, y: 0, width: 0.5, height: 1 }` keeps the left half of
+ * the image.  Absent `crop` means the full, uncropped image is used.
+ */
+export interface ImageCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Caption placement relative to its image (project_details.md §10.7). */
+export type CaptionPlacement = 'top' | 'bottom';
+
 export interface ImageItem {
   /** Stable ID for the image slot within this block. */
   readonly id: DocUUID;
@@ -213,15 +255,31 @@ export interface ImageItem {
    * Null when the slot is empty (placeholder state).
    */
   assetId: DocUUID | null;
-  /** Optional caption rendered below the image. */
+  /** Optional caption text accompanying the image. */
   caption?: string;
+  /**
+   * Where the caption renders relative to the image.
+   * Optional; when omitted the renderer defaults to `'bottom'`.
+   */
+  captionPlacement?: CaptionPlacement;
   /** Optional figure reference label, e.g. "Figure 3". Managed by the renderer. */
   figureLabel?: string;
+  /**
+   * Optional crop applied to the source asset, in normalized source-image
+   * coordinates (see ImageCrop).  Absent = no crop.
+   */
+  crop?: ImageCrop;
   /** Display width as a fraction of the available content width (0.1–1.0). */
   widthFraction: number;
   hAlign: HAlignment;
 }
 
+/**
+ * Image block (project_details.md §10.7).
+ * Supports one image or two images side-by-side; per-image concerns
+ * (asset reference, optional crop, caption + caption placement, display
+ * width and alignment) live on each `ImageItem`.
+ */
 export interface ImageBlockData {
   type: 'image';
   layout: ImageLayout;
@@ -236,15 +294,40 @@ export interface Signer {
   readonly id: DocUUID;
   /** Role label, e.g. "Prepared by", "Approved by". */
   role: string;
-  /** Pre-filled name (optional; may be left blank for handwritten completion). */
+  /**
+   * Pre-filled signer name (optional on its own; may be left blank for
+   * handwritten completion — but see the name-or-designation rule on
+   * SignatureBlockData).
+   */
   name?: string;
+  /** Job designation/title, e.g. "Quality Manager". */
+  designation?: string;
+  /** Department or section (optional; project_details.md §10.8). */
+  department?: string;
   /** Signature date (ISO 8601); may be blank. */
   date?: string;
 }
 
+/**
+ * Signature block (project_details.md §10.8).
+ *
+ * Signer-count rule: a block supports ONE, TWO or THREE signers — i.e.
+ * `signers.length` must be 1, 2, or 3.  The schema records this expectation
+ * here; enforcement belongs to the editing UI/validation layer, not to a
+ * runtime schema-validation dependency.
+ *
+ * Signer-content rule: every signer MUST supply at least a `name` or a
+ * `designation`.  This is a documented schema-level contract (also enforced
+ * later by the UI at entry time); no validation library is introduced for
+ * it in this schema checkpoint.
+ *
+ * Note: a printed name/designation or an image is never to be presented as a
+ * verified electronic signature.
+ */
 export interface SignatureBlockData {
   type: 'signature';
   hAlign: HAlignment;
+  /** 1–3 signers (see the signer-count and content rules above). */
   signers: Signer[];
 }
 

@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 In Progress (P02-M1 Verified)** |
-| Last checkpoint | `P02-M1` (Document schema and defaults — VERIFIED) |
+| Overall status | **Phase 02 In Progress (P02-M1, P02-M1-R1 Verified)** |
+| Last checkpoint | `P02-M1-R1` (Schema review corrections — VERIFIED) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 41 modules, built in 912ms, exit code 0) |
-| Last verified test run | `verify_phase01.js` (Phase 01 structural checks); P02-M1 TypeScript build (zero errors) |
-| Latest project commit | Untracked bootstrap (local verified) |
+| Last verified build | `npm run build` (tsc & vite: 41 modules, built in 854ms, exit code 0) |
+| Last verified test run | `npm run build` schema type-check + compiled default-factory inspection (Node); `cargo check` (5.06s); `verify_phase01.js` (Phase 01 structural checks) |
+| Latest project commit | `dc69b35` (P02-M1); P02-M1-R1 changes local, not committed |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `IN PROGRESS` — P02-M1 VERIFIED
+**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1 VERIFIED
 
 ## Goal
 
@@ -264,6 +264,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 ## Checkpoints
 
 - `P02-M1`: Schema and defaults documented (`VERIFIED`).
+- `P02-M1-R1`: Schema review corrections (`VERIFIED`).
 - `P02-M2`: Native project save/open round-trip verified.
 - `P02-M3`: Document lifecycle actions verified.
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified.
@@ -869,7 +870,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | NOT STARTED | — | — | — | — |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 (local, uncommitted) | Schema + review corrections verified; P02-M2..M4 pending |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
@@ -1098,6 +1099,37 @@ Copy this template for each new checkpoint:
   - Assets stored as `base64Data` in JSON for schema v1; Phase 14 may migrate to zip bundle.
   - `DocumentMetadataStatus` is an open string union to allow custom document-status values.
 - **Commit/reference:** Local verified
+- **Next action:** Proceed to P02-M2 (Native project save/open round-trip) upon user instruction.
+
+---
+
+### 2026-10-15 — [MINOR] P02-M1-R1: Schema Review Corrections
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED
+- **Scope completed (corrections A–H implemented):**
+  - **A. Header/footer defaults:** `createDefaultHeader()` and `createDefaultFooter()` now produce one row with two cells and `columnCount: 2`, so the row cell count, `columnCount` and the spec §9 default layout agree. Corrected the misleading `makeSimpleRow` comment ("single-cell") and the header/footer comment-versus-content mismatches (comment claimed a title token while content was `{documentId}`; footer comment claimed a page number while the cell was empty). Page-number behavior is now explicit: the right cell carries a `{pageNumber}` token formatted by the band's `pageNumberFormat` (`'Page X of Y'` by default; `'none'` renders empty).
+  - **B. Paragraph alignment:** added `ParagraphAlignment` (`'left' | 'center' | 'right' | 'justify'`) in `src/types/blocks.ts` and used it for `ParagraphBlockData.hAlign`. `HAlignment` stays `'left' | 'center' | 'right'` and is documented as excluding justification for headings, table cells, images, formulae, and header/footer cells.
+  - **C. Image block schema:** added optional `ImageCrop { x, y, width, height }` with a documented normalized-fraction coordinate system (fractions of the source image's natural dimensions, origin top-left) and `CaptionPlacement` (`'top' | 'bottom'`) on `ImageItem` as optional `captionPlacement` (omitted = `'bottom'`). Existing asset, layout, `widthFraction` and `hAlign` fields preserved unchanged.
+  - **D. Signature block schema:** added optional `department` to `Signer`, plus optional `designation` so the required name-or-designation rule has a field to reference alongside `name`. Documented on `SignatureBlockData` that a block supports one, two or three signers, and that every signer must supply a `name` or a `designation` — recorded as a schema-level contract for the future UI/validation layer, with no validation dependency added.
+  - **E. List block schema:** extended `BulletStyle` with `'arrow'` (arrowhead) alongside existing values; documented `disc` = solid (filled) bullet, `circle` = hollow/circular (open) marker, `square` = solid square, `dash` = dash/hyphen.
+  - **F. Cover-page metadata selector:** `CoverVisibleMetadataField` now covers every scalar `DocumentMetadata` field from spec §6 — required fields including `createdAt` and `modifiedAt`, optional fields, and all additional recommended fields (`amendmentNumber`, `reviewDate`, `clauseReferences`, `supersedes` were previously missing). User-defined fields remain selectable via `custom:${DocUUID}`.
+  - **G. Cargo manifest:** reverted the unrelated empty `features = []` entries; `src-tauri/Cargo.toml` now matches commit `64b1920` exactly. No Tauri filesystem dependencies were introduced.
+  - **H. Comment/roadmap consistency:** replaced the stale "Phase 14 may move assets to a zip/archive bundle" comment with wording consistent with the ten-phase roadmap ("a future schema revision beyond the v1.0 ten-phase roadmap"); added this checkpoint entry and updated the summary/Phase 02 checkpoint list while preserving the original P02-M1 record.
+- **Evidence (checks actually executed):**
+  - `npm run build` (`tsc && vite build`) — exit code 0, zero TypeScript errors, 41 modules transformed, built in 854ms.
+  - Compiled-factory inspection (`npx tsc` → Node script over `src/types/defaults.ts`): header `{ rows: 1, cells: 2, columnCount: 2, contents: ["{documentId}", "{pageNumber}"], aligns: ["left", "right"] }`; footer `{ rows: 1, cells: 2, columnCount: 2, contents: ["{organizationName}", "{pageNumber}"], aligns: ["left", "right"] }`; `createDefaultDocument()` still returns a valid `DocStudio/v1` document.
+  - `cargo check` (src-tauri, restored manifest) — finished in 5.06s, no errors.
+  - `git diff 64b1920 -- src-tauri/Cargo.toml` — empty (content identical to the prior manifest).
+- **Changes implemented vs. tests executed:** corrections A–H are implemented as described above; the executed checks are exactly the four commands/inspections listed under Evidence. No unit-test framework exists in the repository and none was introduced.
+- **Not completed / limitations:**
+  - No runtime enforcement yet of the 1–3 signer count, the name-or-designation rule, or the header/footer `columnCount`/row-cell agreement — these are documented schema contracts only.
+  - No serialization, document lifecycle, UI control, or PDF rendering changes — out of scope for this correction checkpoint (P02-M2 onward).
+  - No automated test suite; verification is limited to the type-check/build, factory inspection, and cargo check listed above.
+- **Decisions made:**
+  - Added an explicit optional `designation` field to `Signer` so the spec's "name or designation required" rule is representable (the existing `role` label, e.g. "Prepared by", is not a designation).
+  - The P02-M1 decision-log note "Phase 14 may migrate to zip bundle" refers to a post-v1.0 schema revision, not a roadmap phase; the original P02-M1 entry is preserved as history.
+- **Commit/reference:** Uncommitted working-tree changes on top of `dc69b35` (not pushed, per task scope)
 - **Next action:** Proceed to P02-M2 (Native project save/open round-trip) upon user instruction.
 
 ---

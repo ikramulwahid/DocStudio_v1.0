@@ -149,7 +149,12 @@ export function createDefaultFrontPage(): FrontPageSettings {
 // Header / footer defaults
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Create a single-cell, single-row band row with the given content. */
+/**
+ * Create one header/footer row containing `colCount` cells (all with
+ * colSpan 1).  The first cell receives `content` and is left-aligned;
+ * the last cell is right-aligned; any cells in between are empty and
+ * center-aligned.
+ */
 function makeSimpleRow(content: string, colCount: number): HeaderFooterRow {
   const cells: HeaderFooterCell[] = Array.from({ length: colCount }, (_, i) => ({
     id: newUUID(),
@@ -179,36 +184,49 @@ export function createDefaultWatermark(): WatermarkSettings {
   };
 }
 
-/** Default header band: 3-column row with document title center, page number right. */
+/**
+ * Default header band — ONE row, TWO columns (project_details.md §9 default
+ * layout; `columnCount`, the row's cell count and the layout all agree).
+ *
+ * - Left cell:  `{documentId}` token, left-aligned.
+ * - Right cell: `{pageNumber}` token, right-aligned, formatted with this
+ *   band's `pageNumberFormat` (`'Page X of Y'` by default; `'none'`
+ *   suppresses the number and leaves the cell empty).
+ */
 export function createDefaultHeader(): HeaderFooterBand {
-  const row = makeSimpleRow('', 3);
-  // Center cell shows document title token (resolved in Phase 06)
-  row.cells[1].content = '{documentId}';
-  row.cells[1].hAlign = 'center';
-  // Right cell shows page number
-  row.cells[2].content = '';
-  row.cells[2].hAlign = 'right';
+  const row = makeSimpleRow('{documentId}', 2);
+  // Right cell renders the page number per the band's pageNumberFormat.
+  row.cells[1].content = '{pageNumber}';
+  row.cells[1].hAlign = 'right';
 
   return {
     enabled: true,
     rows: [row],
-    columnCount: 3,
+    columnCount: 2,
     pageNumberFormat: 'Page X of Y',
     suppressOnFirstPage: true,
   };
 }
 
-/** Default footer band: 3-column row with organization left, page number right. */
+/**
+ * Default footer band — ONE row, TWO columns (project_details.md §9 default
+ * layout; `columnCount`, the row's cell count and the layout all agree).
+ *
+ * - Left cell:  `{organizationName}` token, left-aligned.
+ * - Right cell: `{pageNumber}` token, right-aligned, formatted with this
+ *   band's `pageNumberFormat` (`'Page X of Y'` by default; `'none'`
+ *   suppresses the number and leaves the cell empty).
+ */
 export function createDefaultFooter(): HeaderFooterBand {
-  const row = makeSimpleRow('', 3);
-  row.cells[0].content = '{organizationName}';
-  row.cells[0].hAlign = 'left';
-  row.cells[2].hAlign = 'right';
+  const row = makeSimpleRow('{organizationName}', 2);
+  // Right cell renders the page number per the band's pageNumberFormat.
+  row.cells[1].content = '{pageNumber}';
+  row.cells[1].hAlign = 'right';
 
   return {
     enabled: true,
     rows: [row],
-    columnCount: 3,
+    columnCount: 2,
     pageNumberFormat: 'Page X of Y',
     suppressOnFirstPage: true,
   };
