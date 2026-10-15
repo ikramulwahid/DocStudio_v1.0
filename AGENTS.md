@@ -112,3 +112,57 @@ After each task, briefly report:
 5. The roadmap checkpoint status.
 
 Stop after the requested task. Wait for the user's next instruction.
+
+## Git Commit and Push Policy
+
+### 1. General Rule
+
+After completing a requested major or minor development checkpoint:
+
+1. Implement the requested scope.
+2. Run relevant tests and build checks.
+3. Verify the acceptance criteria.
+4. Update `project_roadmap.md` with the actual status and evidence.
+5. Review the Git working tree and changes.
+6. Commit and push the verified checkpoint to GitHub.
+
+The user authorizes routine commits and pushes for verified checkpoints. Do not ask for separate permission each time.
+
+### 2. Branch Safety
+
+- Never push directly to `main`.
+- Before modifying files, check the current Git branch.
+- If the current branch is `main`, create a suitable feature branch before implementing changes.
+- Use descriptive branch names, for example `opencode/p02-m1-r1`.
+- Push the current branch using `git push -u origin HEAD` where appropriate.
+- Do not merge pull requests or merge feature branches into `main` automatically.
+
+### 3. Commit Safety
+
+- Stage only files related to the current task or checkpoint.
+- Review `git diff` and `git diff --cached` before committing.
+- Do not include secrets, API keys, credentials, `.env` files, unnecessary build artifacts, or local-only files.
+- Use a descriptive commit message that identifies the change and, where appropriate, its checkpoint.
+- Never force-push, rewrite published history, or amend an already-pushed commit.
+- Do not commit unrelated user changes.
+
+### 4. Verification and Failure Handling
+
+- Never mark a checkpoint complete unless its acceptance criteria have been verified.
+- If required tests fail, unrelated changes are present, the branch has diverged, or a Git operation fails, stop before pushing and report the issue.
+- Do not claim that changes have reached GitHub without confirming that the push succeeded.
+- If the remote rejects a push, investigate the cause rather than using a force push.
+
+### 5. Final Report
+
+After a successful push, report:
+
+- What was implemented.
+- Tests and build checks performed, with actual results.
+- The updated roadmap checkpoint status.
+- The commit hash and message.
+- The remote branch name and push result.
+- Any remaining limitations.
+- The next recommended checkpoint.
+
+Always distinguish between a feature branch being pushed and its changes being merged into `main`.
