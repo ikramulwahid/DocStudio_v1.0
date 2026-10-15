@@ -8,6 +8,10 @@ interface TopbarProps {
   onThemeChange: (theme: ThemeMode) => void;
   documentName?: string;
   sessionStatus?: DocumentSessionStatus;
+  /** Save handler (P02-M2 native .docstudio save). Button stays disabled when absent. */
+  onSave?: () => void;
+  /** Open handler (P02-M2 native .docstudio open). Button stays disabled when absent. */
+  onOpen?: () => void;
 }
 
 export const Topbar: React.FC<TopbarProps> = ({
@@ -15,6 +19,8 @@ export const Topbar: React.FC<TopbarProps> = ({
   onThemeChange,
   documentName = 'Untitled-1.docstudio',
   sessionStatus = 'New',
+  onSave,
+  onOpen,
 }) => {
   return (
     <header className="topbar">
@@ -52,9 +58,10 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           <button
             type="button"
-            className="topbar-btn disabled"
-            disabled
-            title="Save Document (Phase 02: Native .docstudio persistence)"
+            className={`topbar-btn ${onSave ? '' : 'disabled'}`}
+            disabled={!onSave}
+            onClick={onSave}
+            title="Save project to a .docstudio file"
           >
             <Icon name="save" size={14} />
             <span>Save</span>
@@ -62,9 +69,10 @@ export const Topbar: React.FC<TopbarProps> = ({
 
           <button
             type="button"
-            className="topbar-btn disabled"
-            disabled
-            title="Open Document (Phase 02: Native .docstudio file open)"
+            className={`topbar-btn ${onOpen ? '' : 'disabled'}`}
+            disabled={!onOpen}
+            onClick={onOpen}
+            title="Open a .docstudio project file"
           >
             <Icon name="open" size={14} />
             <span>Open</span>

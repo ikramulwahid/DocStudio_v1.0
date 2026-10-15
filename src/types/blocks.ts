@@ -600,3 +600,36 @@ export type AnyBlockData =
  * Useful for type-guard utilities and switch exhaustiveness checks.
  */
 export type BlockType = AnyBlockData['type'];
+
+/**
+ * Runtime list of every supported block `type` discriminant.
+ * Used by the `.docstudio` file validator (src/services/document-file.ts)
+ * to reject unknown block types on open.
+ *
+ * The `satisfies readonly BlockType[]` clause catches invalid entries at
+ * compile time.  When adding a new block type, extend AnyBlockData AND
+ * add its discriminant here.
+ */
+export const BLOCK_TYPES = [
+  'heading',
+  'paragraph',
+  'callout',
+  'list',
+  'table',
+  'formula',
+  'image',
+  'signature',
+  'horizontal-line',
+  'page-break',
+  'section-break',
+  'metadata-block',
+  'revision-history',
+  'procedure-step',
+  'equipment-list',
+  'observation',
+  'measurement',
+  'calculation',
+  'acceptance-criteria',
+  'reference',
+  'exhibit',
+] as const satisfies readonly BlockType[];

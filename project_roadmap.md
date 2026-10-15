@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 In Progress (P02-M1, P02-M1-R1 Verified)** |
-| Last checkpoint | `P02-M1-R1` (Schema review corrections — VERIFIED) |
+| Overall status | **Phase 02 In Progress (P02-M1, P02-M1-R1, P02-M2 Verified)** |
+| Last checkpoint | `P02-M2` (Native `.docstudio` save/open round-trip — VERIFIED, incl. manual test) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 41 modules, built in 854ms, exit code 0) |
-| Last verified test run | `npm run build` schema type-check + compiled default-factory inspection (Node); `cargo check` (5.06s); `verify_phase01.js` (Phase 01 structural checks) |
-| Latest project commit | `dc69b35` (P02-M1); P02-M1-R1 changes local, not committed |
+| Last verified build | `npm run build` (tsc & vite: 52 modules, built in 911ms, exit code 0) |
+| Last verified test run | `verify_p02_m2.mjs` (11/11 passed); `cargo check` (28.79s, no errors); manual Save/Open in `npx tauri dev` |
+| Latest project commit | `opencode/p02-m2-native-save-open` branch (P02-M2 commit; based on `origin/main` `b56bc59`) |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1 VERIFIED
+**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2 VERIFIED
 
 ## Goal
 
@@ -265,7 +265,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 
 - `P02-M1`: Schema and defaults documented (`VERIFIED`).
 - `P02-M1-R1`: Schema review corrections (`VERIFIED`).
-- `P02-M2`: Native project save/open round-trip verified.
+- `P02-M2`: Native project save/open round-trip verified (`VERIFIED`).
 - `P02-M3`: Document lifecycle actions verified.
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified.
 - `P02-GATE`: Phase 02 exit criteria met.
@@ -870,7 +870,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 (local, uncommitted) | Schema + review corrections verified; P02-M2..M4 pending |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 (branch `opencode/p02-m2-native-save-open`) | Schema, corrections and native save/open verified; P02-M3..M4 pending |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
@@ -1131,6 +1131,44 @@ Copy this template for each new checkpoint:
   - The P02-M1 decision-log note "Phase 14 may migrate to zip bundle" refers to a post-v1.0 schema revision, not a roadmap phase; the original P02-M1 entry is preserved as history.
 - **Commit/reference:** Uncommitted working-tree changes on top of `dc69b35` (not pushed, per task scope)
 - **Next action:** Proceed to P02-M2 (Native project save/open round-trip) upon user instruction.
+
+---
+
+### 2026-10-15 — [MINOR] P02-M2: Native `.docstudio` Project Save/Open Round-Trip
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED (automated checks + manual in-app verification by the project owner)
+- **Scope completed:**
+  - **Native format (v1):** a `.docstudio` project is a single UTF-8, pretty-printed JSON document equal to one `DocStudioDocument`. Format and compatibility policy documented in the header comment of `src/services/document-file.ts`: `schemaVersion == 1` opens; newer → rejected (`unsupported-version`); older → rejected (`no-migration`) until a migration module exists.
+  - **Created `src/services/document-file.ts`** (pure, no Tauri/React imports):
+    - `serializeDocument()` validates before writing, so a structurally invalid document can never reach disk; `deserializeDocument()` parses then validates — never a blind cast.
+    - `validateDocument()` runtime checks: `DocStudio` signature, schema-version policy, document ID, required metadata primitives, lab-profile snapshot, page setup/margins, typography, front-page settings incl. frame, header/footer band+row+cell envelopes, watermark, block envelopes with supported discriminants (new runtime `BLOCK_TYPES` list in `src/types/blocks.ts`, 21 types, `satisfies`-checked), and asset records including key/id agreement. Unknown fields are preserved, never stripped.
+    - `DocumentFileError` with codes `invalid-json | unsupported-version | no-migration | invalid-structure | io-read | io-write`, user-facing messages plus diagnostic `detail`; `defaultProjectFileName()` helper.
+  - **Created `src/services/document-io.ts`:** Tauri dialog/fs wrapper — `saveProjectText()` (known path → direct write, no dialog; otherwise native Save dialog filtered to `.docstudio` with a title-based default name and extension guard; cancel → `null`), `readProjectText()` (native Open dialog filtered to `.docstudio`; cancel → `null`), I/O failures mapped to `DocumentFileError('io-read' | 'io-write')`.
+  - **Connected the UI:** `App.tsx` initializes from `createDefaultDocument(newUUID(), nowISO())`; Save/Open handlers wire real session state (active file path, filename, `New`/`Saved` status); the active document is replaced only after successful validation; failures show a dismissible error banner (`App.css`) without touching the open document. `Topbar.tsx` gained `onSave`/`onOpen` props; New/Export/Clear remain honestly disabled. Three-column layout and themes untouched.
+  - **Tauri 2 wiring:** registered `tauri-plugin-dialog` and `tauri-plugin-fs` in `src-tauri/src/lib.rs`; added both crates to `src-tauri/Cargo.toml`; `capabilities/default.json` grants `dialog:allow-open`, `dialog:allow-save`, `fs:allow-read-text-file`, `fs:allow-write-text-file` and an `fs:scope` limited to `$HOME/**` (no unrestricted filesystem access).
+  - **Verification script `verify_p02_m2.mjs`** (npm script `verify:p02-m2`): compiles the actual `document-file.ts` + type modules with tsc and exercises them in Node — no testing framework added.
+- **Evidence (commands actually executed):**
+  - `npm run build` — exit code 0, zero TypeScript errors, 52 modules transformed, built in 911ms.
+  - `npm run verify:p02-m2` — **11 passed, 0 failed**: default round-trip (+ byte-stable re-serialization); metadata/lab profile/page setup/typography/front page/header-footer unchanged; 10 representative blocks (heading, justified paragraph, arrow-bullet list, 2×2 table, formula, cropped image with top caption, 3-signer signature, procedure-step, measurement, acceptance-criteria) deep-equal; asset record + base64 payload preserved; wrong signature, malformed JSON, 10 missing/invalid-structure variants, future schemaVersion 2, non-integer/zero/string versions all rejected with correct error codes; failed load leaves the active document byte-identical; `serializeDocument` refuses invalid in-memory documents; filename sanitization.
+  - `cargo check` (src-tauri) — finished in 28.79s, no errors (plugin deps resolved: tauri-plugin-dialog 2.8.3, tauri-plugin-fs 2.7.1).
+  - `npx tauri dev` — built in 2m50s, app launched, dev server HTTP 200, no plugin/capability errors.
+  - **Manual verification (project owner, in the running dev app):** saved a real `.docstudio` file via the native dialog, topbar filename/status updated to Saved, second Save wrote back without prompting, Open restored the project, cancel handled cleanly. Owner's report: "no errors, working ok."
+- **Dependencies / permissions added:**
+  - npm: `@tauri-apps/plugin-dialog` ^2.8.3, `@tauri-apps/plugin-fs` ^2.7.1. Rust: `tauri-plugin-dialog` 2.8.3, `tauri-plugin-fs` 2.7.1 (+ lockfile updates).
+  - Capability permissions: dialog open/save, fs read/write text files, fs scope `$HOME/**`.
+- **Not completed / limitations:**
+  - Unsaved-changes warning before Open replaces a modified document is deferred to P02-M3 (no editing exists yet; status is currently only New/Saved).
+  - Autosave/recovery (spec §14.3) not started (P02-M3/Phase 09).
+  - Filesystem scope is the user's home directory; saving/opening outside it (e.g. another drive) fails with a clear I/O error and needs a scope revisit if required.
+  - Block validation is envelope-level (ID, spacing, supported discriminant) plus full top-level structural checks; exhaustive per-block-field validation is deferred.
+  - New/Duplicate/Clear/Reset actions, track changes, PDF and DOCX remain out of scope.
+- **Decisions made:**
+  - JSON v1 chosen over an archive format: human-readable/diff-able, matches schema v1 asset-as-base64 design; packaging can evolve under a version bump.
+  - Hand-rolled structural validator — no validation framework introduced.
+  - Session model: `activeFilePath` + `activeFileName` + `sessionStatus` live in App state for now; centralized document state management belongs to P02-M3.
+- **Commit/reference:** `opencode/p02-m2-native-save-open` (this checkpoint's commit; based on `origin/main` `b56bc59`)
+- **Next action:** Proceed to P02-M3 (Document lifecycle actions: New/Duplicate/Clear/Reset + unsaved-changes handling) upon user instruction.
 
 ---
 

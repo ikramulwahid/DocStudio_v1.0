@@ -6,3 +6,34 @@
   overflow: hidden;
   background-color: var(--app-bg);
 }
+
+/* File-operation error banner (P02-M2) */
+.app-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  background-color: rgba(192, 57, 43, 0.12);
+  border-bottom: 1px solid rgba(192, 57, 43, 0.5);
+  color: var(--text-primary, #c0392b);
+  font-size: 13px;
+}
+
+.app-error-text {
+  flex: 1;
+}
+
+.app-error-dismiss {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+
+.app-error-dismiss:hover {
+  opacity: 0.7;
+}
