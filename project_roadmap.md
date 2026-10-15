@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 In Progress (P02-M1, P02-M1-R1, P02-M2 Verified)** |
-| Last checkpoint | `P02-M2` (Native `.docstudio` save/open round-trip — VERIFIED, incl. manual test) |
+| Overall status | **Phase 02 In Progress (P02-M1, P02-M1-R1, P02-M2, P02-M2-R1 Verified)** |
+| Last checkpoint | `P02-M2-R1` (Filesystem scope verification — VERIFIED, no config change needed) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 52 modules, built in 911ms, exit code 0) |
-| Last verified test run | `verify_p02_m2.mjs` (11/11 passed); `cargo check` (28.79s, no errors); manual Save/Open in `npx tauri dev` |
-| Latest project commit | `opencode/p02-m2-native-save-open` branch (P02-M2 commit; based on `origin/main` `b56bc59`) |
+| Last verified build | `npm run build` (tsc & vite: 52 modules, built in 1.09s, exit code 0) |
+| Last verified test run | `verify_p02_m2.mjs` (11/11 passed); manual 7-scenario scope test in `npx tauri dev` (all passed) |
+| Latest project commit | `opencode/p02-m2-native-save-open` `ff66587`; P02-M2-R1 branch commit pending push |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2 VERIFIED
+**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1 VERIFIED
 
 ## Goal
 
@@ -266,6 +266,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 - `P02-M1`: Schema and defaults documented (`VERIFIED`).
 - `P02-M1-R1`: Schema review corrections (`VERIFIED`).
 - `P02-M2`: Native project save/open round-trip verified (`VERIFIED`).
+- `P02-M2-R1`: Filesystem scope verification for paths outside `$HOME` (`VERIFIED`).
 - `P02-M3`: Document lifecycle actions verified.
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified.
 - `P02-GATE`: Phase 02 exit criteria met.
@@ -870,7 +871,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 (branch `opencode/p02-m2-native-save-open`) | Schema, corrections and native save/open verified; P02-M3..M4 pending |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 (branch `opencode/p02-m2-filesystem-scope-check`) | Schema, save/open and fs-scope verified; P02-M3..M4 pending |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
@@ -1169,6 +1170,39 @@ Copy this template for each new checkpoint:
   - Session model: `activeFilePath` + `activeFileName` + `sessionStatus` live in App state for now; centralized document state management belongs to P02-M3.
 - **Commit/reference:** `opencode/p02-m2-native-save-open` (this checkpoint's commit; based on `origin/main` `b56bc59`)
 - **Next action:** Proceed to P02-M3 (Document lifecycle actions: New/Duplicate/Clear/Reset + unsaved-changes handling) upon user instruction.
+
+---
+
+### 2026-10-15 — [MINOR] P02-M2-R1: Filesystem Scope Verification for Paths Outside `$HOME`
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED (static source inspection + real Windows/Tauri integration testing)
+- **Scope completed:**
+  - **Static inspection of the installed dialog plugin** (`tauri-plugin-dialog` 2.8.3, cargo registry source): its `open` command grants the exact picked file path to the fs plugin's runtime scope (`window.try_fs_scope().allow_file(&path)`) before returning it, and its `save` command does the same for the chosen save target before the frontend writes to it. Grants are **per-file and per-session** — the narrowest possible grant, so the `$HOME/**` capability scope need not be broadened for user-picked paths.
+  - **Inspected the current implementation** (`src/services/document-io.ts`, `document-file.ts`, `App.tsx`, `capabilities/default.json`, `lib.rs`, `Cargo.toml`): the dialog-then-read/write flow matches the plugin's grant model; no code or configuration defect found.
+  - **Documentation only:** added a "Filesystem scope (verified in P02-M2-R1)" note to the `src/services/document-io.ts` module header warning future maintainers not to broaden the capability scope. **No permission/configuration change was necessary or made.**
+- **Integration test evidence (real Windows, `npx tauri dev`, native dialogs, manual execution by the project owner; agent drove setup/fixture creation):**
+  - Fixture files created with the actual serialization module in `C:\Projects\DocStudio-Test\` (outside home `C:\Users\Ikram`): `scope-outside-home.docstudio` (valid, round-trip verified via `deserializeDocument`), `malformed.docstudio` (broken JSON).
+  - Scenario 1 — save inside home (Desktop): **PASS**.
+  - Scenario 2/3 — silent re-save without dialog: **PASS**.
+  - Scenario 3/4 — open + re-save a file outside `$HOME` (`C:\Projects\DocStudio-Test\`): **PASS** (dynamic scope grant confirmed by real behavior).
+  - Scenario 5 — open malformed project: error banner shown, active document unchanged: **PASS**.
+  - Scenario 6 — cancel dialogs: no state change: **PASS**.
+  - Scenario 7 — restart test: after full app restart, saving a new document to `C:\Projects\DocStudio-Test\scope-after-restart.docstudio` succeeded (per-session grants re-created by the new dialog pick): **PASS**.
+- **Automated checks executed:**
+  - `npm run build` — exit code 0, 52 modules, built in 1.09s.
+  - `npm run verify:p02-m2` — 11 passed, 0 failed (no regression; no code logic changed).
+  - `cargo check` — not re-run: no Rust or Tauri configuration change was made in this checkpoint.
+- **Actual errors encountered:** none. No fs-scope denial (`readTextFile`/`writeTextFile` permission error) occurred in any scenario.
+- **Configuration change:** none required. `fs:scope` remains `$HOME/**`; no `fs:write-all`, root, or drive-wide grant introduced.
+- **Not completed / limitations:**
+  - Native dialogs cannot be driven by the agent's automation; scenarios were executed manually by the project owner following the exact scripted procedure above.
+  - Secondary-drive storage (D:/E:/F: exist on this machine) was not exercised; the grant is path-based rather than drive-based, but this remains unverified.
+  - Files written outside `$HOME` without a prior dialog pick (e.g. a stale path after the app moves a file) remain subject to the scope — behavior unchanged and by design.
+  - Local test artifacts (`C:\Projects\DocStudio-Test\*`, Desktop `scope-in-home.docstudio`) exist only on this machine and are not part of the repository.
+- **Decisions made:** none new; P02-M2's narrow-scope decision is confirmed correct by evidence.
+- **Commit/reference:** `opencode/p02-m2-filesystem-scope-check` (roadmap + documentation-comment commit)
+- **Next action:** Proceed to P02-M3 (Document lifecycle actions) upon user instruction.
 
 ---
 

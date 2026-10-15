@@ -17,6 +17,17 @@
  * File-format concerns (parsing/validation) live in
  * src/services/document-file.ts, which is Tauri-free and unit-testable.
  *
+ * Filesystem scope (verified in P02-M2-R1)
+ * ────────────────────────────────────────
+ * The capability scope in src-tauri/capabilities/default.json is limited to
+ * `$HOME/**` on purpose — do NOT broaden it.  The dialog plugin (verified
+ * against the installed tauri-plugin-dialog 2.8.3 source) dynamically grants
+ * the exact file path a user picks (open) or chooses (save) to the fs
+ * plugin's runtime scope before the path is returned here.  Each grant is
+ * per-file and per-session, so files anywhere the user can navigate —
+ * including outside the home directory — are accessible through this
+ * dialog-then-read/write flow without any global filesystem permission.
+ *
  * @module services/document-io
  */
 
