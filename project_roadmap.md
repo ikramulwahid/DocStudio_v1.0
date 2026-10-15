@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 In Progress (P02-M1 → P02-M3 Verified; P02-M4 pending)** |
-| Last checkpoint | `P02-M3` (Document lifecycle actions and unsaved-change handling — VERIFIED, incl. manual test) |
+| Overall status | **Phase 02 In Progress (P02-M1 → P02-M4 Verified; P02-GATE pending)** |
+| Last checkpoint | `P02-M4` (Multi-page rendering + PDF proof of concept — VERIFIED, incl. manual test) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 54 modules, built in 1.10s, exit code 0) |
-| Last verified test run | `verify_p02_m3.mjs` (12/12 passed); `verify_p02_m2.mjs` (11/11 passed, no regression); manual 10-scenario lifecycle test in `npx tauri dev` (all passed) |
-| Latest project commit | `d7625cc` (P02-M2-R1, pushed); P02-M3 commit on `opencode/p02-m3-document-lifecycle` pushed with this checkpoint |
+| Last verified build | `npm run build` (tsc & vite: 259 modules, built in 5.92s, exit code 0) |
+| Last verified test run | `verify_p02_m4.mjs` (9/9 passed); `verify_p02_m2.mjs` (11/11); `verify_p02_m3.mjs` (12/12); manual 10-scenario Windows integration test in `npx tauri dev` (all passed after 2 bug-fix cycles) |
+| Latest project commit | `198db8f` (P02-M3, pushed); P02-M4 commit on `opencode/p02-m4-renderer-poc` pushed with this checkpoint |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3 VERIFIED; P02-M4 pending
+**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3, P02-M4 VERIFIED; P02-GATE pending
 
 ## Goal
 
@@ -268,8 +268,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 - `P02-M2`: Native project save/open round-trip verified (`VERIFIED`).
 - `P02-M2-R1`: Filesystem scope verification for paths outside `$HOME` (`VERIFIED`).
 - `P02-M3`: Document lifecycle actions verified (`VERIFIED`).
-- `P02-M4`: Multi-page PDF/rendering proof of concept verified.
-- `P02-M4`: Multi-page PDF/rendering proof of concept verified.
+- `P02-M4`: Multi-page PDF/rendering proof of concept verified (`VERIFIED`).
 - `P02-GATE`: Phase 02 exit criteria met.
 
 ---
@@ -872,7 +871,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 (branch `opencode/p02-m3-document-lifecycle`) | Schema, save/open, fs scope and lifecycle verified; P02-M4 (renderer PoC) + gate pending |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 `198db8f`; P02-M4 (branch `opencode/p02-m4-renderer-poc`) | Schema, save/open, fs scope, lifecycle and renderer PoC verified; P02-GATE pending |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
@@ -1242,6 +1241,55 @@ Copy this template for each new checkpoint:
   - Local test artifacts (`C:\Projects\DocStudio-Test\*`, Desktop copies) exist only on this machine and are not part of the repository.
 - **Commit/reference:** `opencode/p02-m3-document-lifecycle` (implementation + verification + roadmap commit)
 - **Next action:** Proceed to P02-M4 (Multi-page PDF/rendering proof of concept — the Phase 02 critical gate) upon user instruction.
+
+---
+
+### 2026-10-15 — [MAJOR] P02-M4: Multi-page Rendering and PDF Proof of Concept
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED (automated rendering verification + manual Windows integration test)
+- **Scope completed:**
+  - **Deterministic multi-page fixture** `src/renderer/poc/poc-fixture.ts`: fixed UUIDs/timestamps, A4 pages with 25 mm margins, 10 paragraphs (long enough to overflow page 1 mid-sentence), one explicit page-break block, a 6×4 table with caption, and one image block embedding a locally generated 400×160 PNG (`fixtures/p02-m4/balance-calibration-chart.png`) as base64 — matching the real `AssetRecord.base64Data` model.
+  - **Translation layer** `src/renderer/poc/poc-document.tsx`: maps fixture blocks (heading, paragraph, page-break, table, image) to `@react-pdf/renderer` primitives; unmapped block types render a visible `"[not yet mapped]"` marker so nothing fails silently.
+  - **Render service** `src/renderer/poc/poc-render.ts`: isomorphic single source of bytes — Node collects the pdfkit stream via async iteration, browser uses `toBlob()`; **preview and export consume the same byte array**.
+  - **In-app viewer** `src/renderer/poc/PocViewer.tsx` + `.css`: PDF.js (`react-pdf` 10.5.0, local bundled worker) paginated preview + "Export PDF…" writing the previewed bytes through `src/services/pdf-export-io.ts` (native save dialog + `fs writeFile`); wired into `PreviewPanel` behind a "Renderer PoC" toggle (PoC-only, no document-model coupling).
+  - **Verification harness** `verify_p02_m4.mjs` (npm script `verify:p02-m4`): compiles the real modules with `tsc` into `node_modules/.cache/ds-p02-m4-verify` (deliberately **not** a bundler — bundlers rewrite pdfkit's `import.meta.url` and break its embedded ICC/font resources) and runs 9 checks with the built-in `assert` module — no test framework introduced.
+  - **Capability:** added `fs:allow-write-file` to `src-tauri/capabilities/default.json` (binary counterpart of the already-granted text write; same `$HOME/**` scope + dialog per-file grants). No Rust changes; validated by `tauri dev` startup, so `cargo check` was not run.
+- **Architecture decision record (renderer selection):**
+
+  | Candidate | License / status | Assessment |
+  |---|---|---|
+  | **@react-pdf/renderer 4.9.0** + **react-pdf 10.5.0** viewer (pdfjs-dist 5.4.296) | MIT (react-pdf); Apache-2.0 (pdfjs-dist); react-pdf maintained Aug 2026 | **SELECTED** |
+  | pagedjs 0.4.3 | MIT; last publish Oct 2024 (stale) | Rejected: CSS-paged-media polyfill renders beautifully in-browser, but Tauri/WebView2 exposes no offline automated print-to-PDF API (`window.print()` is interactive; WebView2 PrintToPdf not plumbed through Tauri 2) → export would need a second engine → preview ≠ export divergence |
+  | Vivliostyle (@vivliostyle/core) | **AGPL-3.0** (confirmed via npm) | Excluded: license-incompatible with distributing a closed desktop app |
+  | pdfmake 0.3.11 | MIT; maintained Jun 2026 | Deferred: capable PDF-first engine but non-React JSON doc definitions; no capability gain over the selection for a React app |
+  | react-pdf v11 | MIT | Rejected: requires React 19; app is on React 18.3 |
+
+  **Selection rationale:** pure JS/WASM (fully offline after install), deterministic byte-stable output, **one artifact serves both preview and export** (fidelity by construction), React component model, real layout/pagination engine (Yoga) with `break`/`fixed`/`minPresenceAhead`, standard-14 fonts need no embedding (license-clean), headless Node API enables automated verification, and a PDF/A option exists for Phase 08 (lab documents). Transitive licenses: pdfkit MIT, yoga-wasm-web BSD/MIT, fontkit MIT, @react-pdf/* MIT, pdfjs-dist Apache-2.0 — all permissive; 0 vulnerabilities at install.
+- **Renderer behavior findings (verified, not assumed):**
+  - `break` is honored **only on direct children of `<Page>`** (behavior-matrix tested); blocks nested inside wrapper Views lose their page-break requests — the Phase 08 block renderer must therefore keep blocks as page children or hoist breaks.
+  - An empty zero-height break View is dropped by the layout engine.
+  - Tables have **no primitive** — composed from flex rows with `wrap={false}`; rows are unbreakable, so **row-level page splitting and repeated header rows across a split table are not automatic** (Phase 08 risk, documented below).
+  - Unregistered font families throw a predictable `Font family not registered: …` error; the PoC maps the schema default "Segoe UI" to the PDF standard-14 Times family (no embedding).
+  - Justified text with hyphenation works (`textAlign: justify` + `hyphenation` — observed "rec-/ommended" broken across a page boundary).
+  - Fixed running header/footer via `fixed` + `pageNumber`/`totalPages` render props verified; PDF MediaBox writes as `[0 0 595.280029 841.890015]`; text streams are hex-encoded TJ arrays.
+  - **pdf.js buffer detach (manual-test finding):** `getDocument({ data })` transfers the ArrayBuffer to its worker, detaching the original — first export wrote a 0-byte file. **StrictMode double-effect (manual-test finding):** dev mount effects run twice, so the second `getDocument` on the already-detached buffer failed with "An ArrayBuffer is detached and could not be cloned". **Fix:** the viewer loads from a `blob:` object URL created/revoked in an effect (the `Blob` constructor copies the bytes; state bytes stay authoritative for export), plus zero-length-export guards in `PocViewer` and `pdf-export-io.ts`. This pattern is required for Phase 08.
+- **Preview/export comparison (manual, 3-way):** in-app PDF.js preview vs. committed artifact `fixtures/p02-m4/renderer-poc-output.pdf` vs. the app-exported file opened in an external viewer — page count (3), text wrapping (including mid-sentence hyphenation overflow on page 1), explicit page break (page 2 starts at the heading), table + caption, image scaling and margins, and fonts all consistent; byte counts and render time shown in the viewer status line. All 10 scripted scenarios passed after the two bug-fix cycles above.
+- **Automated checks executed:**
+  - `npm run build` — exit code 0, 259 modules, built in 5.92s (main chunk ~1.92 MB / 663 KB gzip + 1.04 MB pdf.js worker; code-splitting deferred — noted as a performance item).
+  - `npm run verify:p02-m4` — **9 passed, 0 failed**: fixture completeness; genuine `%PDF-` file > 8 KB; exactly 3 physical pages; A4 MediaBox; extractable text (header/footer/table/caption); explicit page-break creates a real page boundary (page-3 footer sits between the last pre-break paragraph and the post-break heading); byte-identical deterministic re-render; font-fallback outcome documented; missing asset → clear error (`not found in document.assets`).
+  - `npm run verify:p02-m2` — 11 passed, 0 failed; `npm run verify:p02-m3` — 12 passed, 0 failed (no regressions).
+  - `npx tauri dev` — launched, capability validated; process shut down after manual testing.
+- **Manual integration test evidence (real Windows, `npx tauri dev`, executed by the project owner):** 10 scripted scenarios — Renderer PoC toggle; Render Sample PDF (3 pages, byte count, render ms); page 1/2/3 visual inspection (mid-sentence overflow with hyphenation, page-break top alignment, table + image); export to `C:\Projects\DocStudio-Test\p02-m4-renderer-poc.pdf`; 3-way preview/artifact/external-viewer comparison; export cancel leaves no file; New/Save/Open regression; offline confirmation — **all passed** (owner: "working fine now"). Two real defects were found and fixed during this manual cycle (0-byte export from pdf.js buffer detach; StrictMode first-load failure) — evidence the manual gate caught what automation could not.
+- **Offline behavior:** no network request at any point after install — PDF.js worker is bundled locally, fonts are engine standard-14, the image is embedded base64.
+- **Not completed / known risks for Phase 08:**
+  - PoC maps only heading/paragraph/page-break/table/image; other block types show `"[not yet mapped]"`.
+  - No table row-splitting across pages; no repeated header row for split tables; no `colSpan`/`rowSpan`; no running-header content flow across page boundaries; no ten themes, cover page, watermark, footnotes, TOC/cross-references, page-numbering styles, or block editor.
+  - Bundle size ~1.92 MB main chunk — acceptable for a desktop app but code-splitting should be evaluated in Phase 08/09.
+  - PDF/A conformance, custom embeddable-font licensing, large-document (50+ page) performance, and print quality remain Phase 08 obligations.
+- **Deviations from planned scope:** none (fixture PNG generated offline via PowerShell System.Drawing instead of adding an image dependency; no broad Tauri permission added — only the narrow `fs:allow-write-file`).
+- **Commit/reference:** `opencode/p02-m4-renderer-poc` (implementation + verification + roadmap commit)
+- **Next action:** Proceed to P02-GATE (Phase 02 exit-criteria review) upon user instruction.
 
 ---
 

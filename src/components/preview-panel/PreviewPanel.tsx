@@ -1,19 +1,33 @@
 import React, { useState } from 'react';
 import { Icon } from '../common/Icon';
+import { PocViewer } from '../../renderer/poc/PocViewer';
 import './PreviewPanel.css';
 
 export const PreviewPanel: React.FC = () => {
   const [showMarginGuides, setShowMarginGuides] = useState<boolean>(true);
   const [fitMode, setFitMode] = useState<'width' | 'page'>('width');
   const [zoomLevel] = useState<number>(100);
+  // P02-M4 renderer proof-of-concept view (isolated prototype toggle).
+  const [showRendererPoc, setShowRendererPoc] = useState<boolean>(false);
 
   return (
     <aside className="preview-panel" aria-label="Document preview workspace">
       <div className="preview-toolbar">
         <div className="preview-toolbar-left">
           <span className="page-indicator-pill" title="Current Page Position">
-            Page 1 of 1
+            {showRendererPoc ? 'P02-M4 PoC' : 'Page 1 of 1'}
           </span>
+
+          <button
+            type="button"
+            className={`toolbar-btn ${showRendererPoc ? 'active' : ''}`}
+            onClick={() => setShowRendererPoc(!showRendererPoc)}
+            title="Toggle the P02-M4 renderer proof-of-concept preview (real multi-page PDF)"
+            aria-pressed={showRendererPoc}
+          >
+            <Icon name="document" size={13} />
+            <span>Renderer PoC</span>
+          </button>
 
           <button
             type="button"
@@ -75,12 +89,15 @@ export const PreviewPanel: React.FC = () => {
       </div>
 
       <div className="preview-viewport">
-        <div
-          className="preview-paper"
-          style={{
-            maxWidth: fitMode === 'page' ? '420px' : '520px',
-          }}
-        >
+        {showRendererPoc ? (
+          <PocViewer />
+        ) : (
+          <div
+            className="preview-paper"
+            style={{
+              maxWidth: fitMode === 'page' ? '420px' : '520px',
+            }}
+          >
           {showMarginGuides && (
             <div className="preview-margin-guide">
               <span className="guide-label">Normal Margin: 25mm</span>
@@ -106,6 +123,7 @@ export const PreviewPanel: React.FC = () => {
             <span>Page 1 of 1</span>
           </div>
         </div>
+        )}
       </div>
     </aside>
   );
