@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 03 — Laboratory Profiles, Template Library, and Template Wizard |
-| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE, plus post-gate P02-M5); Phase 03 IN PROGRESS (P03-M1 VERIFIED)** |
-| Last checkpoint | `P03-M1` (Versioned template data model — VERIFIED: schema, factories, serializer/validator, example fixture) |
+| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE, plus post-gate P02-M5); Phase 03 IN PROGRESS (P03-M1, P03-M2 VERIFIED)** |
+| Last checkpoint | `P03-M2` (Template chooser, document initialization, laboratory profile foundation — VERIFIED) |
 | Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 261 modules, built in 6.00s, exit code 0; 2026-10-16) |
-| Last verified test run | 2026-10-16: `verify_p03_m1.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9), `verify_p02_m5.mjs` (14/14) — all exit 0 |
-| Latest project commit | `52f904e` (P03-M1 template schema, pushed on `opencode/p03-m1-template-schema`); previous: `2aba4a6`/`34848d4` (P02-M5) |
+| Last verified build | `npm run build` (tsc & vite: 274 modules, built in 10.21s, exit code 0; 2026-10-16) |
+| Last verified test run | 2026-10-16: `verify_p03_m2.mjs` (18/18), `verify_p03_m1.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9), `verify_p02_m5.mjs` (14/14) — all exit 0 |
+| Latest project commit | `1b361bf` (P03-M2 template chooser + laboratory profile, pushed on `opencode/p03-m2-template-chooser`); previous: `52f904e`/`39dfc07` (P03-M1) |
 
 ### Status vocabulary
 
@@ -278,7 +278,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 
 # Phase 03 — Laboratory Profiles, Template Library, and Template Wizard
 
-**Initial status:** `IN PROGRESS` (2026-10-16) — P03-M1 (template data model) VERIFIED. Local laboratory-profile editing/persistence, the template chooser and document initialization, the initial category library, and section customization all remain pending (later Phase 03 checkpoints).
+**Initial status:** `IN PROGRESS` (2026-10-16) — P03-M1 (template data model) and P03-M2 (template chooser, document initialization, laboratory profile foundation) VERIFIED. The initial category library of usable samples (§3.3) and section customization (§3.4) remain pending (later Phase 03 checkpoints).
 
 ## Goal
 
@@ -348,12 +348,12 @@ Templates are useful starting points, not mandatory checklists or a guarantee of
 ## Checkpoints
 
 - `P03-M1`: Template schema completed — **VERIFIED** (2026-10-16, `52f904e`). Versioned template data model, factories, pure serializer/validator (`.dstemplate`), example fixture, `verify:p03-m1` 14/14.
-- `P03-M2`: Template chooser and document initialization work — **NOT STARTED**.
+- `P03-M2`: Template chooser and document initialization work — **VERIFIED** (2026-10-16, `1b361bf`). New-document chooser (Blank first-class + example SOP, search, centralized category filter, empty state, section preview, keyboard/a11y), pure `template-instantiation` service with documented precedence (app defaults → template defaults → saved Lab Profile identity wins), deep-copy/remint + asset remap, reusable local Laboratory Profile (validate/save/cancel/reset, `localStorage` persistence with safe fallback), guarded document replacement via extracted `resolveChooserSelection`, `verify:p03-m2` 18/18.
 - `P03-M3`: Core laboratory template samples created — **NOT STARTED**.
 - `P03-M4`: Template customization verified — **NOT STARTED**.
 - `P03-GATE`: Phase 03 exit criteria met — **NOT STARTED**.
 
-**Still pending in Phase 03 (not completed by P03-M1):** local reusable Laboratory Profile editing and persistence (§3.1); the template chooser/search UI and initializing a new document from a template (§3.4); the initial category library of usable samples (§3.3); and section add/remove/rename/reorder customization (§3.4). P03-M1 delivered only the data model, validation, factories and serialization substrate that those later checkpoints build on.
+**Still pending in Phase 03 (not completed by P03-M1 + P03-M2):** the initial category library of usable samples covering all 8 categories (§3.3 — only the single P03-M1 example fixture exists); section add/remove/rename/reorder customization (§3.4); and template save/reopen (custom template authoring, `.dstemplate` native dialogs) if included in v1.0. P03-M2 completed §3.1 (local Laboratory Profile editing/persistence) and the chooser half of §3.4 (search/filter/create-from-template). Known P03-M2 limitations are recorded in the checkpoint entry below (profile logo bytes are not persisted; only one example template ships today).
 
 ---
 
@@ -1438,6 +1438,66 @@ Copy this template for each new checkpoint:
   - Defaults are PARTIAL and reuse existing document settings types (no parallel metadata schema).
 - **Commit/reference:** `52f904e` on `opencode/p03-m1-template-schema` (this checkpoint's commit); pushed fast-forward from `2aba4a6`.
 - **Next action:** Proceed to P03-M2 (template chooser and document initialization) upon user instruction; Phase 03 is NOT complete.
+
+---
+
+### 2026-10-16 — [MAJOR] P03-M2: Template Chooser, Document Initialization, and Laboratory Profile Foundation
+
+- **Phase:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard
+- **Status:** VERIFIED (automated verification + live UI review on a real `npx tauri dev` build; the review was driven by the agent through the running renderer — the project owner did not participate in this run, so this is recorded as agent-performed manual-equivalent evidence, not owner sign-off)
+- **Branch:** `opencode/p03-m2-template-chooser`, created from the pushed P03-M1 roadmap tip `39dfc07`. `project_details.md` was read, not modified. No Rust source, Tauri plugin, or capability file changed.
+- **Scope completed:**
+  - **Template chooser (§3.4 first half):** `services/template-chooser.ts` (pure) + `components/template-chooser/TemplateChooser.tsx` — Blank Document is a first-class choice (`BLANK_CHOICE_ID`) always listed first; catalog from `getBuiltinTemplates()` filtered through `validateTemplate` (invalid templates are dropped); free-text search over name/description/tags; category filter populated from the single source of truth `TEMPLATE_CATEGORIES` (all 8 ids, no hardcoded labels); empty state message when no template matches (Blank stays selectable); ordered section preview (name/description/prompt); accessible modal (`role="dialog"`, `aria-modal`, labelled, initial focus on search verified, Escape/backdrop/Cancel resolve `null`, `aria-pressed` choice buttons, double-click confirms). The App opens the chooser from New and performs NO other action on cancel.
+  - **Document initialization (pure `services/template-instantiation.ts`):** `createBlankDocument(profile, now)` and `instantiateTemplate(template, profile, now)` with a documented precedence policy — (1) application defaults (`createDefaultDocument`) as base, (2) template `defaults` deep-merge (an omitted or `undefined` template key never clobbers a real value), (3) the saved Laboratory Profile's identity wins (laboratory name in both the embedded snapshot and `metadata.organizationName`, address/location/phone/email/website where present, `documentIdPrefix`). `metadata.organizationName` rule: saved profile name if non-empty → else declared template `metadata.organizationName` → else the effective profile snapshot name (e.g. the template default "Example Laboratory"); empty leaves the base untouched. The profile object is never mutated. App-managed instance fields: fresh `id`, stamped `createdAt`/`modifiedAt`, empty `customFields`/`savedRevisions`, `trackChangesEnabled: false`, `metadata.documentId` deliberately kept blank (no auto document codes). Sections flatten through the P03-M1 contract into `[heading, ...section.blocks]`.
+  - **Deep-copy/remint and assets:** every instantiated block is re-enveloped with fresh `id`s and its `data` deep-cloned; the asset bundle is copied with fresh asset IDs and every reference (`frontPage.logoAssetId`, block `images[].assetId`) remapped to an asset that resolves in the new document — the source template keeps its original references (both asserted by verify:p03-m2 tests 9–12).
+  - **Laboratory Profile foundation (§3.1):** `types/lab-profile.ts` (`LabProfile` application-local type, `createEmptyLabProfile`), `services/lab-profile.ts` (pure normalize/parse/serialize/validate incl. email and website rules with blank-is-optional policy), `services/lab-profile-store.ts` (load/save/clear with injectable storage and safe fallback), `LabProfilePanel.tsx` in the Left Panel (local draft, Save Profile / Cancel / Reset, inline email/website validation). The App loads the profile BEFORE creating the startup document, so a saved profile seeds every new document.
+  - **Guarded replacement:** selection resolution is extracted into the pure `resolveChooserSelection(choice, profile, now, guard)` — `null` choice returns `null` WITHOUT calling the guard; guard `'abort'`, guard exception, or save failure all return `null` (never replace unsafely); only `'proceed'` runs `createBlankDocument`/`instantiateTemplate`. The App's handler only closes the chooser and performs the single document swap through the existing `resolveUnsavedChanges` guard. No second document-session state model was introduced.
+- **Automated checks executed (2026-10-16):**
+  - `npx tsc --noEmit` — 0 errors (after every implementation round).
+  - `npm run build` — exit code 0, 274 modules, built in 10.21s (main chunk 1,953.92 kB; known code-splitting warning, unchanged).
+  - `npm run verify:p03-m2` — **18 passed, 0 failed**: (1) chooser discovers Blank + example with centralized category label and section preview; (2) search by name/description/tag (tag path proven with a synthetic tag); (3) category filtering across all 8 ids + label lookup; (4) no-match keeps Blank + cancel returns null without invoking the guard; (5) blank creation valid/fresh with profile identity; (6) declared partial defaults applied, empty profile → "Example Laboratory", named profile wins on name/organizationName/prefix; (7) missing nested settings stay valid (deep-merge, `undefined` never clobbers, no defaults → full defaults); (8) block order heading/paragraph/heading/paragraph/paragraph with exact texts; (9) fresh document/block IDs, unique, no template-ID leak; (10) mutating instantiated blocks cannot mutate the source template; (11) mutating the document cannot mutate the saved profile; (12) asset copy with fresh ID, payload preserved, front-page + block refs remapped and resolving, template untouched; (13) document/template/profile serialization distinct with cross-rejection in both directions + profile version/signature rejection; (14) persistence across a simulated restart (fresh storage handle over shared bytes), corrupt/wrong-signature/wrong-version → fallback + message, missing → clean default, clear works, no-storage save fails cleanly, email/website validation rules; (15) profile change does not retroactively alter an existing document or template (byte-identical) while new documents pick up the change; (16) Save/Discard/Cancel semantics (not-dirty proceeds without prompting, discard proceeds without saving, save runs exactly once, cancel aborts); (17) cancelled save, failed save, guard exception and blank-choice guard all abort replacement; (18) P02/P03 regressions (document round-trip, duplicate `(Copy)` suffix, metadata no-op same-ref, dirty/status helpers, deterministic template round-trip).
+  - Regression: `npm run verify:p02-m2` — 11/11; `verify:p02-m3` — 12/12; `verify:p02-m4` — 9/9; `verify:p02-m5` — 14/14; `verify:p03-m1` — 14/14 (all exit 0).
+  - `cargo check` — **not run**: no Rust source, Tauri plugin, capability, or `src-tauri` configuration changed (the profile persists via `localStorage`, the same app-local store already used for the theme).
+- **Live review evidence (2026-10-16, real `npx tauri dev` build, agent-driven):**
+  - `npx tauri dev` — Vite ready in 524 ms, cargo `dev` profile Finished in 16.44 s, `target\debug\docstudio.exe` launched; renderer reviewed against the running dev server; shut down cleanly afterwards (port 5173 free). **Zero console errors at every step.**
+  - Chooser: New → `role="dialog"` "New Document" with search + category `<select>` listing all 8 centralized category labels; Blank Document listed first; Example SOP entry shows category label, description, tags and the ordered section preview (Scope / Responsibilities with prompts). Initial focus lands on the search box (verified via `document.activeElement`).
+  - Search `zzz-no-match` → "No templates match your search…" status shown while Blank Document remains; category "Management-System Documents" hides the example; "Laboratory SOPs and Work Instructions" shows it.
+  - Guard sequencing: editing the Title flips the badge to `Modified`; opening the chooser and Cancel leaves `Modified` + the edited title intact (chooser never touches the session); New → Blank → Create while dirty raises the existing "Unsaved changes" Save/Discard/Cancel dialog — **Cancel** keeps `Modified` with the title preserved, **Discard** replaces the document (badge `New`, filename/title reset). Clean-session Create skips the prompt.
+  - Instantiation in the real app: Create from the example template → filename `Standard Operating Procedure.docstudio`, Title `Standard Operating Procedure`, Organization `Example Laboratory`, Document Type `SOP`, Department `Laboratory`, Applicable Standard `ISO/IEC 17025:2017`, Document ID `''`.
+  - Laboratory Profile: saving with `not-an-email` shows the inline error "Enter a valid email address, or leave it blank." and writes NOTHING to storage; a valid save writes `docstudio_lab_profile` = `{"__type":"DocStudioLabProfile","schemaVersion":1,...}`; the already-created document's Organization stays `Example Laboratory` (no retroactive change); after a page reload the panel re-populates from storage; a subsequent Create from the example template shows Organization `Manual Test Lab` (saved profile identity wins). Escape closes the chooser.
+  - Note: `browser.screenshot` was unavailable (desktop window not visible to the capture service), so evidence is the textual accessibility snapshots quoted above rather than images.
+- **Persistence format (recorded):** one `localStorage` key, `docstudio_lab_profile`, holding a versioned JSON object — `__type: 'DocStudioLabProfile'`, `schemaVersion: 1`, then the trimmed profile fields (empty optionals are dropped). Equal version opens; malformed/wrong-signature/wrong-version falls back to the clean empty profile and surfaces a load-error message to the UI (a corrupted profile never blocks startup). No migration exists yet (version 1 only), no import/export, and the key is app-local and offline like the theme store (`docstudio_ui_theme`).
+- **Not completed / limitations:**
+  - The initial 8-category library (§3.3) is NOT done — the chooser shows exactly one example template; category filtering is exercised by only that fixture until P03-M3.
+  - Section add/remove/rename/reorder customization (§3.4 second half) is NOT done.
+  - Template authoring/save/reopen (`.dstemplate` native dialogs, user-template storage) is NOT done; the catalog source remains in-memory built-ins.
+  - **Logo limitation:** raw logo bytes are deliberately NOT persisted in the profile (corruption and size risk in `localStorage`); `LabProfile.logoAssetId` exists but is forward-compatible only — durable logo storage belongs to a later asset-service checkpoint (no fs binary-read capability exists today). No `capabilities/default.json` change.
+  - Profile scope is identity + contact + document-ID prefix only (no per-template defaults or logo upload UI).
+  - Front-page rendering/themes, the block editor, and DOCX remain later-phase work (unchanged).
+  - Automation covers the pure services only; React rendering (chooser markup, profile form) has no automated render test — it was verified through the live review above instead. Fingerprint remains `JSON.stringify` (key-order sensitive) and the main chunk stays ~1.95 MB — both unchanged known limitations.
+- **Files created/modified:**
+  - `src/types/lab-profile.ts` — CREATED
+  - `src/services/lab-profile.ts` — CREATED
+  - `src/services/lab-profile-store.ts` — CREATED
+  - `src/services/template-instantiation.ts` — CREATED
+  - `src/services/template-chooser.ts` — CREATED
+  - `src/components/template-chooser/TemplateChooser.tsx` + `TemplateChooser.css` — CREATED
+  - `src/components/left-panel/LabProfilePanel.tsx` + `LabProfilePanel.css` — CREATED
+  - `src/App.tsx` — MODIFIED (profile load-before-session, save handler, chooser wiring, guarded replacement)
+  - `src/components/left-panel/LeftPanel.tsx` — MODIFIED (profile panel integrated)
+  - `src/components/workspace/Workspace.tsx` — MODIFIED (prop threading)
+  - `src/types/index.ts` — MODIFIED (exports + `SectionState.labProfile`)
+  - `verify_p03_m2.mjs` — CREATED (18 checks, tsc-to-temp + Node `assert`, no framework)
+  - `package.json` — MODIFIED (`verify:p03-m2` script)
+  - `project_roadmap.md` — MODIFIED (this entry + summary/status/boards/checkpoints)
+- **Decisions recorded:**
+  - Precedence policy: app defaults → template defaults (deep, `undefined` never clobbers) → saved Lab Profile identity wins; the profile object is never mutated by instantiation.
+  - `metadata.organizationName`: saved profile name (if non-empty) → declared template value → effective profile snapshot name; applied in both blank creation and template instantiation.
+  - Persistence is `localStorage` with a single versioned key (same pattern as the theme) — deliberately avoiding a new Tauri capability and any Rust change.
+  - Guard sequencing lives in the pure `resolveChooserSelection`; cancel/abort paths short-circuit before any document is constructed, and a throwing guard aborts rather than replacing unsafely.
+  - `metadata.documentId` stays blank on creation (no automatic document codes); `LabProfile.logoAssetId` never flows into documents (no dangling references).
+- **Commit/reference:** `1b361bf` on `opencode/p03-m2-template-chooser` (this checkpoint's implementation commit; the roadmap evidence is the following commit on the same branch). No force-push, no history rewrite, nothing merged to `main`.
+- **Next action:** Proceed to P03-M3 (core laboratory template samples across the 8 categories) upon user instruction; Phase 03 is NOT complete (P03-M3, P03-M4 and P03-GATE remain).
 
 ---
 
