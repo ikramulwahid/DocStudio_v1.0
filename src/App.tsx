@@ -30,6 +30,14 @@ import {
   UnsavedChoice,
 } from './services/document-actions';
 import {
+  updatePageSetup,
+  updateTypography,
+  updateDisplayHeader,
+  type PageSetupPatch,
+  type SettingsUpdateResult,
+  type TypographyPatch,
+} from './services/page-typography';
+import {
   getBuiltinTemplates,
   resolveChooserSelection,
   type TemplateChoice,
@@ -301,6 +309,33 @@ export const App: React.FC = () => {
     setActiveDocument(updateDocumentMetadata(activeDocument, patch));
   };
 
+  // ── Page setup & typography editing (P04-M1) ─────────────────────────────
+  /**
+   * Apply a page-setup/typography/display-header patch to the AUTHORITATIVE
+   * active document through the pure `page-typography` service — same
+   * conventions as metadata (P02-M5): no-op patches return the same
+   * reference (no false Modified status), real changes stamp `modifiedAt`,
+   * rejected patches leave the document untouched and the panel shows the
+   * service's understandable message inline.
+   */
+  const handlePageSetupChange = (patch: PageSetupPatch): SettingsUpdateResult => {
+    const result = updatePageSetup(activeDocument, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  const handleTypographyChange = (patch: TypographyPatch): SettingsUpdateResult => {
+    const result = updateTypography(activeDocument, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  const handleDisplayHeaderChange = (value: boolean): SettingsUpdateResult => {
+    const result = updateDisplayHeader(activeDocument, value);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -370,6 +405,12 @@ export const App: React.FC = () => {
         labProfile={labProfile}
         onLabProfileSave={handleLabProfileSave}
         labProfileError={labProfileError}
+        pageSetup={activeDocument.pageSetup}
+        pageTypography={activeDocument.pageTypography}
+        frontPageEnabled={activeDocument.frontPage.enabled}
+        onPageSetupChange={handlePageSetupChange}
+        onTypographyChange={handleTypographyChange}
+        onDisplayHeaderChange={handleDisplayHeaderChange}
       />
       {chooserOpen && (
         <TemplateChooser

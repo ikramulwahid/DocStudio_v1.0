@@ -2,8 +2,13 @@ import React from 'react';
 import { LeftPanel } from '../left-panel/LeftPanel';
 import { EditorPanel } from '../editor-panel/EditorPanel';
 import { PreviewPanel } from '../preview-panel/PreviewPanel';
-import type { DocumentMetadata } from '../../types/document';
+import type { DocumentMetadata, PageSetup, PageTypographySettings } from '../../types/document';
 import type { LabProfile } from '../../types/lab-profile';
+import type {
+  PageSetupPatch,
+  SettingsUpdateResult,
+  TypographyPatch,
+} from '../../services/page-typography';
 import './Workspace.css';
 
 interface WorkspaceProps {
@@ -21,6 +26,18 @@ interface WorkspaceProps {
   onLabProfileSave?: (profile: LabProfile) => void;
   /** Optional profile load/save error surfaced from the App. */
   labProfileError?: string | null;
+  /** Authoritative `document.pageSetup` (P04-M1). */
+  pageSetup?: PageSetup;
+  /** Authoritative `document.pageTypography` (P04-M1). */
+  pageTypography?: PageTypographySettings;
+  /** `document.frontPage.enabled` (P04-M1, §8.4). */
+  frontPageEnabled?: boolean;
+  /** Commit a page-setup patch (P04-M1). */
+  onPageSetupChange?: (patch: PageSetupPatch) => SettingsUpdateResult;
+  /** Commit a typography patch (P04-M1). */
+  onTypographyChange?: (patch: TypographyPatch) => SettingsUpdateResult;
+  /** Commit the display-header preference (P04-M1). */
+  onDisplayHeaderChange?: (value: boolean) => SettingsUpdateResult;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -31,6 +48,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   labProfile,
   onLabProfileSave,
   labProfileError,
+  pageSetup,
+  pageTypography,
+  frontPageEnabled,
+  onPageSetupChange,
+  onTypographyChange,
+  onDisplayHeaderChange,
 }) => {
   return (
     <div className="workspace">
@@ -42,6 +65,12 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         labProfile={labProfile}
         onLabProfileSave={onLabProfileSave}
         labProfileError={labProfileError}
+        pageSetup={pageSetup}
+        pageTypography={pageTypography}
+        frontPageEnabled={frontPageEnabled}
+        onPageSetupChange={onPageSetupChange}
+        onTypographyChange={onTypographyChange}
+        onDisplayHeaderChange={onDisplayHeaderChange}
       />
       <EditorPanel />
       <PreviewPanel />

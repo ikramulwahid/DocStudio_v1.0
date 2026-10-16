@@ -2,9 +2,15 @@ import React, { useState } from 'react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { DocumentInfoPanel } from './DocumentInfoPanel';
 import { LabProfilePanel } from './LabProfilePanel';
+import { PageTypographyPanel } from './PageTypographyPanel';
 import { SectionState } from '../../types';
-import type { DocumentMetadata } from '../../types/document';
+import type { DocumentMetadata, PageSetup, PageTypographySettings } from '../../types/document';
 import type { LabProfile } from '../../types/lab-profile';
+import type {
+  PageSetupPatch,
+  SettingsUpdateResult,
+  TypographyPatch,
+} from '../../services/page-typography';
 import './LeftPanel.css';
 
 interface LeftPanelProps {
@@ -22,6 +28,18 @@ interface LeftPanelProps {
   onLabProfileSave?: (profile: LabProfile) => void;
   /** Optional profile load/save error surfaced from the App. */
   labProfileError?: string | null;
+  /** Authoritative `document.pageSetup` (P04-M1). */
+  pageSetup?: PageSetup;
+  /** Authoritative `document.pageTypography` (P04-M1). */
+  pageTypography?: PageTypographySettings;
+  /** `document.frontPage.enabled` — gates the display-header control (P04-M1, §8.4). */
+  frontPageEnabled?: boolean;
+  /** Commit a page-setup patch (P04-M1). */
+  onPageSetupChange?: (patch: PageSetupPatch) => SettingsUpdateResult;
+  /** Commit a typography patch (P04-M1). */
+  onTypographyChange?: (patch: TypographyPatch) => SettingsUpdateResult;
+  /** Commit the display-header preference (P04-M1). */
+  onDisplayHeaderChange?: (value: boolean) => SettingsUpdateResult;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -32,6 +50,12 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   labProfile,
   onLabProfileSave,
   labProfileError,
+  pageSetup,
+  pageTypography,
+  frontPageEnabled,
+  onPageSetupChange,
+  onTypographyChange,
+  onDisplayHeaderChange,
 }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
@@ -153,26 +177,32 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           </div>
         </CollapsibleSection>
 
-        {/* 3. Page & Typography */}
+        {/* 3. Page & Typography (P04-M1) */}
         <CollapsibleSection
           id="page-typography"
           title="Page & Typography"
           icon="typography"
           isOpen={sections.pageTypography}
           onToggle={() => toggleSection('pageTypography')}
-          badge="Phase 04"
+          badge="P04-M1"
         >
-          <div className="placeholder-box">
-            <span className="placeholder-tag">Layout & Fonts</span>
-            <p className="placeholder-text">
-              Paper size (A4, A3, Letter, Legal), margins, orientation, 10 body typography themes, and centralized heading scales.
-            </p>
-            <div className="form-row-placeholder">
-              <span className="form-label-placeholder">Paper Size & Orientation</span>
-              <div className="form-input-placeholder">A4 (210 × 297 mm) · Portrait</div>
+          {pageSetup && pageTypography && onPageSetupChange && onTypographyChange && onDisplayHeaderChange ? (
+            <PageTypographyPanel
+              pageSetup={pageSetup}
+              pageTypography={pageTypography}
+              frontPageEnabled={frontPageEnabled ?? false}
+              onPageSetupChange={onPageSetupChange}
+              onTypographyChange={onTypographyChange}
+              onDisplayHeaderChange={onDisplayHeaderChange}
+            />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Layout & Fonts</span>
+              <span className="placeholder-subtext">
+                Page setup and typography are unavailable because no active document was provided.
+              </span>
             </div>
-            <span className="placeholder-subtext">Paper setup and font hierarchy will be activated in Phase 04.</span>
-          </div>
+          )}
         </CollapsibleSection>
 
         {/* 4. Header & Footer */}
