@@ -21,7 +21,7 @@
 | Current blocking issue | None |
 | Last verified build | `npm run build` (tsc & vite: 284 modules, built in 7.74s, exit code 0; 2026-10-16) |
 | Last verified test run | 2026-10-16: `verify_p03_m3.mjs` (18/18), `verify_p03_m2.mjs` (18/18), `verify_p03_m1.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9), `verify_p02_m5.mjs` (14/14) — all exit 0 |
-| Latest project commit | `a263578` (P03-M3 template library, pushed on `opencode/p03-m3-template-library`); previous: `833c75c`/`1b361bf` (P03-M2 roadmap follow-up / implementation) |
+| Latest project commit | `5e28278` (P03-M3 roadmap evidence) / `a263578` (P03-M3 template library), both pushed on `opencode/p03-m3-template-library`; previous: `833c75c`/`1b361bf` (P03-M2 roadmap follow-up / implementation) |
 
 ### Status vocabulary
 
