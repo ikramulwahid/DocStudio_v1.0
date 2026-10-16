@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { CollapsibleSection } from './CollapsibleSection';
+import { DocumentInfoPanel } from './DocumentInfoPanel';
 import { SectionState } from '../../types';
+import type { DocumentMetadata } from '../../types/document';
 import './LeftPanel.css';
 
 interface LeftPanelProps {
@@ -8,9 +10,18 @@ interface LeftPanelProps {
   onDuplicate?: () => void;
   /** Reset-settings handler (P02-M3). */
   onReset?: () => void;
+  /** Authoritative document metadata for the Document Information panel (P02-M5). */
+  metadata?: DocumentMetadata;
+  /** Immutable metadata update handler (P02-M5). */
+  onMetadataChange?: (patch: Partial<DocumentMetadata>) => void;
 }
 
-export const LeftPanel: React.FC<LeftPanelProps> = ({ onDuplicate, onReset }) => {
+export const LeftPanel: React.FC<LeftPanelProps> = ({
+  onDuplicate,
+  onReset,
+  metadata,
+  onMetadataChange,
+}) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
     frontPage: true,
@@ -73,21 +84,16 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({ onDuplicate, onReset }) =>
           onToggle={() => toggleSection('documentInfo')}
           badge="Phase 02"
         >
-          <div className="placeholder-box">
-            <span className="placeholder-tag">Document Metadata</span>
-            <p className="placeholder-text">
-              Title, Subtitle, Laboratory Name, Document ID, Issue No., Prepared/Reviewed/Approved by.
-            </p>
-            <div className="form-row-placeholder">
-              <span className="form-label-placeholder">Document Title</span>
-              <div className="form-input-placeholder">Standard Operating Procedure</div>
+          {metadata && onMetadataChange ? (
+            <DocumentInfoPanel metadata={metadata} onMetadataChange={onMetadataChange} />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Document Metadata</span>
+              <span className="placeholder-subtext">
+                Metadata editing is unavailable because no active document was provided.
+              </span>
             </div>
-            <div className="form-row-placeholder">
-              <span className="form-label-placeholder">Organization / Lab</span>
-              <div className="form-input-placeholder">ISO/IEC 17025 Testing Laboratory</div>
-            </div>
-            <span className="placeholder-subtext">Not editable yet — metadata lives in the document model (schema v1); field editing UI is pending an owner decision (see P02-GATE). Values shown are illustrative.</span>
-          </div>
+          )}
         </CollapsibleSection>
 
         {/* 2. Front Page */}

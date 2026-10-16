@@ -5,6 +5,7 @@ import { ConfirmDialog, DialogAction } from './components/common/ConfirmDialog';
 import {
   ThemeMode,
   DocStudioDocument,
+  DocumentMetadata,
 } from './types';
 import {
   serializeDocument,
@@ -23,6 +24,7 @@ import {
   isDirty,
   deriveSessionStatus,
   resolveUnsavedChanges,
+  updateDocumentMetadata,
   UnsavedChoice,
 } from './services/document-actions';
 import './styles/theme.css';
@@ -193,6 +195,20 @@ export const App: React.FC = () => {
     );
   };
 
+  // ── Metadata editing (P02-M5) ───────────────────────────────────────────────
+  /**
+   * Apply a metadata patch to the AUTHORITATIVE active document — there is
+   * no separate panel state.  `updateDocumentMetadata` returns the same
+   * reference for no-op patches (no false dirty state) and stamps
+   * `modifiedAt` only on a real change; the session fingerprint and
+   * New/Saved/Modified status then follow automatically on re-render.
+   * New/Open/Duplicate/Clear/Reset all replace or update `activeDocument`
+   * itself, so the controlled inputs always reflect the active document.
+   */
+  const handleMetadataChange = (patch: Partial<DocumentMetadata>): void => {
+    setActiveDocument(updateDocumentMetadata(activeDocument, patch));
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -254,7 +270,12 @@ export const App: React.FC = () => {
           </button>
         </div>
       )}
-      <Workspace onDuplicate={handleDuplicate} onReset={handleReset} />
+      <Workspace
+        onDuplicate={handleDuplicate}
+        onReset={handleReset}
+        metadata={activeDocument.metadata}
+        onMetadataChange={handleMetadataChange}
+      />
       {dialog && (
         <ConfirmDialog
           title={dialog.title}

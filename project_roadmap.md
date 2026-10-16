@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE); Phase 03 NOT STARTED** |
-| Last checkpoint | `P02-GATE` (Phase 02 exit-criteria review — VERIFIED, 2026-10-16) |
-| Current blocking issue | None. Scope residue recorded: metadata-panel editing UI (§2.2) not implemented — see P02-GATE entry, owner decision needed for destination |
-| Last verified build | `npm run build` (tsc & vite: 259 modules, built in 8.05s, exit code 0; gate rerun 2026-10-16) |
-| Last verified test run | Gate rerun 2026-10-16: `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9) — all exit 0; prior manual Windows integration tests for P02-M2/M3/M4 recorded in their checkpoint entries |
-| Latest project commit | `986ce6f` (P02-M4, pushed); P02-GATE commit on `opencode/p02-gate-phase02-review` pushed with this checkpoint |
+| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE, plus post-gate P02-M5); Phase 03 NOT STARTED** |
+| Last checkpoint | `P02-M5` (Document metadata panel editing foundation — VERIFIED, incl. manual test; post-gate follow-up closing the P02-GATE scope residue) |
+| Current blocking issue | None — the metadata-panel scope residue recorded at P02-GATE is resolved by P02-M5 |
+| Last verified build | `npm run build` (tsc & vite: 261 modules, built in 5.92s, exit code 0; 2026-10-16) |
+| Last verified test run | 2026-10-16: `verify_p02_m5.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9) — all exit 0; manual 11-scenario metadata editing test in `npx tauri dev` (owner: "working ok") |
+| Latest project commit | `0be6e54` (P02-GATE, pushed); P02-M5 commit on `opencode/p02-m5-metadata-panel` pushed with this checkpoint |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `VERIFIED` (2026-10-16) — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3, P02-M4, P02-GATE all VERIFIED. Phase 03 is the next phase and remains NOT STARTED.
+**Initial status:** `VERIFIED` (2026-10-16) — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3, P02-M4, P02-GATE all VERIFIED; P02-M5 (post-gate follow-up closing the metadata-panel gap) VERIFIED. Phase 03 is the next phase and remains NOT STARTED.
 
 ## Goal
 
@@ -261,7 +261,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 - [x] Early rendering proof of concept succeeds or has a documented blocker and explicit resolution decision.
 - [x] Checkpoint evidence is recorded.
 
-*Gate review 2026-10-16: all six criteria PASS with evidence — see the P02-GATE checkpoint-log entry for the full evidence matrix. Criteria are met at the model/behavior level; the metadata-panel editing UI (§2.2) remains an explicitly recorded scope residue (not an exit criterion), documented in the P02-GATE entry.*
+*Gate review 2026-10-16: all six criteria PASS with evidence — see the P02-GATE checkpoint-log entry for the full evidence matrix. Criteria are met at the model/behavior level; the metadata-panel editing UI (§2.2) was the one recorded scope residue at gate time and has since been RESOLVED by the post-gate follow-up checkpoint `P02-M5` (2026-10-16) — every schema-supported metadata field is now connected and verified.*
 
 ## Checkpoints
 
@@ -272,6 +272,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 - `P02-M3`: Document lifecycle actions verified (`VERIFIED`).
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified (`VERIFIED`).
 - `P02-GATE`: Phase 02 exit criteria met (`VERIFIED`, 2026-10-16).
+- `P02-M5`: Metadata panel editing foundation (`VERIFIED`, 2026-10-16 — post-gate follow-up closing the P02-GATE scope residue).
 
 ---
 
@@ -899,7 +900,8 @@ Add, update, or remove rows as tasks are completed. Use real dates and links/pat
 | `P02-M2-R1` | Filesystem scope outside `$HOME` via dialog grants | VERIFIED | Manual dialog-grant verification (read/write outside `$HOME`) | `d7625cc` | `$HOME/**` capability unchanged; per-session dialog grants |
 | `P02-M3` | Document lifecycle + unsaved-change handling | VERIFIED | `verify:p02-m3` 12/12; manual 10-scenario test (owner) | `198db8f` | New/Duplicate/Clear/Reset/Save guard flows |
 | `P02-M4` | Multi-page rendering + PDF proof of concept | VERIFIED | `verify:p02-m4` 9/9; 3-page A4 artifact; manual 3-way preview/export comparison (owner) | `986ce6f` | Renderer architecture decision (DEC-001); 2 manual-test defects fixed |
-| `P02-GATE` | Phase 02 exit-criteria review | VERIFIED | Gate rerun 2026-10-16: build exit 0; 11/11 + 12/12 + 9/9; artifact validated (13,854 bytes, 3 pages) | Branch `opencode/p02-gate-phase02-review` | All six exit criteria PASS; metadata-panel UI scope residue recorded |
+| `P02-GATE` | Phase 02 exit-criteria review | VERIFIED | Gate rerun 2026-10-16: build exit 0; 11/11 + 12/12 + 9/9; artifact validated (13,854 bytes, 3 pages) | Branch `opencode/p02-gate-phase02-review` (`0be6e54`) | All six exit criteria PASS; metadata-panel UI scope residue recorded |
+| `P02-M5` | Document metadata panel editing foundation (post-gate follow-up) | VERIFIED | `verify:p02-m5` 14/14; regression 11/11 + 12/12 + 9/9; build exit 0; manual 11-scenario metadata test (owner: "working ok") | Branch `opencode/p02-m5-metadata-panel` | Closes the P02-GATE §2.2 residue; no schema change |
 
 ## 6. Decision Log
 
@@ -1339,6 +1341,51 @@ Copy this template for each new checkpoint:
 - **Files changed:** `project_roadmap.md` (summary rows, Phase 02 status/exit criteria/checkpoints, Phase Status Board, Minor Checkpoint Board, DEC-001, DEC-002, R-001, this entry); `src/components/left-panel/LeftPanel.tsx` (metadata placeholder subtext corrected).
 - **Commit/reference:** `opencode/p02-gate-phase02-review` (this gate review commit)
 - **Next action:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard; remains `NOT STARTED` and begins only on user instruction. Recommended before/with it: an owner decision on the recorded metadata-panel residue.
+
+---
+
+### 2026-10-16 — [MINOR] P02-M5: Document Metadata Panel Editing Foundation (post-gate follow-up)
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED (automated verification + manual Windows integration test by the project owner)
+- **Relationship to the gate:** this is the authorized post-gate follow-up that RESOLVES the metadata-panel scope residue recorded in the P02-GATE entry (§2.2 of the Phase 02 plan). The P02-GATE entry and its 2026-10-16 verified date are preserved unchanged as historical record; this checkpoint was verified on the same day after the gap was closed.
+- **Scope completed:**
+  - **New pure field module** `src/services/metadata-fields.ts` (no React/DOM/Tauri imports): declarative `METADATA_FIELD_SPECS` covering **every editable `DocumentMetadata` key exactly once** (19 text/textarea/date/select fields + the status select + `customFields` rows), group ordering, `STATUS_PRESETS` + `statusOptions()` (a custom status value is never silently replaced by a preset), `toDatePickerValue()` (`YYYY-MM-DD`, or the date part of a full ISO string), `normalizeFieldValue()` (empty OPTIONAL → `undefined` so type-then-clear restores a clean value; required fields keep a string; non-empty date values outside `YYYY-MM-DD` pass through unchanged — never silently dropped), and `formatTimestampForDisplay()`.
+  - **New authoritative update action** `updateDocumentMetadata(source, patch, now)` in `src/services/document-actions.ts`: applies a partial patch to the ONE real `document.metadata` object; strips app-managed `createdAt`/`modifiedAt` from every patch (ordinary editing can never rewrite creation time); compares each provided key (arrays such as `customFields` structurally); **returns the SAME document reference when nothing differs** (no re-render, no false `Modified`, no timestamp churn) and stamps `modifiedAt = now` only on a real change (project_details.md §6 policy). Module-header policy note added.
+  - **New controlled panel** `src/components/left-panel/DocumentInfoPanel.tsx`: accessible controlled inputs (`label`+`id` pairs, `role="group"` sections, `aria-label`s, `:focus-visible` outlines) grouped as Identification (Title, Subtitle, Organization/Laboratory Name, Document ID, Document Status select), Issue & Revision Control (Issue Number, Issue Date, Document Holder, Revision Label, Amendment Number, Effective Date, Review Date), Preparation & Approval (Prepared/Reviewed/Approved By), Classification (Document Type, Department/Section), Standards & References (Applicable Standard, Clause References, Supersedes), read-only Created/Modified displays, and an Additional Fields row editor (add/edit label+value/remove with stable UUIDs). Dark theme handled via `color-scheme` for native pickers.
+  - **Wiring:** `App.tsx` gained `handleMetadataChange` (closure over the authoritative `activeDocument`; the only metadata state in the app); props threaded through `Workspace` → `LeftPanel` → `DocumentInfoPanel`. The Document Information placeholder (including the stale "will be wired in Phase 02" text and the illustrative hard-coded sample values) was REMOVED and replaced by the real panel; the honest no-document fallback remains if props are absent.
+  - **`LeftPanel.css`:** theme-token-based styles for the new controls (no new dependency, no layout change to the three-column workspace).
+  - **Verification script** `verify_p02_m5.mjs` (+ npm script `verify:p02-m5`): compiles the actual `metadata-fields.ts`, `document-actions.ts` and `document-file.ts` with tsc and runs 14 checks with the built-in `assert` module — no test framework introduced.
+- **Timestamp and dirty-state policy (as implemented and documented):**
+  - `createdAt` is immutable through editing; direct patch attempts are stripped (test 5).
+  - `modifiedAt` advances on a real metadata change and on save; no-op patches do not touch it (tests 4, 6).
+  - A no-op edit (same value re-typed, same status re-selected, identical custom-field array) returns the same document reference → status stays `Saved` (test 4, manual scenario 6).
+  - Reverting a field to its original value after a real edit leaves the document `Modified` until saved, because `modifiedAt` genuinely changed — consistent with the content/settings policy.
+  - The formal document `metadata.status` remains a metadata field, fully distinct from the topbar session status.
+- **Schema:** unchanged. No `document.ts` edit was needed — the existing v1 schema already models every required/optional/extended field; the gap was purely UI.
+- **Automated checks executed (2026-10-16):**
+  - `npm run build` — exit code 0, 261 modules, built in 5.92s (main chunk 1.93 MB; known warning).
+  - `npm run verify:p02-m5` — **14 passed, 0 failed**: field-spec coverage of every editable schema key (guard against silent omission — this test caught and fixed an incomplete fixture during development); each required field updates the authoritative document; single-field edit preserves all unrelated metadata; edits mark `Modified`; saved+unchanged not falsely `Modified` (incl. same-reference no-op assertions); `createdAt` stable across edits; `modifiedAt` policy; serialize/deserialize round-trip; **save→reopen restores every value the controlled inputs read** (`metadata[key] ?? ''` per spec); New/Open replace displayed metadata; duplicate/clear/reset + unsaved-guard outcomes; deterministic date/normalization/status-option rules; custom-field add/edit/remove incl. no-op removal.
+  - Regression: `npm run verify:p02-m2` — 11/11; `verify:p02-m3` — 12/12; `verify:p02-m4` — 9/9 (all exit 0; artifact regenerated byte-identically).
+  - `cargo check` — **not run**: no Rust source, Tauri plugin or capability/configuration change in this checkpoint (frontend TypeScript only; the fs/dialog capabilities were unchanged since P02-M4).
+- **Manual integration test evidence (real Windows, `npx tauri dev`, executed by the project owner):** 11 scripted scenarios — initial real values in place of the old placeholder; edit → topbar `Modified`; field isolation across edits; Created immutable/Modified advancing; status select distinct from session status; **no false dirty** (same-value re-edit and same-status re-select stay `Saved`); save → reopen restores all values in the actual inputs (incl. optional/approval fields and Date Modified advance); date pickers set/clear cleanly; Additional Fields add/edit/remove; New/Duplicate/Clear/Reset value transitions; unsaved-changes Save/Discard/Cancel guard — **all passed** (owner: "working ok").
+- **Not completed / limitations:**
+  - Metadata editing exists only in the Left Panel; cover-page visible-field selection and preview binding remain Phase 04+ work.
+  - `Save As` is still deferred (unchanged P02-M3 decision).
+  - Fingerprint comparison remains plain `JSON.stringify` (key-order sensitive) — unchanged known limitation, safe within a session.
+  - No committed sample `.docstudio` fixture; the manual test wrote `C:\Projects\DocStudio-Test\p02-m5-metadata.docstudio` (local-only).
+- **Files created/modified:**
+  - `src/services/metadata-fields.ts` — CREATED
+  - `src/components/left-panel/DocumentInfoPanel.tsx` — CREATED
+  - `verify_p02_m5.mjs` — CREATED
+  - `src/services/document-actions.ts` — MODIFIED (`updateDocumentMetadata` + policy note)
+  - `src/components/left-panel/LeftPanel.tsx` — MODIFIED (real panel replaces placeholder)
+  - `src/components/left-panel/LeftPanel.css` — MODIFIED (control styles)
+  - `src/components/workspace/Workspace.tsx` — MODIFIED (prop threading)
+  - `src/App.tsx` — MODIFIED (handler + threading)
+  - `package.json` — MODIFIED (`verify:p02-m5` script)
+- **Commit/reference:** `opencode/p02-m5-metadata-panel` (this checkpoint's commit)
+- **Next action:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard; remains `NOT STARTED` and begins only on user instruction.
 
 ---
 

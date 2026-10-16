@@ -10,7 +10,8 @@
     "tauri": "tauri",
     "verify:p02-m2": "node verify_p02_m2.mjs",
     "verify:p02-m3": "node verify_p02_m3.mjs",
-    "verify:p02-m4": "node verify_p02_m4.mjs"
+    "verify:p02-m4": "node verify_p02_m4.mjs",
+    "verify:p02-m5": "node verify_p02_m5.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",
