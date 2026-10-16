@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Topbar } from './components/topbar/Topbar';
 import { Workspace } from './components/workspace/Workspace';
 import { ConfirmDialog, DialogAction } from './components/common/ConfirmDialog';
+import { TemplateChooser } from './components/template-chooser/TemplateChooser';
 import {
   ThemeMode,
   DocStudioDocument,
   DocumentMetadata,
+  LabProfile,
 } from './types';
 import {
   serializeDocument,
@@ -15,7 +17,6 @@ import {
 } from './services/document-file';
 import { saveProjectText, readProjectText } from './services/document-io';
 import {
-  createNewDocument,
   duplicateDocument,
   clearDocumentContents,
   resetDocumentSettings,
@@ -27,6 +28,14 @@ import {
   updateDocumentMetadata,
   UnsavedChoice,
 } from './services/document-actions';
+import {
+  getBuiltinTemplates,
+  resolveChooserSelection,
+  type TemplateChoice,
+} from './services/template-chooser';
+import { createBlankDocument } from './services/template-instantiation';
+import { loadLabProfile, saveLabProfile } from './services/lab-profile-store';
+import { nowISO } from './types/defaults';
 import './styles/theme.css';
 import './styles/globals.css';
 import './App.css';
@@ -49,8 +58,33 @@ export const App: React.FC = () => {
     return 'multicolor';
   });
 
+  // ── Laboratory Profile (P03-M2) ─────────────────────────────────────────────
+  /**
+   * Saved, reusable laboratory profile (application-local, persisted across
+   * restarts).  Loaded once at startup with a safe fallback: missing or
+   * corrupted stored data never blocks opening — it degrades to the empty
+   * default and surfaces a notice via `labProfileError`.  Loaded BEFORE the
+   * document session so the startup document already carries the profile.
+   */
+  const [profileLoad] = useState(() => {
+    let loadError: string | null = null;
+    const result = loadLabProfile(undefined, (message) => {
+      loadError = message;
+    });
+    return { profile: result.profile, error: loadError };
+  });
+  const [labProfile, setLabProfile] = useState<LabProfile>(profileLoad.profile);
+  const [labProfileError, setLabProfileError] = useState<string | null>(profileLoad.error);
+
   // ── Document session state (P02-M2/P02-M3) ───────────────────────────────
-  const [activeDocument, setActiveDocument] = useState<DocStudioDocument>(() => createNewDocument());
+  /**
+   * The startup document is a blank document (P03-M2): same default content
+   * as before, plus the saved Laboratory Profile identity snapshot so a
+   * restart picks the profile up immediately.
+   */
+  const [activeDocument, setActiveDocument] = useState<DocStudioDocument>(() =>
+    createBlankDocument(profileLoad.profile, nowISO()),
+  );
   /** Absolute path of the associated `.docstudio` file, when known. */
   const [activeFilePath, setActiveFilePath] = useState<string | null>(null);
   /** Active filename shown in the topbar. */
@@ -67,6 +101,16 @@ export const App: React.FC = () => {
   const [fileError, setFileError] = useState<string | null>(null);
   /** Active confirmation modal, when one is showing. */
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
+
+  // ── Template chooser (P03-M2) ───────────────────────────────────────────────
+  /**
+   * Whether the New-document template chooser is open.  Opening or
+   * cancelling the chooser makes NO change to the active document — the
+   * unsaved-change guard runs only when the user actually confirms a choice.
+   */
+  const [chooserOpen, setChooserOpen] = useState(false);
+  /** The currently available built-in template catalog (P03-M2: example SOP). */
+  const templateCatalog = useMemo(() => getBuiltinTemplates(), []);
 
   const fingerprint = sessionFingerprint(activeDocument);
   const dirty = isDirty(fingerprint, baselineFingerprint);
@@ -141,15 +185,56 @@ export const App: React.FC = () => {
   const guardUnsavedChanges = (): Promise<'proceed' | 'abort'> =>
     resolveUnsavedChanges(dirty, askUnsaved, handleSave);
 
-  // ── New (P02-M3) ─────────────────────────────────────────────────────────
-  const handleNew = async (): Promise<void> => {
-    if ((await guardUnsavedChanges()) === 'abort') return;
-    const fresh = createNewDocument();
+  // ── New → template chooser (P02-M3, extended P03-M2) ─────────────────────
+  /**
+   * Open the template chooser.  Opening it does NOT run the unsaved-change
+   * guard and does NOT touch the active document — the guard runs when the
+   * user actually confirms a choice (see handleChooserSelect).
+   */
+  const handleNew = (): void => {
+    setChooserOpen(true);
+  };
+
+  /**
+   * Apply a confirmed chooser selection (P03-M2).
+   *
+   * The decision logic lives in the pure `resolveChooserSelection` service:
+   * cancel → null (nothing changes); a real choice → unsaved-change guard
+   * first, aborted save → null (replacement aborted); success → fresh
+   * document built from the saved Laboratory Profile.  This handler only
+   * performs the single active-document swap on a non-null result.
+   */
+  const handleChooserSelect = async (choice: TemplateChoice | null): Promise<void> => {
+    setChooserOpen(false);
+    const fresh = await resolveChooserSelection(choice, labProfile, nowISO(), guardUnsavedChanges);
+    if (fresh === null) return; // cancelled or guard aborted — session untouched
+
     setActiveDocument(fresh);
     setActiveFilePath(null);
-    setActiveFileName('Untitled-1.docstudio');
+    setActiveFileName(defaultProjectFileName(fresh.metadata.title));
     setBaselineFingerprint(sessionFingerprint(fresh));
     setFileError(null);
+  };
+
+  // ── Laboratory Profile save (P03-M2) ───────────────────────────────────────
+  /**
+   * Persist an edited Laboratory Profile.  The profile lives entirely
+   * outside the document schema: saving it never mutates the active
+   * document or any template — it only affects documents created AFTER
+   * the change.
+   */
+  const handleLabProfileSave = (next: LabProfile): void => {
+    try {
+      if (!saveLabProfile(next)) {
+        setLabProfileError('The laboratory profile could not be saved on this device.');
+        return;
+      }
+      setLabProfile(next);
+      setLabProfileError(null);
+    } catch (e) {
+      console.error('[DocStudio] Lab profile save failed:', e);
+      setLabProfileError('The laboratory profile could not be saved on this device.');
+    }
   };
 
   // ── Duplicate (P02-M3) ───────────────────────────────────────────────────
@@ -275,7 +360,13 @@ export const App: React.FC = () => {
         onReset={handleReset}
         metadata={activeDocument.metadata}
         onMetadataChange={handleMetadataChange}
+        labProfile={labProfile}
+        onLabProfileSave={handleLabProfileSave}
+        labProfileError={labProfileError}
       />
+      {chooserOpen && (
+        <TemplateChooser templates={templateCatalog} onSelect={handleChooserSelect} />
+      )}
       {dialog && (
         <ConfirmDialog
           title={dialog.title}

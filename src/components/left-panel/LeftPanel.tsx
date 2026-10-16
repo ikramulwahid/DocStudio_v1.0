@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { CollapsibleSection } from './CollapsibleSection';
 import { DocumentInfoPanel } from './DocumentInfoPanel';
+import { LabProfilePanel } from './LabProfilePanel';
 import { SectionState } from '../../types';
 import type { DocumentMetadata } from '../../types/document';
+import type { LabProfile } from '../../types/lab-profile';
 import './LeftPanel.css';
 
 interface LeftPanelProps {
@@ -14,6 +16,12 @@ interface LeftPanelProps {
   metadata?: DocumentMetadata;
   /** Immutable metadata update handler (P02-M5). */
   onMetadataChange?: (patch: Partial<DocumentMetadata>) => void;
+  /** Authoritative saved Laboratory Profile (P03-M2). */
+  labProfile?: LabProfile;
+  /** Commit the edited Laboratory Profile (persists via the App). */
+  onLabProfileSave?: (profile: LabProfile) => void;
+  /** Optional profile load/save error surfaced from the App. */
+  labProfileError?: string | null;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -21,9 +29,13 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   onReset,
   metadata,
   onMetadataChange,
+  labProfile,
+  onLabProfileSave,
+  labProfileError,
 }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
+    labProfile: true,
     frontPage: true,
     pageTypography: false,
     headerFooter: false,
@@ -41,6 +53,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   const expandAll = () => {
     setSections({
       documentInfo: true,
+      labProfile: true,
       frontPage: true,
       pageTypography: true,
       headerFooter: true,
@@ -52,6 +65,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   const collapseAll = () => {
     setSections({
       documentInfo: false,
+      labProfile: false,
       frontPage: false,
       pageTypography: false,
       headerFooter: false,
@@ -91,6 +105,27 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
               <span className="placeholder-tag">Document Metadata</span>
               <span className="placeholder-subtext">
                 Metadata editing is unavailable because no active document was provided.
+              </span>
+            </div>
+          )}
+        </CollapsibleSection>
+
+        {/* 1b. Laboratory Profile (P03-M2) */}
+        <CollapsibleSection
+          id="lab-profile"
+          title="Laboratory Profile"
+          icon="info"
+          isOpen={sections.labProfile}
+          onToggle={() => toggleSection('labProfile')}
+          badge="Phase 03"
+        >
+          {labProfile && onLabProfileSave ? (
+            <LabProfilePanel profile={labProfile} onSave={onLabProfileSave} error={labProfileError} />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Laboratory Profile</span>
+              <span className="placeholder-subtext">
+                Profile editing is unavailable because no profile was provided.
               </span>
             </div>
           )}

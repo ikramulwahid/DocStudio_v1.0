@@ -5,6 +5,7 @@ export type DocumentSessionStatus = 'New' | 'Saved' | 'Modified';
 
 export interface SectionState {
   documentInfo: boolean;
+  labProfile: boolean;
   frontPage: boolean;
   pageTypography: boolean;
   headerFooter: boolean;
@@ -20,3 +21,4 @@ export * from './defaults';
 // ── Phase 03 template schema ──────────────────────────────────────────────────
 export * from './template';
 export * from './template-defaults';
+export * from './lab-profile';

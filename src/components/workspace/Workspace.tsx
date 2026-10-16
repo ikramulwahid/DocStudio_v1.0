@@ -3,6 +3,7 @@ import { LeftPanel } from '../left-panel/LeftPanel';
 import { EditorPanel } from '../editor-panel/EditorPanel';
 import { PreviewPanel } from '../preview-panel/PreviewPanel';
 import type { DocumentMetadata } from '../../types/document';
+import type { LabProfile } from '../../types/lab-profile';
 import './Workspace.css';
 
 interface WorkspaceProps {
@@ -14,6 +15,12 @@ interface WorkspaceProps {
   metadata?: DocumentMetadata;
   /** Immutable metadata update handler (P02-M5). */
   onMetadataChange?: (patch: Partial<DocumentMetadata>) => void;
+  /** Authoritative saved Laboratory Profile (P03-M2). */
+  labProfile?: LabProfile;
+  /** Commit the edited Laboratory Profile (P03-M2). */
+  onLabProfileSave?: (profile: LabProfile) => void;
+  /** Optional profile load/save error surfaced from the App. */
+  labProfileError?: string | null;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -21,6 +28,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onReset,
   metadata,
   onMetadataChange,
+  labProfile,
+  onLabProfileSave,
+  labProfileError,
 }) => {
   return (
     <div className="workspace">
@@ -29,6 +39,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onReset={onReset}
         metadata={metadata}
         onMetadataChange={onMetadataChange}
+        labProfile={labProfile}
+        onLabProfileSave={onLabProfileSave}
+        labProfileError={labProfileError}
       />
       <EditorPanel />
       <PreviewPanel />
