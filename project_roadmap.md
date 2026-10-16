@@ -15,13 +15,13 @@
 | Developer | Ikram ul Wahid |
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
-| Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE, plus post-gate P02-M5); Phase 03 NOT STARTED** |
-| Last checkpoint | `P02-M5` (Document metadata panel editing foundation — VERIFIED, incl. manual test; post-gate follow-up closing the P02-GATE scope residue) |
-| Current blocking issue | None — the metadata-panel scope residue recorded at P02-GATE is resolved by P02-M5 |
-| Last verified build | `npm run build` (tsc & vite: 261 modules, built in 5.92s, exit code 0; 2026-10-16) |
-| Last verified test run | 2026-10-16: `verify_p02_m5.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9) — all exit 0; manual 11-scenario metadata editing test in `npx tauri dev` (owner: "working ok") |
-| Latest project commit | `34848d4` (P02-M5 metadata panel, pushed on `opencode/p02-m5-metadata-panel`); previous: `0be6e54` (P02-GATE) |
+| Current phase | Phase 03 — Laboratory Profiles, Template Library, and Template Wizard |
+| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE, plus post-gate P02-M5); Phase 03 IN PROGRESS (P03-M1 VERIFIED)** |
+| Last checkpoint | `P03-M1` (Versioned template data model — VERIFIED: schema, factories, serializer/validator, example fixture) |
+| Current blocking issue | None |
+| Last verified build | `npm run build` (tsc & vite: 261 modules, built in 6.00s, exit code 0; 2026-10-16) |
+| Last verified test run | 2026-10-16: `verify_p03_m1.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9), `verify_p02_m5.mjs` (14/14) — all exit 0 |
+| Latest project commit | `52f904e` (P03-M1 template schema, pushed on `opencode/p03-m1-template-schema`); previous: `2aba4a6`/`34848d4` (P02-M5) |
 
 ### Status vocabulary
 
@@ -278,7 +278,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 
 # Phase 03 — Laboratory Profiles, Template Library, and Template Wizard
 
-**Initial status:** `NOT STARTED`
+**Initial status:** `IN PROGRESS` (2026-10-16) — P03-M1 (template data model) VERIFIED. Local laboratory-profile editing/persistence, the template chooser and document initialization, the initial category library, and section customization all remain pending (later Phase 03 checkpoints).
 
 ## Goal
 
@@ -347,11 +347,13 @@ Templates are useful starting points, not mandatory checklists or a guarantee of
 
 ## Checkpoints
 
-- `P03-M1`: Template schema completed.
-- `P03-M2`: Template chooser and document initialization work.
-- `P03-M3`: Core laboratory template samples created.
-- `P03-M4`: Template customization verified.
-- `P03-GATE`: Phase 03 exit criteria met.
+- `P03-M1`: Template schema completed — **VERIFIED** (2026-10-16, `52f904e`). Versioned template data model, factories, pure serializer/validator (`.dstemplate`), example fixture, `verify:p03-m1` 14/14.
+- `P03-M2`: Template chooser and document initialization work — **NOT STARTED**.
+- `P03-M3`: Core laboratory template samples created — **NOT STARTED**.
+- `P03-M4`: Template customization verified — **NOT STARTED**.
+- `P03-GATE`: Phase 03 exit criteria met — **NOT STARTED**.
+
+**Still pending in Phase 03 (not completed by P03-M1):** local reusable Laboratory Profile editing and persistence (§3.1); the template chooser/search UI and initializing a new document from a template (§3.4); the initial category library of usable samples (§3.3); and section add/remove/rename/reorder customization (§3.4). P03-M1 delivered only the data model, validation, factories and serialization substrate that those later checkpoints build on.
 
 ---
 
@@ -874,8 +876,8 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | VERIFIED | 2026-10-15 | 2026-10-16 | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 `198db8f`; P02-M4 `986ce6f`; P02-GATE (branch `opencode/p02-gate-phase02-review`) | All six exit criteria verified at the 2026-10-16 gate review; metadata-panel editing UI (§2.2) recorded as scope residue in the P02-GATE entry |
-| 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | VERIFIED | 2026-10-15 | 2026-10-16 | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 `198db8f`; P02-M4 `986ce6f`; P02-GATE (branch `opencode/p02-gate-phase02-review`); P02-M5 `34848d4` | All six exit criteria verified at the 2026-10-16 gate review; the metadata-panel editing UI (§2.2) recorded as scope residue at gate time was RESOLVED by the post-gate follow-up P02-M5 (every schema-supported metadata field connected and verified) |
+| 03 | Laboratory Profiles, Templates, Wizard | IN PROGRESS | 2026-10-16 | — | P03-M1 `52f904e` (branch `opencode/p03-m1-template-schema`) | P03-M1 (template data model) VERIFIED; lab-profile editing/persistence, chooser/initialization, category library and section customization remain pending |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
 | 06 | Headers/Footers and Specialized Blocks | NOT STARTED | — | — | — | — |
@@ -902,6 +904,7 @@ Add, update, or remove rows as tasks are completed. Use real dates and links/pat
 | `P02-M4` | Multi-page rendering + PDF proof of concept | VERIFIED | `verify:p02-m4` 9/9; 3-page A4 artifact; manual 3-way preview/export comparison (owner) | `986ce6f` | Renderer architecture decision (DEC-001); 2 manual-test defects fixed |
 | `P02-GATE` | Phase 02 exit-criteria review | VERIFIED | Gate rerun 2026-10-16: build exit 0; 11/11 + 12/12 + 9/9; artifact validated (13,854 bytes, 3 pages) | Branch `opencode/p02-gate-phase02-review` (`0be6e54`) | All six exit criteria PASS; metadata-panel UI scope residue recorded |
 | `P02-M5` | Document metadata panel editing foundation (post-gate follow-up) | VERIFIED | `verify:p02-m5` 14/14; regression 11/11 + 12/12 + 9/9; build exit 0; manual 11-scenario metadata test (owner: "working ok") | `34848d4` (branch `opencode/p02-m5-metadata-panel`) | Closes the P02-GATE §2.2 residue; no schema change |
+| `P03-M1` | Versioned template data model (schema v1, factories, serializer/validator, example fixture) | VERIFIED | `verify:p03-m1` 14/14; regression 11/11 + 12/12 + 9/9 + 14/14; build exit 0 | `52f904e` (branch `opencode/p03-m1-template-schema`) | Template schema version independent of document schema; `.dstemplate` format; no lab-profile/chooser/library work yet |
 
 ## 6. Decision Log
 
@@ -1386,6 +1389,55 @@ Copy this template for each new checkpoint:
   - `package.json` — MODIFIED (`verify:p02-m5` script)
 - **Commit/reference:** `34848d4` on `opencode/p02-m5-metadata-panel` (this checkpoint's commit)
 - **Next action:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard; remains `NOT STARTED` and begins only on user instruction.
+
+---
+
+### 2026-10-16 — [MINOR] P03-M1: Versioned Template Data Model
+
+- **Phase:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard
+- **Status:** VERIFIED (automated verification; this is a data-model/serialization checkpoint with no UI surface, so no manual test applies)
+- **Branch:** `opencode/p03-m1-template-schema`, created from the pushed P02-M5 tip `2aba4a6` (confirmed on `origin` before branching; working tree clean at branch point). `project_details.md` was read, not modified.
+- **Scope completed:**
+  - **Template format decision (recorded):** a `.dstemplate` file holds ONE pretty-printed UTF-8 JSON object whose root is a `DocStudioTemplate`. The `__type: 'DocStudioTemplate'` signature discriminator makes a `.docstudio` project (signature `'DocStudio'`) impossible to mistake for a template and vice versa (verify:p03-m1 test 11). The `.dstemplate` extension does not collide with `.docstudio` (native dialogs remain filtered to `.docstudio`). No native save/open dialogs or filesystem permissions were added — template file storage and library management are deferred to a later checkpoint.
+  - **New `src/types/template.ts`:** `DocStudioTemplate` root with a dedicated `DOCSTUDIO_TEMPLATE_SCHEMA_VERSION = 1` that is INDEPENDENT of `DOCSTUDIO_SCHEMA_VERSION` (a template change never forces a document migration). Identity/catalog metadata: stable `TemplateId`, `TemplateOrigin` (`builtin` vs `user` with a reserved `builtin.` prefix enforced by `isBuiltinTemplateId` and validated so a user template cannot claim the prefix), name, description, category, tags, optional author. All 8 principal categories from project_details §11.1–§11.8 are modeled as a serializable `TemplateCategory` union + an ordered `TEMPLATE_CATEGORIES` list (id/label/description) — a single filterable source, not hardcoded into UI.
+  - **Document defaults reuse, no parallel schema:** `TemplateDocumentDefaults` is PARTIAL throughout and reuses the real document settings types (`Omit<DocumentMetadata,'createdAt'|'modifiedAt'|'customFields'>` as `TemplateMetadataDefaults`, `EmbeddedLabProfile`, `PageSetup`, `PageTypographySettings`, `FrontPageSettings`, `HeaderFooterSettings`). Omitted values fall back to application document defaults at instantiation rather than leaking `undefined` into a document.
+  - **Initial content structure:** ordered `TemplateSection[]` (stable id, name, optional description/prompt, `headingLevel`, ordered `ContentBlock[]` starters, optional reference/clause hints). Sections are template-level structure, NOT a new content-block type; the active `ContentBlock`/`DocStudioDocument` v1 schema is unchanged.
+  - **Instantiation mapping contract (documented, not wired):** `sectionToBlocks()` / `templateSectionsToBlocks()` in `template-defaults.ts` encode the rule that a section flattens to `[heading built from name+headingLevel, ...section.blocks]`. Full document-initialization (deep-copying blocks, merging defaults, stamping timestamps) is deliberately P03-M2; the helper is pure and testable today.
+  - **New `src/types/template-defaults.ts`:** pure factories — `createDefaultTemplate`, `createTemplateSection`, `createTemplateHeadingBlock`, `createTemplateParagraphBlock`, `createTemplateReferenceHint` — each returning fresh objects with fresh IDs and no shared mutable references (isolation proven by test 12).
+  - **New `src/services/template-file.ts`:** pure (no React/DOM/Tauri) `serializeTemplate` (validates first, deterministic output), `deserializeTemplate` (never blind-casts), `validateTemplate` (structural checks for identity, origin/prefix policy, category membership, ordered sections/blocks, reference hints, optional asset envelopes reusing `AssetRecord`), typed `TemplateFileError` codes (`invalid-json`, `invalid-signature`, `unsupported-version`, `no-migration`, `invalid-structure`), and `defaultTemplateFileName()` (`.dstemplate`). Version policy: equal opens; newer → `unsupported-version`; the `no-migration` code exists and is documented for older versions but is unreachable while the current version is 1 (the `version < 1` guard fires first — asserted in test 10). No new validation dependency.
+  - **New `src/services/template-samples.ts`:** one small, deterministic example SOP fixture (fixed IDs/timestamps, 2 sections, 1 reference hint, metadata/lab-profile/page-setup/front-page defaults) proving the schema is usable. Built-in origin uses the reserved `builtin.` prefix. It is generic scaffolding and does NOT imply ISO/IEC 17025 conformity.
+  - **Asset contract (documented limitation):** a template MAY carry an optional `assets` bundle reusing `AssetRecord` for self-contained branding; cross-references (e.g. `labProfile.logoAssetId`) must resolve within the same template. To avoid duplicating large payloads, built-in templates (P03-M3) will prefer the user's own logo and keep `assets` empty by default; full asset packaging/deduplication belongs to a later checkpoint and was NOT redesigned here.
+  - **New `verify_p03_m1.mjs` (+ npm script `verify:p03-m1`):** compiles the actual modules with tsc and runs 14 checks with the built-in `assert` module — no test framework introduced.
+- **Automated checks executed (2026-10-16):**
+  - `npm run build` — exit code 0, 261 modules, built in 6.00s (main chunk 1.93 MB; known code-splitting warning, unchanged).
+  - `npm run verify:p03-m1` — **14 passed, 0 failed**: (1) valid default template created; (2) template/section/block/reference IDs stable and unique; (3) serialize→deserialize round-trip; (4) deterministic byte-identical serialization incl. round-trip; (5) all 8 categories representable and round-trip; (6) metadata defaults, settings, ordered sections and blocks survive round-trip; (7) custom tags, prompts and reference/clause fields survive round-trip; (8) malformed JSON rejected (`invalid-json`); (9) missing/invalid required fields rejected (`invalid-structure`); (10) unsupported newer version rejected (`unsupported-version`) and invalid versions rejected; (11) template↔document cross-rejection (template JSON rejected by `deserializeDocument`, document JSON rejected by `deserializeTemplate` with `invalid-signature`, distinct signatures, builtin-prefix policy); (12) mutating one template/fixture does not mutate another; (13) example template structurally valid + flattening contract; (14) document serialization/lifecycle unaffected.
+  - Regression: `npm run verify:p02-m2` — 11/11; `verify:p02-m3` — 12/12; `verify:p02-m4` — 9/9; `verify:p02-m5` — 14/14 (all exit 0).
+  - `cargo check` — **not run**: this checkpoint changed no Rust source, Tauri plugin, or capability/configuration file (pure frontend TypeScript + a Node verification script + `package.json` script entry + roadmap).
+- **Not completed / limitations:**
+  - Local reusable Laboratory Profile editing/persistence (§3.1) is NOT done — only the `EmbeddedLabProfile` snapshot type is reused by template defaults; live-profile storage/UI is separate pending Phase 03 work.
+  - Template chooser, search/filter UI, and initializing a new document from a template (§3.4) are NOT done.
+  - The initial category library of usable samples (§3.3) is NOT done — only one example fixture exists.
+  - Section add/remove/rename/reorder customization UI (§3.4) is NOT done.
+  - No native template save/open dialogs or filesystem permissions added (deferred; format is validated purely in memory).
+  - Older-template `no-migration` path is unreachable while template schema version is 1 (guard ordering), though the code and policy are in place.
+  - No committed `.dstemplate` sample file; the example lives as a factory function (deterministic).
+- **Files created/modified:**
+  - `src/types/template.ts` — CREATED
+  - `src/types/template-defaults.ts` — CREATED
+  - `src/services/template-file.ts` — CREATED
+  - `src/services/template-samples.ts` — CREATED
+  - `verify_p03_m1.mjs` — CREATED
+  - `src/types/index.ts` — MODIFIED (exports the two new template type modules)
+  - `package.json` — MODIFIED (`verify:p03-m1` script)
+  - `project_roadmap.md` — MODIFIED (this entry + summary/status/boards/checkpoints)
+- **Decisions recorded:**
+  - Template schema versioning is SEPARATE from `DOCSTUDIO_SCHEMA_VERSION`; template changes never force a `.docstudio` migration.
+  - File signature discriminator `__type: 'DocStudioTemplate'` + distinct `.dstemplate` extension guarantee cross-format rejection in both directions.
+  - Built-in templates use an immutable, readable `builtin.<category>.<slug>` ID; user templates use UUIDs; the prefix is validated so origins cannot be spoofed.
+  - Sections are template-level structure that flattens to the existing block sequence (no new block type; document schema unchanged).
+  - Defaults are PARTIAL and reuse existing document settings types (no parallel metadata schema).
+- **Commit/reference:** `52f904e` on `opencode/p03-m1-template-schema` (this checkpoint's commit); pushed fast-forward from `2aba4a6`.
+- **Next action:** Proceed to P03-M2 (template chooser and document initialization) upon user instruction; Phase 03 is NOT complete.
 
 ---
 
