@@ -16,3 +16,7 @@ export interface SectionState {
 export * from './document';
 export * from './blocks';
 export * from './defaults';
+
+// ── Phase 03 template schema ──────────────────────────────────────────────────
+export * from './template';
+export * from './template-defaults';
