@@ -21,7 +21,7 @@
 | Current blocking issue | None — the metadata-panel scope residue recorded at P02-GATE is resolved by P02-M5 |
 | Last verified build | `npm run build` (tsc & vite: 261 modules, built in 5.92s, exit code 0; 2026-10-16) |
 | Last verified test run | 2026-10-16: `verify_p02_m5.mjs` (14/14), `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9) — all exit 0; manual 11-scenario metadata editing test in `npx tauri dev` (owner: "working ok") |
-| Latest project commit | `0be6e54` (P02-GATE, pushed); P02-M5 commit on `opencode/p02-m5-metadata-panel` pushed with this checkpoint |
+| Latest project commit | `34848d4` (P02-M5 metadata panel, pushed on `opencode/p02-m5-metadata-panel`); previous: `0be6e54` (P02-GATE) |
 
 ### Status vocabulary
 
@@ -901,7 +901,7 @@ Add, update, or remove rows as tasks are completed. Use real dates and links/pat
 | `P02-M3` | Document lifecycle + unsaved-change handling | VERIFIED | `verify:p02-m3` 12/12; manual 10-scenario test (owner) | `198db8f` | New/Duplicate/Clear/Reset/Save guard flows |
 | `P02-M4` | Multi-page rendering + PDF proof of concept | VERIFIED | `verify:p02-m4` 9/9; 3-page A4 artifact; manual 3-way preview/export comparison (owner) | `986ce6f` | Renderer architecture decision (DEC-001); 2 manual-test defects fixed |
 | `P02-GATE` | Phase 02 exit-criteria review | VERIFIED | Gate rerun 2026-10-16: build exit 0; 11/11 + 12/12 + 9/9; artifact validated (13,854 bytes, 3 pages) | Branch `opencode/p02-gate-phase02-review` (`0be6e54`) | All six exit criteria PASS; metadata-panel UI scope residue recorded |
-| `P02-M5` | Document metadata panel editing foundation (post-gate follow-up) | VERIFIED | `verify:p02-m5` 14/14; regression 11/11 + 12/12 + 9/9; build exit 0; manual 11-scenario metadata test (owner: "working ok") | Branch `opencode/p02-m5-metadata-panel` | Closes the P02-GATE §2.2 residue; no schema change |
+| `P02-M5` | Document metadata panel editing foundation (post-gate follow-up) | VERIFIED | `verify:p02-m5` 14/14; regression 11/11 + 12/12 + 9/9; build exit 0; manual 11-scenario metadata test (owner: "working ok") | `34848d4` (branch `opencode/p02-m5-metadata-panel`) | Closes the P02-GATE §2.2 residue; no schema change |
 
 ## 6. Decision Log
 
@@ -1384,7 +1384,7 @@ Copy this template for each new checkpoint:
   - `src/components/workspace/Workspace.tsx` — MODIFIED (prop threading)
   - `src/App.tsx` — MODIFIED (handler + threading)
   - `package.json` — MODIFIED (`verify:p02-m5` script)
-- **Commit/reference:** `opencode/p02-m5-metadata-panel` (this checkpoint's commit)
+- **Commit/reference:** `34848d4` on `opencode/p02-m5-metadata-panel` (this checkpoint's commit)
 - **Next action:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard; remains `NOT STARTED` and begins only on user instruction.
 
 ---
