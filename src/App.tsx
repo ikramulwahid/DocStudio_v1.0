@@ -3,6 +3,7 @@ import { Topbar } from './components/topbar/Topbar';
 import { Workspace } from './components/workspace/Workspace';
 import { ConfirmDialog, DialogAction } from './components/common/ConfirmDialog';
 import { TemplateChooser } from './components/template-chooser/TemplateChooser';
+import { createTemplatePersistenceManager } from './services/template-persistence';
 import {
   ThemeMode,
   DocStudioDocument,
@@ -111,6 +112,12 @@ export const App: React.FC = () => {
   const [chooserOpen, setChooserOpen] = useState(false);
   /** The currently available built-in template catalog (P03-M2: example SOP). */
   const templateCatalog = useMemo(() => getBuiltinTemplates(), []);
+  /**
+   * P03-M5 custom-template persistence workflows (My Templates library +
+   * native `.dstemplate` dialogs).  Stable for the app's lifetime; the
+   * chooser loads the stored library each time it opens.
+   */
+  const templatePersistence = useMemo(() => createTemplatePersistenceManager(), []);
 
   const fingerprint = sessionFingerprint(activeDocument);
   const dirty = isDirty(fingerprint, baselineFingerprint);
@@ -365,7 +372,11 @@ export const App: React.FC = () => {
         labProfileError={labProfileError}
       />
       {chooserOpen && (
-        <TemplateChooser templates={templateCatalog} onSelect={handleChooserSelect} />
+        <TemplateChooser
+          templates={templateCatalog}
+          persistence={templatePersistence}
+          onSelect={handleChooserSelect}
+        />
       )}
       {dialog && (
         <ConfirmDialog
