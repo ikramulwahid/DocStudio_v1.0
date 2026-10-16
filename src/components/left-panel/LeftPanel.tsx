@@ -86,7 +86,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({ onDuplicate, onReset }) =>
               <span className="form-label-placeholder">Organization / Lab</span>
               <div className="form-input-placeholder">ISO/IEC 17025 Testing Laboratory</div>
             </div>
-            <span className="placeholder-subtext">Configurable metadata fields will be wired in Phase 02.</span>
+            <span className="placeholder-subtext">Not editable yet — metadata lives in the document model (schema v1); field editing UI is pending an owner decision (see P02-GATE). Values shown are illustrative.</span>
           </div>
         </CollapsibleSection>
 

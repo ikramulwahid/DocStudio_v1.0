@@ -16,12 +16,12 @@
 | Stack | React + TypeScript + Vite + Tauri 2 |
 | Release target | Windows executable/installer |
 | Current phase | Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept |
-| Overall status | **Phase 02 In Progress (P02-M1 → P02-M4 Verified; P02-GATE pending)** |
-| Last checkpoint | `P02-M4` (Multi-page rendering + PDF proof of concept — VERIFIED, incl. manual test) |
-| Current blocking issue | None |
-| Last verified build | `npm run build` (tsc & vite: 259 modules, built in 5.92s, exit code 0) |
-| Last verified test run | `verify_p02_m4.mjs` (9/9 passed); `verify_p02_m2.mjs` (11/11); `verify_p02_m3.mjs` (12/12); manual 10-scenario Windows integration test in `npx tauri dev` (all passed after 2 bug-fix cycles) |
-| Latest project commit | `198db8f` (P02-M3, pushed); P02-M4 commit on `opencode/p02-m4-renderer-poc` pushed with this checkpoint |
+| Overall status | **Phase 02 VERIFIED (P02-M1 → P02-GATE); Phase 03 NOT STARTED** |
+| Last checkpoint | `P02-GATE` (Phase 02 exit-criteria review — VERIFIED, 2026-10-16) |
+| Current blocking issue | None. Scope residue recorded: metadata-panel editing UI (§2.2) not implemented — see P02-GATE entry, owner decision needed for destination |
+| Last verified build | `npm run build` (tsc & vite: 259 modules, built in 8.05s, exit code 0; gate rerun 2026-10-16) |
+| Last verified test run | Gate rerun 2026-10-16: `verify_p02_m2.mjs` (11/11), `verify_p02_m3.mjs` (12/12), `verify_p02_m4.mjs` (9/9) — all exit 0; prior manual Windows integration tests for P02-M2/M3/M4 recorded in their checkpoint entries |
+| Latest project commit | `986ce6f` (P02-M4, pushed); P02-GATE commit on `opencode/p02-gate-phase02-review` pushed with this checkpoint |
 
 ### Status vocabulary
 
@@ -171,7 +171,7 @@ Use realistic layout placeholders rather than building all the settings now.
 
 # Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
 
-**Initial status:** `IN PROGRESS` — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3, P02-M4 VERIFIED; P02-GATE pending
+**Initial status:** `VERIFIED` (2026-10-16) — P02-M1, P02-M1-R1, P02-M2, P02-M2-R1, P02-M3, P02-M4, P02-GATE all VERIFIED. Phase 03 is the next phase and remains NOT STARTED.
 
 ## Goal
 
@@ -254,12 +254,14 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 
 ## Exit criteria
 
-- [ ] Document schema is versioned and documented.
-- [ ] Save/open/duplicate/new/clear work for the supported data.
-- [ ] Unsaved changes are detected and destructive actions handled safely.
-- [ ] Metadata is stored in the document model, not only in UI state.
-- [ ] Early rendering proof of concept succeeds or has a documented blocker and explicit resolution decision.
-- [ ] Checkpoint evidence is recorded.
+- [x] Document schema is versioned and documented.
+- [x] Save/open/duplicate/new/clear work for the supported data.
+- [x] Unsaved changes are detected and destructive actions handled safely.
+- [x] Metadata is stored in the document model, not only in UI state.
+- [x] Early rendering proof of concept succeeds or has a documented blocker and explicit resolution decision.
+- [x] Checkpoint evidence is recorded.
+
+*Gate review 2026-10-16: all six criteria PASS with evidence — see the P02-GATE checkpoint-log entry for the full evidence matrix. Criteria are met at the model/behavior level; the metadata-panel editing UI (§2.2) remains an explicitly recorded scope residue (not an exit criterion), documented in the P02-GATE entry.*
 
 ## Checkpoints
 
@@ -269,7 +271,7 @@ Record the selected strategy, dependencies, limitations, licensing consideration
 - `P02-M2-R1`: Filesystem scope verification for paths outside `$HOME` (`VERIFIED`).
 - `P02-M3`: Document lifecycle actions verified (`VERIFIED`).
 - `P02-M4`: Multi-page PDF/rendering proof of concept verified (`VERIFIED`).
-- `P02-GATE`: Phase 02 exit criteria met.
+- `P02-GATE`: Phase 02 exit criteria met (`VERIFIED`, 2026-10-16).
 
 ---
 
@@ -871,7 +873,7 @@ Update this table when phase status changes. Keep it consistent with the detaile
 | Phase | Name | Status | Start date | Verified date | Evidence/commit reference | Blocker/notes |
 |---|---|---|---|---|---|---|
 | 01 | Empty Application Shell | VERIFIED | 2026-10-15 | 2026-10-15 | npm run build, cargo build docstudio.exe, verify_phase01.js | All Phase 01 criteria verified |
-| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | IN PROGRESS | 2026-10-15 | — | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 `198db8f`; P02-M4 (branch `opencode/p02-m4-renderer-poc`) | Schema, save/open, fs scope, lifecycle and renderer PoC verified; P02-GATE pending |
+| 02 | Document Model, Metadata, Lifecycle, Renderer Proof | VERIFIED | 2026-10-15 | 2026-10-16 | P02-M1 `dc69b35`; P02-M1-R1 `89bbf3a`; P02-M2 `ff66587`; P02-M2-R1 `d7625cc`; P02-M3 `198db8f`; P02-M4 `986ce6f`; P02-GATE (branch `opencode/p02-gate-phase02-review`) | All six exit criteria verified at the 2026-10-16 gate review; metadata-panel editing UI (§2.2) recorded as scope residue in the P02-GATE entry |
 | 03 | Laboratory Profiles, Templates, Wizard | NOT STARTED | — | — | — | — |
 | 04 | Page Setup, Typography, Themes, Front Page | NOT STARTED | — | — | — | — |
 | 05 | Core Modular Editor | NOT STARTED | — | — | — | — |
@@ -891,6 +893,13 @@ Add, update, or remove rows as tasks are completed. Use real dates and links/pat
 | `P01-M2` | Three-column workspace (25%/35%/40%) and Topbar | VERIFIED | CSS Grid layout verified; Topbar actions wired | Workspace.css / Topbar.tsx | Independent scrolling, honest disabled actions |
 | `P01-M3` | Interface appearance modes & collapsible panels | VERIFIED | Multicolor, Light, Dark themes; 6 collapsible sections | theme.css / LeftPanel.tsx | Persistent localStorage theme switch |
 | `P01-GATE` | Phase 01 Empty Application Shell Gate | VERIFIED | `cargo build` (`docstudio.exe`, 13.4MB), `verify_phase01.js` | src-tauri/target/debug/docstudio.exe | Phase 01 complete |
+| `P02-M1` | Document schema and defaults (schema v1) | VERIFIED | `npm run build` exit 0 (41 modules) | `dc69b35` | Schema-only checkpoint; types/defaults, no UI wiring |
+| `P02-M1-R1` | Schema review corrections | VERIFIED | Review fixes + build | `89bbf3a` | Schema corrections before persistence work |
+| `P02-M2` | Native `.docstudio` save/open round-trip | VERIFIED | `verify:p02-m2` 11/11; `cargo check` ok; manual save/open by owner | `ff66587` | JSON v1 format + structural validator + narrow fs scope |
+| `P02-M2-R1` | Filesystem scope outside `$HOME` via dialog grants | VERIFIED | Manual dialog-grant verification (read/write outside `$HOME`) | `d7625cc` | `$HOME/**` capability unchanged; per-session dialog grants |
+| `P02-M3` | Document lifecycle + unsaved-change handling | VERIFIED | `verify:p02-m3` 12/12; manual 10-scenario test (owner) | `198db8f` | New/Duplicate/Clear/Reset/Save guard flows |
+| `P02-M4` | Multi-page rendering + PDF proof of concept | VERIFIED | `verify:p02-m4` 9/9; 3-page A4 artifact; manual 3-way preview/export comparison (owner) | `986ce6f` | Renderer architecture decision (DEC-001); 2 manual-test defects fixed |
+| `P02-GATE` | Phase 02 exit-criteria review | VERIFIED | Gate rerun 2026-10-16: build exit 0; 11/11 + 12/12 + 9/9; artifact validated (13,854 bytes, 3 pages) | Branch `opencode/p02-gate-phase02-review` | All six exit criteria PASS; metadata-panel UI scope residue recorded |
 
 ## 6. Decision Log
 
@@ -898,8 +907,8 @@ Record decisions that influence architecture, dependencies, supported behavior, 
 
 | Decision ID | Date | Topic | Decision | Rationale/evidence | Impact |
 |---|---|---|---|---|---|
-| DEC-001 | Pending | PDF preview/export architecture | Decide during Phase 02 after a working proof of concept | Preview/export fidelity is a major technical risk | Blocks final rendering implementation until resolved |
-| DEC-002 | Pending | Native `.docstudio` file packaging | Choose and document during Phase 02 | Must preserve schema, content, assets, and future revision history | Affects persistence and compatibility |
+| DEC-001 | 2026-10-15 | PDF preview/export architecture | **SELECTED:** `@react-pdf/renderer` 4.9.0 (MIT) for PDF generation and `react-pdf` 10.5.0 / pdfjs-dist 5.4.296 (Apache-2.0) viewer for preview — the same rendered bytes serve both preview and export (confirmed by P02-M4: deterministic byte-identical re-render, 3-page A4 artifact, 3-way preview/artifact/external-viewer comparison) | Pure JS/WASM, fully offline after install; React component model; Yoga pagination with `break`/`fixed`; standard-14 fonts (license-clean); headless Node API enabled automated verification. Rejected: pagedjs (stale, no offline automated print-to-PDF from Tauri/WebView2), Vivliostyle (AGPL-3.0), pdfmake (non-React, no capability gain), react-pdf v11 (needs React 19). Full record in the P02-M4 checkpoint entry | Feasibility proven (R-001 mitigated). **Remaining Phase 08 fidelity work:** tables split across pages with repeated header rows, all 21 block types, 10 body + 10 cover themes, running-header content flow, footnotes/TOC/cross-references, PDF/A option, embeddable-font licensing, large-document performance; keep the `blob:` object URL viewer pattern (pdf.js buffer detach + StrictMode findings) |
+| DEC-002 | 2026-10-15 | Native `.docstudio` file packaging | **DECIDED:** a `.docstudio` file (v1) is a single UTF-8, pretty-printed JSON document equal to exactly one `DocStudioDocument`, with assets embedded as base64 records; `schemaVersion` (currently 1) governs compatibility — equal opens, newer rejected (`unsupported-version`), older rejected (`no-migration`) until a migration module exists | Human-readable and diff-able; matches schema v1 asset-as-base64 design; full-object serialization guarantees byte-stable save→open round-trip (verify:p02-m2 11/11); structural validation on read/write rejects invalid files whole; format documented in the `src/services/document-file.ts` header. Archive-style packaging remains possible later under a schema version bump | Affects persistence and compatibility; every breaking schema change requires a version increment plus a migration module; a future archive format is a versioned evolution, not a re-design |
 | DEC-003 | Pending | DOCX import/export scope | Evaluate during Phase 08; PDF/native project reliability take priority | DOCX fidelity and maintenance cost must be evidence-based | May be included or explicitly deferred for v1.0 |
 | DEC-004 | Pending | Windows distribution form | Confirm installer vs portable executable before Phase 10 | These are different distribution models | Affects packaging and release instructions |
 
@@ -909,7 +918,7 @@ Keep this list current. Add an owner/decision needed when useful.
 
 | ID | Risk/blocker | Impact | Mitigation/evidence required | Status |
 |---|---|---|---|---|
-| R-001 | Preview and exported PDF may differ in page breaks, fonts, or element positions | Critical | Prove a multi-page renderer in Phase 02; validate against actual PDFs in Phase 08 | OPEN |
+| R-001 | Preview and exported PDF may differ in page breaks, fonts, or element positions | Critical | Prove a multi-page renderer in Phase 02; validate against actual PDFs in Phase 08 | **MITIGATED (P02-M4, 2026-10-15)** — same-bytes preview/export architecture (DEC-001) demonstrated on a 3-page A4 artifact with recorded 3-way comparison; production-fidelity validation (table page-splitting, all block types, themes, fonts, large documents) remains assigned to Phase 08 — not fully resolved |
 | R-002 | Too many features attempted in one agent task may lead to broad changes and difficult debugging | High | Use small scoped tasks, inspect diffs, verify each checkpoint, and commit stable milestones | OPEN |
 | R-003 | Revision/track-change data can increase project-file size and model complexity | Medium | Define scope and persistence strategy in Phase 07; test realistic histories | OPEN |
 | R-004 | Fonts and images may not be available when a project moves to another computer | High | Define asset handling, fallback fonts and PDF font behavior; test on clean Windows setup | OPEN |
@@ -1290,6 +1299,46 @@ Copy this template for each new checkpoint:
 - **Deviations from planned scope:** none (fixture PNG generated offline via PowerShell System.Drawing instead of adding an image dependency; no broad Tauri permission added — only the narrow `fs:allow-write-file`).
 - **Commit/reference:** `opencode/p02-m4-renderer-poc` (implementation + verification + roadmap commit)
 - **Next action:** Proceed to P02-GATE (Phase 02 exit-criteria review) upon user instruction.
+
+---
+
+### 2026-10-16 — [MAJOR] P02-GATE: Phase 02 Exit-Criteria Review
+
+- **Phase:** Phase 02 — Document Model, Metadata, Local Lifecycle, and Renderer Proof of Concept
+- **Status:** VERIFIED (2026-10-16)
+- **Review basis:** branch `opencode/p02-gate-phase02-review` created from pushed P02-M4 tip `986ce6f` (confirmed on `origin`); the audit inspected the current source — `src/types/document.ts`, `src/types/blocks.ts`, `src/types/defaults.ts`, `src/services/document-file.ts`, `src/services/document-io.ts`, `src/services/document-actions.ts`, `src/App.tsx`, `src/renderer/poc/*`, `src-tauri/capabilities/default.json` — and the committed artifact, not prior reports alone. `project_details.md` was read, not modified.
+- **Exit-criteria evidence matrix:**
+
+  | # | Phase 02 exit criterion | Result | Evidence (inspected/rerun at gate) |
+  |---|---|---|---|
+  | 1 | Document schema is versioned and documented | **PASS** | `DOCSTUDIO_SCHEMA_VERSION = 1` (`src/types/document.ts:29`) with migration policy documented (`document.ts:18`, `document-file.ts` header: equal opens / newer → `unsupported-version` / older → `no-migration`); `verify:p02-m2` test 8 rejects wrong versions; `npm run build` exit 0 |
+  | 2 | Save/open/duplicate/new/clear work for the supported data | **PASS** | `verify:p02-m2` 11/11 (round-trip + invalid-file rejection), `verify:p02-m3` 12/12 (New/Duplicate/Clear/Reset tests 1–5), gate rerun green; manual owner runs recorded in P02-M2 ("no errors, working ok") and P02-M3 ("verified, working ok") entries |
+  | 3 | Unsaved changes detected; destructive actions handled safely | **PASS** | `verify:p02-m3` tests 6–11 incl. async guard tests 9/10 (cancel aborts replacement; save failure/cancel blocks it; failed open preserves active document); `resolveUnsavedChanges` + `ConfirmDialog` in `App.tsx`; manual 10-scenario P02-M3 run |
+  | 4 | Metadata stored in the document model, not only in UI state | **PASS** | `DocumentMetadata` (19 standard fields + `customFields`) lives inside `DocStudioDocument`; defaults factory `createDefaultMetadata`; survives save→open (m2 test 2); PDF Info dictionary built from `doc.metadata` (`poc-document.tsx:309–315`); no metadata state exists in React — the editing UI itself is the recorded scope residue below |
+  | 5 | Early rendering proof of concept succeeds | **PASS** | `verify:p02-m4` 9/9; artifact `fixtures/p02-m4/renderer-poc-output.pdf` re-validated at gate: **13,854 bytes, `%PDF-1.3`, `%%EOF`, 3 × `/Type /Page`, `/MediaBox [0 0 595.280029 841.890015]` (A4)**; verify rerun regenerated it byte-identically (tree clean); recorded 3-way preview/artifact/external-viewer comparison (P02-M4); decision recorded (DEC-001) |
+  | 6 | Checkpoint evidence is recorded | **PASS** | Checkpoint log entries P02-M1 → P02-M4 with actual commands, counts, manual results and limitations; this gate entry; summary/status/decision boards reconciled |
+- **Audit-area findings (A–E of the review scope):**
+  - **A. Versioned document model — PASS.** Identity (`DocUUID`), metadata, `EmbeddedLabProfile`, `PageSetup`/`TypographySettings`/`FrontPageSettings`/`HeaderFooterSettings`, `ContentBlock[]` (21-type discriminant, stable IDs), `AssetRecord` (base64), `schemaVersion` all present in the schema; pure default factories in `defaults.ts`; `serializeDocument` validates before writing and `deserializeDocument` never blind-casts — invalid/unsupported files rejected whole with typed `DocumentFileError`; format and version policy documented in `document-file.ts`.
+  - **B. Native save/open and lifecycle — PASS.** `document-io.ts` uses only native dialogs + scoped `readTextFile`/`writeTextFile`; capability grants are narrow (`dialog:allow-open/save`, `fs:allow-read-text-file`, `fs:allow-write-text-file`, `fs:allow-write-file`, `fs:scope $HOME/**` — no unrestricted fs permission); `document-actions.ts` implements New/Duplicate/Clear/Reset with reference-aware asset pruning; `App.tsx` derives `dirty`/`sessionStatus` from a baseline fingerprint and guards replacements via Save/Discard/Cancel; cancel, I/O failure and invalid-open paths all preserve the active document (m2 test 9, m3 tests 9–11).
+  - **C. Laboratory Profile foundation — PASS (foundation only).** `EmbeddedLabProfile` provides typed reusable fields (name, address, location, phone, email, website, `logoAssetId`, `documentIdPrefix`) snapshotted into each document at creation, plus `createDefaultLabProfile()`. Live-profile persistence/editing beyond the per-document snapshot is deliberately Phase 03 per roadmap §2.5 ("or set up as typed fields for a later phase"); **no missing Phase 02 prerequisite identified** — Phase 03 must add profile storage/UI itself.
+  - **D. Rendering architecture critical gate — PASS.** Fixture (`poc-fixture.ts`) inspection confirms: 10 paragraphs with mid-sentence overflow, explicit `page-break`, 6×4 table with caption, embedded local PNG, A4/25 mm defaults; translation (`poc-document.tsx`) documents the Segoe UI → standard-14 Times fallback; same-bytes render service (`poc-render.ts`) feeds both the PDF.js preview and the export; artifacts and comparison results committed/recorded. **Scope limit:** the PoC maps only heading/paragraph/page-break/table/image — it does not validate every future block, theme, table-pagination case, font, or production document (Phase 08).
+  - **E. Evidence traceability — conflicts found and resolved:**
+    1. **Metadata-panel editing UI (§2.2) not implemented.** The entire component tree contains zero bound inputs; `LeftPanel.tsx` Document Information is a static placeholder whose subtext claimed "will be wired in Phase 02" — contradicting a closing Phase 02. This is a genuine scope residue, **not** an exit-criterion failure (criterion 4 is model-level and passes). Resolved documentation-only at this gate: placeholder text corrected to state the current truth; the gap itself is recorded here for an owner decision (smallest remediation: a dedicated small checkpoint to wire the base metadata fields, or an owner-approved `DEFERRED` destination — recommendation: alongside the Phase 05 editor). Not silently treated as complete.
+    2. **`Save As` (§2.4) not implemented** — already documented as deferred in the P02-M3 entry (first save via dialog; re-save writes to the associated path). Exit criterion 2 lists save/open, which pass; recorded here for completeness.
+    3. **No committed sample `.docstudio` fixture** — the format is documented and round-trip is exercised by `verify:p02-m2` test 1 plus the recorded manual save/open; minor, no criterion depends on a committed sample.
+    4. **Date note:** the review was actually performed on **2026-10-16** (the instruction's `2026-10-15` verified date applies only if that is the actual review date); 2026-10-15 remains the date of the P02-M1 → P02-M4 checkpoints.
+- **Final regression checks executed at gate (2026-10-16):**
+  - `npm run build` — exit code **0** (259 modules, built in 8.05s; known 1.92 MB chunk-size warning).
+  - `npm run verify:p02-m2` — **11 passed, 0 failed**, exit 0.
+  - `npm run verify:p02-m3` — **12 passed, 0 failed**, exit 0.
+  - `npm run verify:p02-m4` — **9 passed, 0 failed**, exit 0 (regenerated artifact byte-identical to the committed one; `git status` clean afterwards).
+  - Artifact validation (PowerShell, no new tooling): 13,854 bytes, `%PDF-1.3` header, `%%EOF` trailer, 3 page objects, A4 MediaBox — genuine multi-page PDF.
+  - `cargo check` — **not run**: this checkpoint changed no Rust source, Tauri plugin, or capability/configuration file (only `project_roadmap.md` plus one placeholder string in `LeftPanel.tsx`); the `fs:allow-write-file` capability was already validated at P02-M4 `tauri dev` startup.
+  - Manual scenarios — **not repeated**: P02-M2/P02-M3/P02-M4 manual evidence is present, mutually consistent, and no regression or contradiction was found (per the review's evidence-reuse rule).
+- **Gate decision:** all six exit criteria PASS with sufficient, freshly rerun evidence → **`P02-GATE` VERIFIED; Phase 02 VERIFIED (2026-10-16)**. Critical blockers: none. Known risks carried forward (R-001 mitigated not resolved; table page-splitting/themes/fonts/large-document performance → Phase 08; metadata-panel UI residue → owner decision; Save As deferred).
+- **Files changed:** `project_roadmap.md` (summary rows, Phase 02 status/exit criteria/checkpoints, Phase Status Board, Minor Checkpoint Board, DEC-001, DEC-002, R-001, this entry); `src/components/left-panel/LeftPanel.tsx` (metadata placeholder subtext corrected).
+- **Commit/reference:** `opencode/p02-gate-phase02-review` (this gate review commit)
+- **Next action:** Phase 03 — Laboratory Profiles, Template Library, and Template Wizard; remains `NOT STARTED` and begins only on user instruction. Recommended before/with it: an owner decision on the recorded metadata-panel residue.
 
 ---
 
