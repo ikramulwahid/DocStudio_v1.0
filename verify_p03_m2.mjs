@@ -36,6 +36,13 @@
  *  18. Existing P02/P03 behavior has no regression.
  *
  * Usage: node verify_p03_m2.mjs   (or: npm run verify:p03-m2)
+ *
+ * P03-M3 note: the built-in catalog grew from one example to the full
+ * 16-template library.  Assertions that previously relied on "the catalog is
+ * the single example" (list length / list position) now locate the retained
+ * example SOP by its stable id (`EXAMPLE_SOP_ID`); the P03-M2 contracts
+ * themselves (blank first-class, search/filter, guarded selection, precedence,
+ * isolation) are unchanged and unweakened.
  */
 
 import { execSync } from 'node:child_process';
@@ -174,18 +181,29 @@ function stripIds(value) {
 }
 
 const emptyProfile = () => createEmptyLabProfile();
+// The retained P03-M1 example SOP keeps its identity in the P03-M3 catalog;
+// tests that need THE example look it up by id rather than by list position.
+const EXAMPLE_SOP_ID = 'builtin.sops-work-instructions.example-sop';
+const exampleTemplate = () => {
+  const tpl = getBuiltinTemplates().find((t) => t.id === EXAMPLE_SOP_ID);
+  assert.ok(tpl, 'retained example SOP is present in the built-in catalog');
+  return tpl;
+};
 const exampleChoice = () =>
-  buildChoiceList(getBuiltinTemplates(), labelFor).find((c) => c.id !== BLANK_CHOICE_ID);
+  buildChoiceList(getBuiltinTemplates(), labelFor).find((c) => c.id === EXAMPLE_SOP_ID);
 
 // ── 1. Chooser discovers the example template and blank-document option ─────
 test('1. chooser discovers blank-document option and the example template', () => {
   const catalog = getBuiltinTemplates();
-  assert.equal(catalog.length, 1, 'P03-M2 catalog = the single example SOP');
-  assert.equal(catalog[0].id, 'builtin.sops-work-instructions.example-sop');
-  validateTemplate(catalog[0]); // only structurally valid templates are offered
+  // (P03-M3 grows the catalog; this test keeps P03-M2's contract: the example
+  // is offered, every offered entry is structurally valid.)
+  const example = catalog.find((t) => t.id === EXAMPLE_SOP_ID);
+  assert.ok(example, 'P03-M2 example SOP remains in the catalog');
+  assert.equal(example.id, EXAMPLE_SOP_ID);
+  for (const tpl of catalog) validateTemplate(tpl); // only valid templates are offered
 
   const choices = buildChoiceList(catalog, labelFor);
-  assert.equal(choices.length, 2);
+  assert.equal(choices.length, catalog.length + 1, 'blank + every catalog template');
 
   // Blank Document is first-class: always present, listed first, no source template.
   assert.equal(choices[0].id, BLANK_CHOICE_ID);
@@ -194,12 +212,12 @@ test('1. chooser discovers blank-document option and the example template', () =
   assert.deepEqual(choices[0].sections, []);
 
   // Example template entry carries catalog metadata + ordered section preview.
-  const ex = choices[1];
-  assert.equal(ex.id, catalog[0].id);
-  assert.equal(ex.template, catalog[0]);
+  const ex = choices.find((c) => c.id === EXAMPLE_SOP_ID);
+  assert.ok(ex, 'example appears as a choice');
+  assert.equal(ex.template, example);
   assert.equal(ex.category, 'sops-work-instructions');
   assert.equal(ex.categoryLabel, TEMPLATE_CATEGORIES.find((c) => c.id === ex.category).label);
-  assert.deepEqual([...ex.tags], [...catalog[0].tags]);
+  assert.deepEqual([...ex.tags], [...example.tags]);
   assert.equal(ex.sections.length, 2);
   assert.equal(ex.sections[0].name, 'Scope');
   assert.ok(ex.sections[0].description, 'section description previewed');
@@ -209,7 +227,7 @@ test('1. chooser discovers blank-document option and the example template', () =
 
 // ── 2. Search matches by name, description and tag ──────────────────────────
 test('2. search matches a template by name, description and tag', () => {
-  const ex = getBuiltinTemplates()[0];
+  const ex = exampleTemplate();
 
   // Name path (case-insensitive; leading/trailing whitespace is trimmed).
   assert.ok(matchesQuery(ex, 'standard operating procedure'), 'name match');
@@ -240,20 +258,29 @@ test('3. category filtering and labels come from the centralized category list',
     assert.ok(isKnownCategory(id), `${id} must be a known category`);
     const filtered = filterTemplates(catalog, '', id);
     if (id === 'sops-work-instructions') {
-      assert.equal(filtered.length, 1, 'example must pass its own category filter');
+      assert.ok(
+        filtered.some((t) => t.id === EXAMPLE_SOP_ID),
+        'example must pass its own category filter',
+      );
     } else {
-      assert.equal(filtered.length, 0, `example must be excluded from ${id}`);
+      assert.ok(
+        !filtered.some((t) => t.id === EXAMPLE_SOP_ID),
+        `example must be excluded from ${id}`,
+      );
     }
+    // Every offered entry actually belongs to the requested category.
+    for (const t of filtered) assert.equal(t.category, id, `${t.id} category matches filter`);
   }
   assert.ok(!isKnownCategory('not-a-category'), 'unknown id rejected');
   assert.ok(!isKnownCategory(BLANK_CHOICE_ID), 'blank sentinel is not a category');
-  assert.equal(filterTemplates(catalog, '', null).length, 1, 'null category = all');
+  assert.equal(filterTemplates(catalog, '', null).length, catalog.length, 'null category = all');
 
   // The rendered label is looked up from TEMPLATE_CATEGORIES (no second registry).
-  const exChoice = buildChoiceList(catalog, labelFor).find((c) => c.id === catalog[0].id);
+  const example = exampleTemplate();
+  const exChoice = buildChoiceList(catalog, labelFor).find((c) => c.id === EXAMPLE_SOP_ID);
   assert.equal(
     exChoice.categoryLabel,
-    TEMPLATE_CATEGORIES.find((c) => c.id === catalog[0].category).label,
+    TEMPLATE_CATEGORIES.find((c) => c.id === example.category).label,
   );
 });
 
@@ -321,7 +348,7 @@ test('5. blank creation produces a valid, fresh, default document with profile i
 
 // ── 6. Instantiation applies declared partial defaults (precedence policy) ──
 test('6. instantiation applies template defaults; saved profile identity wins', () => {
-  const ex = getBuiltinTemplates()[0];
+  const ex = exampleTemplate();
 
   // --- Empty profile: template defaults apply over app defaults. ---
   const doc = instantiateTemplate(ex, emptyProfile(), T0);
@@ -402,7 +429,7 @@ test('7. missing nested settings stay valid through fallback merging', () => {
 
 // ── 8. Sections/blocks appear in the specified order ────────────────────────
 test('8. the document contains sections and blocks in the specified order', () => {
-  const ex = getBuiltinTemplates()[0];
+  const ex = exampleTemplate();
   const doc = instantiateTemplate(ex, emptyProfile(), T0);
 
   assert.equal(doc.blocks.length, 5, '2 sections => 2 headings + 3 paragraphs');

@@ -23,8 +23,29 @@
  * @module types/template-defaults
  */
 
-import type { ContentBlock, ISODateString } from './document';
-import type { HeadingBlockData, ParagraphBlockData } from './blocks';
+import type { ContentBlock, ISODateString, HAlignment } from './document';
+import type {
+  HeadingBlockData,
+  ParagraphBlockData,
+  CalloutBlockData,
+  CalloutVariant,
+  ListBlockData,
+  ListType,
+  BulletStyle,
+  NumberStyle,
+  TableBlockData,
+  TableHeaderStyle,
+  TableRow,
+  SignatureBlockData,
+  EquipmentListBlockData,
+  ProcedureStepBlockData,
+  ProcedureStepLevel,
+  ObservationBlockData,
+  MeasurementBlockData,
+  AcceptanceCriteriaBlockData,
+  CriteriaResult,
+  CalculationBlockData,
+} from './blocks';
 import {
   DOCSTUDIO_TEMPLATE_SCHEMA_VERSION,
   TEMPLATE_FILE_SIGNATURE,
@@ -75,6 +96,289 @@ export function createTemplateParagraphBlock(text: string): ContentBlock {
     spans: [{ text }],
   };
   return { id: newUUID(), spacing: { topPt: 0, bottomPt: 6 }, data };
+}
+
+/**
+ * Create a callout/admonition `ContentBlock` (info/warning/note/…).
+ * `text` becomes a single plain span; `title` (optional) renders above it.
+ */
+export function createTemplateCalloutBlock(
+  variant: CalloutVariant,
+  text: string,
+  opts?: { title?: string },
+): ContentBlock {
+  const data: CalloutBlockData = {
+    type: 'callout',
+    variant,
+    spans: [{ text }],
+    ...(opts?.title !== undefined ? { title: opts.title } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/**
+ * Create a list `ContentBlock` from plain item strings.
+ * For `checklist` items the starter state is unchecked (`checked: false`);
+ * for other list types the flag is simply absent (see `ListItem`).
+ */
+export function createTemplateListBlock(
+  items: readonly string[],
+  opts?: {
+    listType?: ListType;
+    bulletStyle?: BulletStyle;
+    numberStyle?: NumberStyle;
+    depth?: number;
+  },
+): ContentBlock {
+  const listType = opts?.listType ?? 'bullet';
+  const depth = opts?.depth ?? 0;
+  const data: ListBlockData = {
+    type: 'list',
+    listType,
+    bulletStyle: opts?.bulletStyle ?? 'disc',
+    numberStyle: opts?.numberStyle ?? 'decimal',
+    items: items.map((text) => ({
+      id: newUUID(),
+      spans: [{ text }],
+      depth,
+      ...(listType === 'checklist' ? { checked: false } : {}),
+    })),
+  };
+  return { id: newUUID(), spacing: { topPt: 0, bottomPt: 6 }, data };
+}
+
+/**
+ * Create a table `ContentBlock`.
+ *
+ * `headers` becomes the styled header row (when non-empty); `rows` are body
+ * rows of cell strings.  Rows shorter than the header are padded with empty
+ * cells (handwriting-friendly starter tables), so callers may pass sparse rows.
+ * An empty `headers` array produces a headerless table (`hasHeaderRow: false`).
+ */
+export function createTemplateTableBlock(
+  headers: readonly string[],
+  rows: readonly (readonly string[])[],
+  opts?: {
+    caption?: string;
+    headerStyle?: TableHeaderStyle;
+    bodyAlign?: HAlignment;
+  },
+): ContentBlock {
+  const columnCount = Math.max(headers.length, ...rows.map((r) => r.length), 0);
+  const makeRow = (cells: readonly string[], isHeader: boolean): TableRow => ({
+    id: newUUID(),
+    cells: Array.from({ length: columnCount }, (_, i) => ({
+      id: newUUID(),
+      spans: [{ text: cells[i] ?? '' }],
+      hAlign: isHeader ? 'center' : (opts?.bodyAlign ?? 'left'),
+      colSpan: 1,
+      rowSpan: 1,
+      isHeader,
+    })),
+  });
+  const tableRows: TableRow[] = [];
+  if (headers.length > 0) tableRows.push(makeRow(headers, true));
+  for (const row of rows) tableRows.push(makeRow(row, false));
+  const data: TableBlockData = {
+    type: 'table',
+    rows: tableRows,
+    hasHeaderRow: headers.length > 0,
+    headerStyle: opts?.headerStyle ?? 'light',
+    ...(opts?.caption !== undefined ? { caption: opts.caption } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/**
+ * Create a signature `ContentBlock` with 1–3 signers (schema contract in
+ * `SignatureBlockData`).  Each starter signer must supply at least a `name`
+ * or `designation`; template callers normally pass a `designation`
+ * placeholder so the field stays clearly a blank to complete.
+ * Throws on an out-of-range signer count so an authoring mistake is caught
+ * when the catalog is built rather than silently shipped.
+ */
+export function createTemplateSignatureBlock(
+  signers: readonly {
+    role: string;
+    name?: string;
+    designation?: string;
+    department?: string;
+  }[],
+  opts?: { hAlign?: HAlignment },
+): ContentBlock {
+  if (signers.length < 1 || signers.length > 3) {
+    throw new RangeError(
+      `Signature block supports 1–3 signers; received ${signers.length}.`,
+    );
+  }
+  const data: SignatureBlockData = {
+    type: 'signature',
+    hAlign: opts?.hAlign ?? 'left',
+    signers: signers.map((s) => ({
+      id: newUUID(),
+      role: s.role,
+      ...(s.name !== undefined ? { name: s.name } : {}),
+      ...(s.designation !== undefined ? { designation: s.designation } : {}),
+      ...(s.department !== undefined ? { department: s.department } : {}),
+    })),
+  };
+  return { id: newUUID(), spacing: { topPt: 8, bottomPt: 6 }, data };
+}
+
+// ── Laboratory-oriented block factories (used by the P03-M3 library) ─────────
+
+/** Create an equipment-list `ContentBlock` from plain item descriptions. */
+export function createTemplateEquipmentListBlock(
+  items: readonly {
+    name: string;
+    assetTag?: string;
+    manufacturer?: string;
+    modelNumber?: string;
+    calibrationDue?: string;
+    mandatory?: boolean;
+  }[],
+  opts?: { title?: string },
+): ContentBlock {
+  const data: EquipmentListBlockData = {
+    type: 'equipment-list',
+    items: items.map((item) => ({
+      id: newUUID(),
+      name: item.name,
+      ...(item.assetTag !== undefined ? { assetTag: item.assetTag } : {}),
+      ...(item.manufacturer !== undefined ? { manufacturer: item.manufacturer } : {}),
+      ...(item.modelNumber !== undefined ? { modelNumber: item.modelNumber } : {}),
+      ...(item.calibrationDue !== undefined ? { calibrationDue: item.calibrationDue } : {}),
+      mandatory: item.mandatory ?? true,
+    })),
+    ...(opts?.title !== undefined ? { title: opts.title } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/**
+ * Create a procedure-step `ContentBlock`.
+ * `stepNumber` is left to the caller/renderer (optional in the schema);
+ * steps default to `level: 'main'`.
+ */
+export function createTemplateProcedureStepsBlock(
+  steps: readonly { text: string; level?: ProcedureStepLevel; stepNumber?: string }[],
+  opts?: { sectionTitle?: string },
+): ContentBlock {
+  const data: ProcedureStepBlockData = {
+    type: 'procedure-step',
+    steps: steps.map((step) => ({
+      id: newUUID(),
+      level: step.level ?? 'main',
+      spans: [{ text: step.text }],
+      ...(step.stepNumber !== undefined ? { stepNumber: step.stepNumber } : {}),
+    })),
+    ...(opts?.sectionTitle !== undefined ? { sectionTitle: opts.sectionTitle } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/** Create an observation table `ContentBlock` (parameter / value / remarks). */
+export function createTemplateObservationBlock(
+  rows: readonly { parameter: string; observedValue?: string; remarks?: string }[],
+  opts?: { title?: string },
+): ContentBlock {
+  const data: ObservationBlockData = {
+    type: 'observation',
+    rows: rows.map((row) => ({
+      id: newUUID(),
+      parameter: row.parameter,
+      observedValue: row.observedValue ?? '',
+      ...(row.remarks !== undefined ? { remarks: row.remarks } : {}),
+    })),
+    ...(opts?.title !== undefined ? { title: opts.title } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/**
+ * Create a measurement/data-table `ContentBlock`.
+ * Each `rows` entry is an array of cell strings aligned to `columns`;
+ * short rows are padded with empty cells (starter tables are handwriting-
+ * friendly and may legitimately be blank).
+ */
+export function createTemplateMeasurementBlock(
+  columns: readonly { header: string; unit?: string }[],
+  rows: readonly (readonly string[])[],
+  opts?: { title?: string; uncertaintyNote?: string },
+): ContentBlock {
+  const cols = columns.map((column) => ({
+    id: newUUID(),
+    header: column.header,
+    ...(column.unit !== undefined ? { unit: column.unit } : {}),
+  }));
+  const data: MeasurementBlockData = {
+    type: 'measurement',
+    columns: cols,
+    rows: rows.map((row) => ({
+      id: newUUID(),
+      values: cols.reduce<Record<string, string>>((acc, col, i) => {
+        acc[col.id] = row[i] ?? '';
+        return acc;
+      }, {}),
+    })),
+    ...(opts?.title !== undefined ? { title: opts.title } : {}),
+    ...(opts?.uncertaintyNote !== undefined ? { uncertaintyNote: opts.uncertaintyNote } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/** Create an acceptance-criteria `ContentBlock` (result defaults to `pending`). */
+export function createTemplateAcceptanceCriteriaBlock(
+  criteria: readonly {
+    criterion: string;
+    specification: string;
+    measuredValue?: string;
+    result?: CriteriaResult;
+    remarks?: string;
+  }[],
+  opts?: { title?: string; overallResult?: CriteriaResult },
+): ContentBlock {
+  const data: AcceptanceCriteriaBlockData = {
+    type: 'acceptance-criteria',
+    criteria: criteria.map((criterion) => ({
+      id: newUUID(),
+      criterion: criterion.criterion,
+      specification: criterion.specification,
+      result: criterion.result ?? 'pending',
+      ...(criterion.measuredValue !== undefined ? { measuredValue: criterion.measuredValue } : {}),
+      ...(criterion.remarks !== undefined ? { remarks: criterion.remarks } : {}),
+    })),
+    ...(opts?.title !== undefined ? { title: opts.title } : {}),
+    ...(opts?.overallResult !== undefined ? { overallResult: opts.overallResult } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
+}
+
+/** Create a calculation `ContentBlock` from formula steps (LaTeX strings). */
+export function createTemplateCalculationBlock(
+  steps: readonly {
+    label?: string;
+    latex: string;
+    substitution?: string;
+    result?: string;
+    note?: string;
+  }[],
+  opts?: { title?: string; conclusionText?: string },
+): ContentBlock {
+  const data: CalculationBlockData = {
+    type: 'calculation',
+    steps: steps.map((step) => ({
+      id: newUUID(),
+      latex: step.latex,
+      ...(step.label !== undefined ? { label: step.label } : {}),
+      ...(step.substitution !== undefined ? { substitution: step.substitution } : {}),
+      ...(step.result !== undefined ? { result: step.result } : {}),
+      ...(step.note !== undefined ? { note: step.note } : {}),
+    })),
+    ...(opts?.title !== undefined ? { title: opts.title } : {}),
+    ...(opts?.conclusionText !== undefined ? { conclusionText: opts.conclusionText } : {}),
+  };
+  return { id: newUUID(), spacing: { topPt: 4, bottomPt: 6 }, data };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

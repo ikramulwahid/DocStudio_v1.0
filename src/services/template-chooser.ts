@@ -9,11 +9,13 @@
  *
  * Catalog source of truth
  * ──────────────────────
- * The chooser consumes a caller-supplied list of templates.  For P03-M2 the
- * App passes the built-in catalog (`getBuiltinTemplates()` → the deterministic
- * example SOP from P03-M1).  Local custom-template loading/management does NOT
- * exist yet and is NOT faked here — the chooser only shows templates that are
- * currently available and valid.
+ * The chooser consumes a caller-supplied list of templates.  The App passes
+ * `getBuiltinTemplates()`, which delegates to the authoritative built-in
+ * catalog (`services/template-library/index.ts` — the retained example SOP
+ * plus the P03-M3 library covering all eight categories, deep-cloned per
+ * retrieval so consumers can never corrupt it).  Local custom-template
+ * loading/management does NOT exist yet and is NOT faked here — the chooser
+ * only shows templates that are currently available and valid.
  *
  * Blank Document is a first-class pseudo-entry (`BLANK_CHOICE_ID`), so it can
  * be highlighted/selected alongside real templates.
@@ -29,8 +31,7 @@
 
 import type { DocStudioTemplate, TemplateCategory } from '../types/template';
 import { TEMPLATE_CATEGORY_IDS } from '../types/template';
-import { createExampleSopTemplate } from './template-samples';
-import { validateTemplate } from './template-file';
+import { getBuiltinCatalogTemplates } from './template-library';
 import type { DocStudioDocument, ISODateString } from '../types/document';
 import type { LabProfile } from '../types/lab-profile';
 import { createBlankDocument, instantiateTemplate } from './template-instantiation';
@@ -70,23 +71,18 @@ export interface TemplateSectionPreview {
 }
 
 /**
- * The built-in catalog currently offered by the chooser (P03-M2 scope).
+ * The built-in catalog currently offered by the chooser (P03-M3: 16
+ * templates covering all eight categories, plus Blank Document as a
+ * separate first-class choice).
  *
- * Only templates that are currently available AND structurally valid are
- * returned — a template failing `validateTemplate` is silently dropped so the
- * chooser never offers a broken entry.  Local custom templates are not loaded
- * or faked here (that feature does not exist yet).
+ * Delegates to the authoritative catalog in `services/template-library`,
+ * which validates every entry and returns deep clones — callers can filter
+ * or sort the result freely without touching the source library, and each
+ * call yields the same stable template identities.  Local custom templates
+ * are not loaded or faked here (that feature does not exist yet).
  */
 export function getBuiltinTemplates(): DocStudioTemplate[] {
-  const candidates: DocStudioTemplate[] = [createExampleSopTemplate()];
-  return candidates.filter((template) => {
-    try {
-      validateTemplate(template);
-      return true;
-    } catch {
-      return false;
-    }
-  });
+  return getBuiltinCatalogTemplates();
 }
 
 /** Build a Blank Document pseudo-choice. */
