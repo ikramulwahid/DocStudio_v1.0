@@ -5,6 +5,7 @@ import { PreviewPanel } from '../preview-panel/PreviewPanel';
 import type { DocumentMetadata, PageSetup, PageTypographySettings } from '../../types/document';
 import type { LabProfile } from '../../types/lab-profile';
 import type {
+  BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
   TypographyPatch,
@@ -36,6 +37,8 @@ interface WorkspaceProps {
   onPageSetupChange?: (patch: PageSetupPatch) => SettingsUpdateResult;
   /** Commit a typography patch (P04-M1). */
   onTypographyChange?: (patch: TypographyPatch) => SettingsUpdateResult;
+  /** Commit a body-theme patch — theme id / monochrome (P04-M3, §8.3). */
+  onBodyThemeChange?: (patch: BodyThemePatch) => SettingsUpdateResult;
   /** Commit the display-header preference (P04-M1). */
   onDisplayHeaderChange?: (value: boolean) => SettingsUpdateResult;
 }
@@ -53,6 +56,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   frontPageEnabled,
   onPageSetupChange,
   onTypographyChange,
+  onBodyThemeChange,
   onDisplayHeaderChange,
 }) => {
   return (
@@ -70,6 +74,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         frontPageEnabled={frontPageEnabled}
         onPageSetupChange={onPageSetupChange}
         onTypographyChange={onTypographyChange}
+        onBodyThemeChange={onBodyThemeChange}
         onDisplayHeaderChange={onDisplayHeaderChange}
       />
       <EditorPanel />

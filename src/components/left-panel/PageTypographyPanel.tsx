@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import type {
+  BodyThemeId,
   MarginPreset,
   PageOrientation,
   PageSetup,
@@ -13,10 +14,12 @@ import {
   FONT_SIZE_PT_RANGE,
   LINE_HEIGHT_RANGE,
   PARAGRAPH_SPACING_PT_RANGE,
+  type BodyThemePatch,
   type PageSetupPatch,
   type SettingsUpdateResult,
   type TypographyPatch,
 } from '../../services/page-typography';
+import { BODY_THEME_IDS, BODY_THEME_REGISTRY } from '../../services/body-theme-registry';
 import './PageTypographyPanel.css';
 
 /**
@@ -46,6 +49,8 @@ interface PageTypographyPanelProps {
   onPageSetupChange: (patch: PageSetupPatch) => SettingsUpdateResult;
   /** Commit a typography patch; returns the pure-service result. */
   onTypographyChange: (patch: TypographyPatch) => SettingsUpdateResult;
+  /** Commit a body-theme patch (theme id / monochrome); §8.3, P04-M3. */
+  onBodyThemeChange: (patch: BodyThemePatch) => SettingsUpdateResult;
   /** Commit the display-header preference; returns the pure-service result. */
   onDisplayHeaderChange: (value: boolean) => SettingsUpdateResult;
 }
@@ -72,7 +77,13 @@ const presetHint = (preset: MarginPreset): string =>
     ? 'Custom values in millimetres'
     : `${MARGIN_PRESETS_MM[preset]} mm on all sides`;
 
-type GroupErrors = { page?: string; margins?: string; typography?: string; header?: string };
+type GroupErrors = {
+  page?: string;
+  margins?: string;
+  typography?: string;
+  theme?: string;
+  header?: string;
+};
 
 export const PageTypographyPanel: React.FC<PageTypographyPanelProps> = ({
   pageSetup,
@@ -80,6 +91,7 @@ export const PageTypographyPanel: React.FC<PageTypographyPanelProps> = ({
   frontPageEnabled,
   onPageSetupChange,
   onTypographyChange,
+  onBodyThemeChange,
   onDisplayHeaderChange,
 }) => {
   const { typography } = pageTypography;
@@ -203,6 +215,21 @@ export const PageTypographyPanel: React.FC<PageTypographyPanelProps> = ({
       'typography',
       onTypographyChange({ field: 'paragraphSpacingPt', value: parseNumberDraft(value) }),
     );
+  };
+
+  // ── Body theme (§8.3) ───────────────────────────────────────────────────
+  // Selects are committed immediately through the pure service patch —
+  // no local draft (the option list is fixed and values are never free
+  // text).  Re-selecting the current theme is a same-value no-op in the
+  // service, so it never dirties the document.
+  const handleBodyTheme = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    report(
+      'theme',
+      onBodyThemeChange({ field: 'bodyThemeId', value: e.target.value as BodyThemeId }),
+    );
+  };
+  const handleMonochrome = (e: React.ChangeEvent<HTMLInputElement>) => {
+    report('theme', onBodyThemeChange({ field: 'monochrome', value: e.target.checked }));
   };
 
   // ── Display header (§8.4) ───────────────────────────────────────────────
@@ -411,6 +438,61 @@ export const PageTypographyPanel: React.FC<PageTypographyPanelProps> = ({
         {errors.typography && (
           <p className="pt-error" role="alert">
             {errors.typography}
+          </p>
+        )}
+      </fieldset>
+
+      {/* Body theme (§8.3, P04-M3) */}
+      <fieldset className="pt-group">
+        <legend className="pt-group-title">Body theme</legend>
+        <div className="pt-row">
+          <label className="pt-label" htmlFor="pt-body-theme">
+            Document theme
+          </label>
+          <select
+            id="pt-body-theme"
+            className="pt-select"
+            value={pageTypography.bodyThemeId}
+            aria-invalid={errors.theme ? true : undefined}
+            aria-describedby="pt-body-theme-desc"
+            onChange={handleBodyTheme}
+          >
+            {BODY_THEME_IDS.map((id) => (
+              <option key={id} value={id}>
+                {BODY_THEME_REGISTRY[id].metadata.displayName}
+              </option>
+            ))}
+          </select>
+        </div>
+        {/* Live design-intent + implemented-structure description of the
+            selected theme, straight from the registry (single source). */}
+        <span className="pt-hint" id="pt-body-theme-desc">
+          {BODY_THEME_REGISTRY[pageTypography.bodyThemeId]?.metadata.intent}
+        </span>
+        <span className="pt-hint">
+          {BODY_THEME_REGISTRY[pageTypography.bodyThemeId]?.metadata.structuralDesign}
+        </span>
+        <div className="pt-checkbox-row">
+          <input
+            id="pt-monochrome"
+            className="pt-checkbox"
+            type="checkbox"
+            checked={pageTypography.monochrome}
+            aria-invalid={errors.theme ? true : undefined}
+            aria-describedby="pt-monochrome-hint"
+            onChange={handleMonochrome}
+          />
+          <label className="pt-label" htmlFor="pt-monochrome">
+            Monochrome output
+          </label>
+        </div>
+        <span className="pt-hint" id="pt-monochrome-hint">
+          Keeps layout, structure and typography; converts every accent ink to grayscale. Applies
+          to the document only — the application interface theme is separate.
+        </span>
+        {errors.theme && (
+          <p className="pt-error" role="alert">
+            {errors.theme}
           </p>
         )}
       </fieldset>

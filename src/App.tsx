@@ -32,7 +32,9 @@ import {
 import {
   updatePageSetup,
   updateTypography,
+  updateBodyTheme,
   updateDisplayHeader,
+  type BodyThemePatch,
   type PageSetupPatch,
   type SettingsUpdateResult,
   type TypographyPatch,
@@ -330,6 +332,15 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // Body theme + monochrome (§8.3, P04-M3): same immutable-update path —
+  // the pure service returns a fresh document only on a real change, so
+  // re-selecting the current theme is a no-op and never dirties state.
+  const handleBodyThemeChange = (patch: BodyThemePatch): SettingsUpdateResult => {
+    const result = updateBodyTheme(activeDocument, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   const handleDisplayHeaderChange = (value: boolean): SettingsUpdateResult => {
     const result = updateDisplayHeader(activeDocument, value);
     if (result.ok && result.changed) setActiveDocument(result.doc);
@@ -410,6 +421,7 @@ export const App: React.FC = () => {
         frontPageEnabled={activeDocument.frontPage.enabled}
         onPageSetupChange={handlePageSetupChange}
         onTypographyChange={handleTypographyChange}
+        onBodyThemeChange={handleBodyThemeChange}
         onDisplayHeaderChange={handleDisplayHeaderChange}
       />
       {chooserOpen && (

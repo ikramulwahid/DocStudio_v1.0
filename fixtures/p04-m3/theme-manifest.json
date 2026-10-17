@@ -1,0 +1,84 @@
+{
+  "manifest": "DocStudio P04-M3 theme gallery manifest v1",
+  "generatedBy": "verify_p04_m3.mjs — deterministic (timestamp-free)",
+  "sample": {
+    "documentId": "SAMPLE-P04-M3",
+    "createdAt": "2026-10-16T09:00:00.000Z",
+    "synthetic": true,
+    "blocks": 16
+  },
+  "themes": [
+    {
+      "id": "classic-formal",
+      "displayName": "Classic Formal",
+      "implementationStatus": "default-verified",
+      "structuralDesign": "Formal report baseline: all-bold levels 1–4 at 10/6 pt heading margins, justified body with 18 pt indent steps, restrained 0.75 pt rules, quiet gray-header tables with bold headers and 0.5 pt dividers, italic 9.5 pt captions, centered 9 pt furniture at a 28 pt offset, and an all-neutral gray palette."
+    },
+    {
+      "id": "minimalist",
+      "displayName": "Minimalist",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Airy rhythm: widest heading margins (18/10 pt) with a regular-weight H4, left-ragged body at 16 pt indent steps, hairline 0.5 pt rules, a white table header capped by one decisive black rule with a regular (non-bold) header row, non-italic captions with 12 pt bottom space, and quiet 8 pt / #999999 furniture on soft #111111 body ink."
+    },
+    {
+      "id": "editorial",
+      "displayName": "Editorial",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Magazine composition: the only CENTERED all-bold headings, in dark crimson ink at 18/10 pt; justified body; black table headers with white text on #1a1a1a; centered crimson italic captions (10 pt); 1.25 pt rules with crimson accents; and right-aligned page furniture."
+    },
+    {
+      "id": "scientific-journal",
+      "displayName": "Scientific Journal",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Journal density: tightest rhythm in the catalogue — 8/4 pt heading margins, 12 pt indent steps, 2 pt table cell padding, 0.5 pt hairlines, the smallest captions (8.5 pt italic, 2/6 pt), and small 8 pt furniture at a 24 pt offset."
+    },
+    {
+      "id": "technical-specification",
+      "displayName": "Technical Specification",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Specification structure: underlined all-bold headings at 14/6 pt, 20 pt indent steps, square list markers, a heavy 1 pt black table grid with 0.75 pt dividers, non-italic left-aligned labels (table and figure), 1.25 pt black section rules, and left-aligned furniture."
+    },
+    {
+      "id": "corporate",
+      "displayName": "Corporate",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Branded hierarchy: bold levels 1–3 with a regular H4 at 16/8 pt, navy-on-pale-blue table headers (#d9e2f3 / #1f3864 / #2f5597), navy captions, 1 pt brand-blue section rules, and navy centered furniture at a 26 pt offset — one brand color family across the whole page."
+    },
+    {
+      "id": "geometric",
+      "displayName": "Geometric",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Modular graphic system: teal-accented all-bold headings at 14/8 pt in #0f4c5c ink, boxy 5/8 pt table cells on a pale teal header with teal header text, square markers, the thickest section rules of the catalogue (1.5 pt near-black graphic lines), and 9 pt furniture at a 30 pt offset."
+    },
+    {
+      "id": "framed-document",
+      "displayName": "Framed Document",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Formal framed treatment: a solid 1.5 pt page border around every sheet (the widest frame in the catalogue), 12/6 pt heading margins, traditional italic captions, bordered gray-header tables with a black header rule, and 9 pt furniture set 32 pt inside the frame."
+    },
+    {
+      "id": "contemporary-asymmetrical",
+      "displayName": "Contemporary Asymmetrical",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Selective asymmetry: widest heading margins (20/10 pt) with a regular H4, left-ragged body with deep 24 pt indent steps forming a distinct information column, right-aligned captions and page furniture (offset 30 pt), dash markers, and asymmetric table cell padding (3/6 pt)."
+    },
+    {
+      "id": "traditional-serif",
+      "displayName": "Traditional Serif",
+      "implementationStatus": "composition-verified",
+      "structuralDesign": "Book-like typesetting (deliberately distinct from Classic Formal): size-driven hierarchy — a strong chapter-style H1 with regular-weight levels 2–4 (Classic is all-bold), airier 14/8 pt heading margins, 21 pt indent steps, unfilled table headers with a regular header row and borderless cells (no vertical dividers), larger 10 pt italic captions at 4/10 pt, a warm brown accent (#5c4a32), and deep 8.5 pt furniture at a 34 pt offset."
+    }
+  ],
+  "artifacts": {
+    "theme-gallery.pdf": {
+      "pages": 20,
+      "bytes": 63118,
+      "sha256": "8ddacf0f1b1a35da4546190ff8cfa9fc1dccc738c26a5d94880ef9a2c14cc7e7"
+    },
+    "theme-gallery-monochrome.pdf": {
+      "pages": 20,
+      "bytes": 63113,
+      "sha256": "97ccfee51c8652df2ad66c0eaceed52aa126e711715bac43f7156df2a455d66d"
+    }
+  }
+}

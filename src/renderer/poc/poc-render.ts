@@ -54,6 +54,18 @@ export async function renderDocPdfBytes(doc: DocStudioDocument): Promise<Uint8Ar
   return instanceToBytes(instance);
 }
 
+/**
+ * Render an arbitrary react-pdf element tree to PDF bytes (P04-M3).
+ * The theme gallery shares this exact byte-collection path with
+ * `renderDocPdfBytes`, so gallery artifacts and document renders cannot
+ * diverge in how PDFs are produced (Node `toBuffer` / browser `toBlob`).
+ */
+export async function renderElementPdfBytes(
+  element: React.ReactElement,
+): Promise<Uint8Array> {
+  return instanceToBytes(pdf(element));
+}
+
 /** Render the deterministic PoC fixture. */
 export async function renderPocFixturePdfBytes(): Promise<Uint8Array> {
   return renderDocPdfBytes(buildPocFixture());

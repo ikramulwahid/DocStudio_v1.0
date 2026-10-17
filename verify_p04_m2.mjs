@@ -176,13 +176,33 @@ test('2. registry display names and metadata are valid, stable and frozen', () =
     for (const c of m.plannedCharacteristics) {
       assert.ok(typeof c === 'string' && c.length > 0, `non-empty characteristic for ${id}`);
     }
-    assert.ok(['default-verified', 'foundation-planned'].includes(m.implementationStatus),
-      `valid implementationStatus for ${id}`);
-    assert.equal(
-      m.implementationStatus,
-      id === 'classic-formal' ? 'default-verified' : 'foundation-planned',
-      `honest implementation status for ${id}`,
+    // P04-M3 note: the status vocabulary was extended with
+    // `composition-verified` (finished §8.3 composition + inspected
+    // gallery pages) so honest statuses can advance without any theme
+    // ever claiming `default-verified` (reserved for the default).  The
+    // P04-M2 honesty intent is preserved: valid vocabulary only, and the
+    // nine non-default themes may never wear the default's status.  The
+    // evidence-backed status of each finished theme is asserted in
+    // verify_p04_m3.mjs test 2.
+    assert.ok(
+      ['default-verified', 'composition-verified', 'foundation-planned'].includes(
+        m.implementationStatus,
+      ),
+      `valid implementationStatus for ${id}`,
     );
+    if (id === 'classic-formal') {
+      assert.equal(
+        m.implementationStatus,
+        'default-verified',
+        `classic-formal keeps the default-verified status`,
+      );
+    } else {
+      assert.notEqual(
+        m.implementationStatus,
+        'default-verified',
+        `non-default theme ${id} never claims default-verified`,
+      );
+    }
     // Registry colors must all be parseable (valid, predictable grammar).
     for (const value of registryColorValues(entry.structural)) {
       assert.match(value, /^#(?:[0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i,

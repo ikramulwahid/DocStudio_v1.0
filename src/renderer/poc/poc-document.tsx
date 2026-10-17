@@ -3,10 +3,12 @@
  * ═══════════════════════════════════════════════════════════════════════════
  *
  * Translates a subset of the DocStudio block model into react-pdf
- * primitives.  This is the PROTOTYPE translation layer for the renderer
- * proof of concept — it intentionally supports only the blocks used by the
- * PoC fixture (heading, paragraph, page-break, table, image).  Full block
- * coverage, themes and header/footer configuration belong to Phase 08.
+ * primitives.  It intentionally supports the blocks used by the PoC
+ * fixture (heading, paragraph, page-break, table, image) plus the narrow,
+ * documented P04-M3 additions the ten themes need to show their structure:
+ * `list` (bullet/numbered/checklist — see ListBlock for exact scope),
+ * `horizontal-line` (themed section rule) and `section-break` (title +
+ * themed rule).  Full block coverage belongs to Phase 08.
  *
  * Mapping decisions (see the roadmap decision record):
  * • Page geometry — `pageSetup` (all five schema sizes, orientation,
@@ -59,7 +61,9 @@ import type {
   HeadingBlockData,
   InlineSpan,
   ImageBlockData,
+  ListBlockData,
   ParagraphBlockData,
+  SectionBreakBlockData,
   TableBlockData,
 } from '../../types/blocks';
 import { effectivePageDimensionsMm } from '../../services/page-typography';
@@ -78,7 +82,7 @@ export function mmToPt(mm: number): number {
 export const POC_BODY_FONT = 'Times-Roman';
 
 /** Schema page sizes → pdfkit standard page formats (P04-M1). */
-const PAGE_FORMATS: Record<PageSize, 'A4' | 'A3' | 'A5' | 'LETTER' | 'LEGAL'> = {
+export const PAGE_FORMATS: Record<PageSize, 'A4' | 'A3' | 'A5' | 'LETTER' | 'LEGAL'> = {
   A4: 'A4',
   A3: 'A3',
   A5: 'A5',
@@ -101,6 +105,34 @@ const PAGE_DIMENSIONS_PT: Record<PageSize, { width: number; height: number }> = 
   Letter: { width: 612, height: 792 },
   Legal: { width: 792, height: 612 },
 };
+
+/**
+ * Page geometry for the document (P04-M1 page setup rules): margins in
+ * points and the usable content width.  Extracted in P04-M3 so the theme
+ * gallery renders through the SAME geometry maths as `PocDocument`
+ * instead of duplicating it — exported for reuse, values unchanged.
+ */
+export interface PocLayout {
+  marginTop: number;
+  marginRight: number;
+  marginBottom: number;
+  marginLeft: number;
+  pageWidthPt: number;
+  contentWidth: number;
+}
+
+export function computePocLayout(doc: DocStudioDocument): PocLayout {
+  const { orientation, margins } = doc.pageSetup;
+  const marginTop = mmToPt(margins.topMm);
+  const marginRight = mmToPt(margins.rightMm);
+  const marginBottom = mmToPt(margins.bottomMm);
+  const marginLeft = mmToPt(margins.leftMm);
+  const pageSizePt = PAGE_DIMENSIONS_PT[doc.pageSetup.size];
+  const pageWidthPt =
+    orientation === 'landscape' ? pageSizePt.height : pageSizePt.width;
+  const contentWidth = pageWidthPt - marginLeft - marginRight;
+  return { marginTop, marginRight, marginBottom, marginLeft, pageWidthPt, contentWidth };
+}
 
 /**
  * Engine-level base styles only (P04-M2): font mapping (schema family →
@@ -334,7 +366,176 @@ function ImageBlock({ block, doc, tokens }: { block: ImageBlockData; doc: DocStu
   );
 }
 
-function BlockRenderer({
+// ─────────────────────────────────────────────────────────────────────────────
+// Lists, section rules & section breaks (P04-M3, narrow scope)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Section rule from the `horizontal-line` block (P04-M3).
+ *
+ * The rule's WEIGHT and COLOR come from the theme's `separators` tokens, so
+ * every theme shows its own section-rule language (0.5 pt quiet boundaries
+ * → 1.5 pt graphic lines).  The block's own `thicknessPt`/`color` author
+ * values are NOT applied on this path — theme-driven separators are this
+ * checkpoint's scope and the PoC has no block-style editor (documented
+ * limitation, not silently dropped structure: the rule always renders).
+ * Zero-height bordered views were verified as layout-unstable during
+ * P02-M4, so the rule is a filled box of exactly the token height.
+ */
+function SectionRule({ tokens }: { tokens: BodyThemeTokens }): React.ReactElement {
+  const rule = tokens.separators;
+  return (
+    <View
+      style={{
+        height: rule.sectionRuleWidthPt,
+        backgroundColor: rule.sectionRuleColor,
+        marginBottom: tokens.typography.paragraphSpacingPt,
+      }}
+    />
+  );
+}
+
+/**
+ * `section-break` block: optional section title + the theme's section rule.
+ * The title is styled from the theme's H4 tokens (size, weight, accent ink)
+ * so it reads as the theme's own section marker; the 4 pt title→rule gap is
+ * an engine constant.  Document typography stays authoritative (§8.2).
+ */
+function SectionBreakBlock({
+  block,
+  tokens,
+}: {
+  block: SectionBreakBlockData;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const headings = tokens.headings;
+  return (
+    <View>
+      {block.title ? (
+        <Text
+          style={[
+            styles.heading,
+            {
+              fontSize: tokens.typography.headingSizesPt[4],
+              fontWeight: headings.weight[4],
+              marginTop: headings.marginTopPt,
+              marginBottom: 4,
+              ...(tokens.colors.accent !== DEFAULT_TEXT_COLOR
+                ? { color: tokens.colors.accent }
+                : {}),
+            },
+          ]}
+        >
+          {block.title}
+        </Text>
+      ) : null}
+      <SectionRule tokens={tokens} />
+    </View>
+  );
+}
+
+/**
+ * `list` block (P04-M3 — narrow, reusable support).
+ *
+ * Scope: bullet lists (the theme's `lists.markerStyle` drawn as real PDF
+ * shapes — disc/circle/square/dash — so no non-WinAnsi glyph is needed on
+ * the standard-14 fonts), numbered lists (decimal prefix) and checklists
+ * (filled square = checked).  Nesting depth steps by the paragraph indent
+ * token; item spacing comes from `lists.itemSpacingPt`; marker ink is the
+ * theme accent so each theme's list identity is visible.
+ *
+ * Deliberately NOT in scope: block-level `bulletStyle`/`numberStyle`
+ * overrides (the theme's marker token is authoritative here), roman/alpha
+ * numbering and checklist state editing — Phase 05 territory.  This is the
+ * list support the ten themes need to demonstrate their list treatment, not
+ * full block-renderer coverage.
+ */
+function ListBlock({
+  block,
+  tokens,
+}: {
+  block: ListBlockData;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const list = tokens.lists;
+  const markerInk = tokens.colors.accent;
+  const baseSize = tokens.typography.baseFontSizePt;
+  // Shape markers are 4 pt boxes; nudged down to sit on the first text
+  // line (engine constants, scaled to the authoritative base size).
+  const markerTop = Math.round(baseSize * 0.35 * 10) / 10;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+
+  const markerBox = (extra: Record<string, number | string | undefined>): React.ReactElement => (
+    <View
+      style={{
+        width: 4,
+        height: 4,
+        marginRight: 6,
+        marginTop: markerTop,
+        backgroundColor: markerInk,
+        ...extra,
+      }}
+    />
+  );
+
+  const renderMarker = (item: ListBlockData['items'][number], index: number): React.ReactNode => {
+    if (block.listType === 'numbered') {
+      return <Text style={{ marginRight: 6, color: markerInk }}>{`${index + 1}.`}</Text>;
+    }
+    if (block.listType === 'checklist') {
+      return item.checked
+        ? markerBox({})
+        : markerBox({ backgroundColor: undefined, borderWidth: 0.8, borderColor: markerInk });
+    }
+    switch (list.markerStyle) {
+      case 'circle':
+        return markerBox({
+          backgroundColor: undefined,
+          borderWidth: 0.8,
+          borderColor: markerInk,
+          borderRadius: 2,
+        });
+      case 'square':
+        return markerBox({});
+      case 'dash':
+        return (
+          <View
+            style={{
+              width: 6,
+              height: 1.5,
+              marginRight: 6,
+              marginTop: markerTop + 1,
+              backgroundColor: markerInk,
+            }}
+          />
+        );
+      case 'disc':
+      default:
+        return markerBox({ borderRadius: 2 });
+    }
+  };
+
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      {block.items.map((item, index) => (
+        <View
+          key={item.id}
+          style={{
+            flexDirection: 'row',
+            marginLeft: list.indentPt + item.depth * tokens.paragraphs.indentStepPt,
+            marginBottom: list.itemSpacingPt,
+          }}
+        >
+          {renderMarker(item, index)}
+          <Text style={{ flex: 1, ...textStyle }}>{renderSpans(item.spans)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+export function BlockRenderer({
   block,
   doc,
   contentWidth,
@@ -360,6 +561,15 @@ function BlockRenderer({
       return <Table block={block} contentWidth={contentWidth} tokens={tokens} />;
     case 'image':
       return <ImageBlock block={block} doc={doc} tokens={tokens} />;
+    case 'list':
+      // Narrow list support (P04-M3) — see ListBlock for exact scope.
+      return <ListBlock block={block} tokens={tokens} />;
+    case 'horizontal-line':
+      // Themed section rule (P04-M3).
+      return <SectionRule tokens={tokens} />;
+    case 'section-break':
+      // Section title + themed rule (P04-M3).
+      return <SectionBreakBlock block={block} tokens={tokens} />;
     default:
       // Unsupported block in the PoC: rendered as a visible marker so the
       // gap is obvious during evaluation rather than silently dropped.
@@ -386,8 +596,93 @@ function BlockRenderer({
 // Document
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * <Page> style for a themed document (P04-M3): engine base + authoritative
+ * typography (base size, line spacing, custom margins) + the theme's page
+ * framing when requested.  `PocDocument` and the theme gallery share this
+ * single builder so a gallery page and a real page can never diverge.
+ */
+export function pocPageStyle(
+  doc: DocStudioDocument,
+  tokens: BodyThemeTokens,
+): NonNullable<React.ComponentProps<typeof Page>['style']> {
+  const layout = computePocLayout(doc);
+  // Extracted so TypeScript narrows `'none'` away inside the frame block.
+  const frameStyle = tokens.frame.style;
+  return [
+    styles.bodyPage,
+    {
+      fontSize: tokens.typography.baseFontSizePt,
+      lineHeight: tokens.typography.lineHeight,
+      paddingTop: layout.marginTop,
+      paddingLeft: layout.marginLeft,
+      paddingRight: layout.marginRight,
+      paddingBottom: layout.marginBottom,
+      // Page framing (e.g. framed-document): applied only when the
+      // theme requests it — classic-formal (`style: 'none'`) emits
+      // nothing new here.
+      ...(frameStyle !== 'none'
+        ? {
+            borderWidth: tokens.frame.widthPt,
+            borderColor: tokens.frame.color,
+            borderStyle: frameStyle,
+          }
+        : {}),
+    },
+  ];
+}
+
+/**
+ * Repeated page furniture (fixed): header + page numbering (P04-M3 —
+ * extracted from `PocDocument` so the gallery shows the exact furniture
+ * the document renders).  The header honors the §8.4 display-header
+ * preference (P04-M1); sizes/colors/offset come from the theme tokens.
+ */
+export function PocPageFurniture({
+  doc,
+  tokens,
+}: {
+  doc: DocStudioDocument;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const furniture = tokens.pageFurniture;
+  return (
+    <>
+      {doc.pageTypography.displayHeader && (
+        <Text
+          style={[
+            styles.header,
+            {
+              fontSize: furniture.fontSizePt,
+              top: furniture.offsetPt,
+              textAlign: furniture.align,
+              color: furniture.color,
+            },
+          ]}
+          fixed
+        >
+          {doc.metadata.documentId} — DocStudio Renderer Proof of Concept
+        </Text>
+      )}
+      <Text
+        style={[
+          styles.footer,
+          {
+            fontSize: furniture.fontSizePt,
+            bottom: furniture.offsetPt,
+            textAlign: furniture.align,
+            color: furniture.color,
+          },
+        ]}
+        fixed
+        render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+      />
+    </>
+  );
+}
+
 export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactElement {
-  const { size, orientation, margins } = doc.pageSetup;
+  const { size, orientation } = doc.pageSetup;
   // Single theme-resolution call site (P04-M2): the document's existing
   // settings resolve into the one token set consumed by every block and by
   // the page furniture below. The resolver is deterministic, never mutates
@@ -397,17 +692,7 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
     doc.pageTypography.typography,
     doc.pageTypography.monochrome,
   ).tokens;
-  const furniture = tokens.pageFurniture;
-  // Extracted so TypeScript narrows `'none'` away inside the frame block.
-  const frameStyle = tokens.frame.style;
-  const marginTop = mmToPt(margins.topMm);
-  const marginRight = mmToPt(margins.rightMm);
-  const marginBottom = mmToPt(margins.bottomMm);
-  const marginLeft = mmToPt(margins.leftMm);
-  const pageSizePt = PAGE_DIMENSIONS_PT[size];
-  const pageWidthPt =
-    orientation === 'landscape' ? pageSizePt.height : pageSizePt.width;
-  const contentWidth = pageWidthPt - marginLeft - marginRight;
+  const { contentWidth } = computePocLayout(doc);
 
   return (
     <Document
@@ -422,61 +707,10 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
       <Page
         size={PAGE_FORMATS[size]}
         orientation={orientation}
-        style={[
-          styles.bodyPage,
-          {
-            fontSize: tokens.typography.baseFontSizePt,
-            lineHeight: tokens.typography.lineHeight,
-            paddingTop: marginTop,
-            paddingLeft: marginLeft,
-            paddingRight: marginRight,
-            paddingBottom: marginBottom,
-            // Page framing (e.g. framed-document): applied only when the
-            // theme requests it — classic-formal (`style: 'none'`) emits
-            // nothing new here.
-            ...(frameStyle !== 'none'
-              ? {
-                  borderWidth: tokens.frame.widthPt,
-                  borderColor: tokens.frame.color,
-                  borderStyle: frameStyle,
-                }
-              : {}),
-          },
-        ]}
+        style={pocPageStyle(doc, tokens)}
         wrap
       >
-        {/* Repeated page furniture (fixed): header + page numbering.
-            The header honors the §8.4 display-header preference (P04-M1);
-            sizes/colors/offset come from the theme tokens. */}
-        {doc.pageTypography.displayHeader && (
-          <Text
-            style={[
-              styles.header,
-              {
-                fontSize: furniture.fontSizePt,
-                top: furniture.offsetPt,
-                textAlign: furniture.align,
-                color: furniture.color,
-              },
-            ]}
-            fixed
-          >
-            {doc.metadata.documentId} — DocStudio Renderer Proof of Concept
-          </Text>
-        )}
-        <Text
-          style={[
-            styles.footer,
-            {
-              fontSize: furniture.fontSizePt,
-              bottom: furniture.offsetPt,
-              textAlign: furniture.align,
-              color: furniture.color,
-            },
-          ]}
-          fixed
-          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
-        />
+        <PocPageFurniture doc={doc} tokens={tokens} />
 
         {/* Blocks are rendered as DIRECT children of <Page> on purpose:
             react-pdf v4 only honors the `break` prop on direct Page

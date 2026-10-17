@@ -7,6 +7,7 @@ import { SectionState } from '../../types';
 import type { DocumentMetadata, PageSetup, PageTypographySettings } from '../../types/document';
 import type { LabProfile } from '../../types/lab-profile';
 import type {
+  BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
   TypographyPatch,
@@ -38,6 +39,8 @@ interface LeftPanelProps {
   onPageSetupChange?: (patch: PageSetupPatch) => SettingsUpdateResult;
   /** Commit a typography patch (P04-M1). */
   onTypographyChange?: (patch: TypographyPatch) => SettingsUpdateResult;
+  /** Commit a body-theme patch — theme id / monochrome (P04-M3, §8.3). */
+  onBodyThemeChange?: (patch: BodyThemePatch) => SettingsUpdateResult;
   /** Commit the display-header preference (P04-M1). */
   onDisplayHeaderChange?: (value: boolean) => SettingsUpdateResult;
 }
@@ -55,6 +58,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   frontPageEnabled,
   onPageSetupChange,
   onTypographyChange,
+  onBodyThemeChange,
   onDisplayHeaderChange,
 }) => {
   const [sections, setSections] = useState<SectionState>({
@@ -186,13 +190,14 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           onToggle={() => toggleSection('pageTypography')}
           badge="P04-M1"
         >
-          {pageSetup && pageTypography && onPageSetupChange && onTypographyChange && onDisplayHeaderChange ? (
+          {pageSetup && pageTypography && onPageSetupChange && onTypographyChange && onBodyThemeChange && onDisplayHeaderChange ? (
             <PageTypographyPanel
               pageSetup={pageSetup}
               pageTypography={pageTypography}
               frontPageEnabled={frontPageEnabled ?? false}
               onPageSetupChange={onPageSetupChange}
               onTypographyChange={onTypographyChange}
+              onBodyThemeChange={onBodyThemeChange}
               onDisplayHeaderChange={onDisplayHeaderChange}
             />
           ) : (

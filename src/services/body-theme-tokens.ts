@@ -21,10 +21,11 @@
  * • `classic-formal` is the functional default: its structural tokens
  *   equal the exact values the P02-M4 renderer used before theming
  *   existed, so the committed P02-M4 baseline PDF stays byte-identical.
- * • The other nine registry entries carry
- *   `implementationStatus: 'foundation-planned'` — registry + token
- *   scaffold only; P04-M3 owns their finished compositions.  Nothing in
- *   this module claims those themes are visually complete.
+ * • Every registry entry carries an honest `implementationStatus`
+ *   (P04-M3: the ten finished compositions are `default-verified` /
+ *   `composition-verified` only once their rendered gallery pages were
+ *   actually inspected; `foundation-planned` remains available so a
+ *   scaffolded theme can never over-claim).
  * • Monochrome uses `pageTypography.monochrome` and transforms COLOR
  *   tokens only; every structural token is preserved.  It is a pure,
  *   side-effect-free function of the resolved tokens and is completely
@@ -64,16 +65,23 @@ export type ThemeTextAlign = 'left' | 'center' | 'right' | 'justify';
 
 /**
  * Honest per-theme implementation status (verification requirement §7.2):
- * • `default-verified`   — classic-formal reproduces P04-M1's established
- *                          typography and default appearance (verified in
- *                          verify_p04_m2.mjs against the P02-M4 baseline).
- * • `foundation-planned` — registry metadata and a token scaffold exist so
- *                          P04-M3 can build the composition; the theme's
- *                          finished visual design is NOT implemented or
- *                          verified yet.
+ * • `default-verified`    — classic-formal reproduces P04-M1's established
+ *                           typography and default appearance (verified in
+ *                           verify_p04_m2.mjs against the P02-M4 baseline).
+ * • `composition-verified` — the theme's finished §8.3 composition is
+ *                           implemented in the registry AND its rendered
+ *                           output was produced and visually inspected
+ *                           (P04-M3 gallery evidence).
+ * • `foundation-planned`  — registry metadata and a token scaffold exist
+ *                           only; the theme's finished visual design is NOT
+ *                           implemented or verified.  No P04-M3 theme may
+ *                           carry this value once its gallery page has been
+ *                           inspected; it exists so a partially implemented
+ *                           catalogue can never over-claim.
  */
 export type ThemeImplementationStatus =
   | 'default-verified'
+  | 'composition-verified'
   | 'foundation-planned';
 
 /**
@@ -208,8 +216,14 @@ export interface BodyThemeMetadata {
   displayName: string;
   /** Design intent in the words of project_details.md §8.3. */
   intent: string;
-  /** Structural characteristics P04-M3 will implement for this theme. */
+  /** Structural characteristics this theme implements (P04-M2 catalogue). */
   plannedCharacteristics: readonly string[];
+  /**
+   * Concise description of the ACTUAL implemented composition (P04-M3) —
+   * written so the design can be audited against the rendered gallery
+   * pages rather than being re-asserted from the same token data.
+   */
+  structuralDesign: string;
   implementationStatus: ThemeImplementationStatus;
 }
 

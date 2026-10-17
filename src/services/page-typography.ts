@@ -36,6 +36,11 @@
  *   silently clamped.
  * • `displayHeader` (§8.4): refused while `frontPage.enabled` is true — the
  *   stored preference is preserved untouched for when the cover is off.
+ * • Body theme (§8.3, P04-M3): `bodyThemeId` accepts only authoritative
+ *   `BodyThemeId` values (unknown ids are REJECTED — never mapped to a
+ *   finished theme), `monochrome` accepts a strict boolean, and both are
+ *   plain document settings: no application UI preference is read or
+ *   written here.
  * • Timestamps: `createdAt` NEVER changes; a real settings change stamps
  *   `modifiedAt` (the §6 policy), a no-op change does not.
  *
@@ -48,11 +53,13 @@
  */
 
 import type {
+  BodyThemeId,
   DocStudioDocument,
   MarginPreset,
   PageOrientation,
   PageSize,
 } from '../types/document';
+import { isBodyThemeId } from './body-theme-tokens';
 import { nowISO } from '../types/defaults';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -138,11 +145,17 @@ export type TypographyPatch =
   | { field: 'lineHeight'; value: number }
   | { field: 'paragraphSpacingPt'; value: number };
 
+/** Body-theme patch (§8.3, P04-M3): theme selection and monochrome mode. */
+export type BodyThemePatch =
+  | { field: 'bodyThemeId'; value: BodyThemeId }
+  | { field: 'monochrome'; value: boolean };
+
 /** Deterministic validation error codes (mirrors the P03-M4 convention). */
 export type SettingsErrorCode =
   | 'unknown-size'
   | 'unknown-orientation'
   | 'unknown-preset'
+  | 'unknown-body-theme'
   | 'invalid-number'
   | 'negative-margin'
   | 'no-usable-page-area'
@@ -413,4 +426,69 @@ export function updateDisplayHeader(
       metadata: { ...source.metadata, modifiedAt: now },
     },
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Body theme & monochrome (§8.3, P04-M3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Apply a body-theme patch (`bodyThemeId` or `monochrome`) to the
+ * authoritative document.
+ *
+ * Same conventions as every other update in this module: an unknown theme
+ * id is REJECTED with `unknown-body-theme` (never silently mapped to a
+ * finished theme — the resolver's explicit-failure policy), a non-boolean
+ * monochrome value is rejected, re-selecting the stored value returns the
+ * SAME document reference (no false Modified status), and a real change
+ * returns a new document with `modifiedAt` stamped.  The document content,
+ * metadata, assets, page setup, header/footer preferences and typography
+ * are never touched; only the one patched `pageTypography` field changes.
+ */
+export function updateBodyTheme(
+  source: DocStudioDocument,
+  patch: BodyThemePatch,
+  now: string = nowISO(),
+): SettingsUpdateResult {
+  const current = source.pageTypography;
+
+  switch (patch.field) {
+    case 'bodyThemeId': {
+      if (!isBodyThemeId(patch.value)) {
+        return reject(
+          'unknown-body-theme',
+          `Unknown body theme: ${JSON.stringify(patch.value)}. Choose one of the ten available themes.`,
+        );
+      }
+      if (current.bodyThemeId === patch.value) {
+        return { ok: true, doc: source, changed: false };
+      }
+      return {
+        ok: true,
+        changed: true,
+        doc: {
+          ...source,
+          pageTypography: { ...current, bodyThemeId: patch.value },
+          metadata: { ...source.metadata, modifiedAt: now },
+        },
+      };
+    }
+    case 'monochrome': {
+      if (typeof patch.value !== 'boolean') {
+        return reject('invalid-number', 'The monochrome setting must be on or off.');
+      }
+      if (current.monochrome === patch.value) {
+        return { ok: true, doc: source, changed: false };
+      }
+      return {
+        ok: true,
+        changed: true,
+        doc: {
+          ...source,
+          pageTypography: { ...current, monochrome: patch.value },
+          metadata: { ...source.metadata, modifiedAt: now },
+        },
+      };
+    }
+  }
 }

@@ -6,18 +6,19 @@
  * keyed by the theme id (`Record<BodyThemeId, BodyThemeDefinition>` — the
  * compiler rejects a missing or misspelled entry, and no fallback exists).
  *
- * Each entry pairs STABLE METADATA (display name, design intent and
- * planned structural characteristics taken from project_details.md §8.3,
- * so P04-M3 does not invent a parallel catalogue) with a STRUCTURAL TOKEN
- * SCAFFOLD implementing the same shape as `classic-formal`.
+ * Each entry pairs STABLE METADATA (display name, design intent from
+ * project_details.md §8.3, implemented structural characteristics, a
+ * concise `structuralDesign` audit description) with a STRUCTURAL TOKEN
+ * composition implementing that design.
  *
  * Honest implementation status (verification requirement §7.2):
  * • `classic-formal` — `default-verified`: its tokens reproduce P04-M1's
  *   established typography and the P02-M4 default appearance (byte-
  *   identical baseline PDF).
- * • The other nine — `foundation-planned`: the registry and tokens exist
- *   so P04-M3 can build the finished compositions.  Their tokens below are
- *   provisional starting points derived from §8.3, NOT verified designs.
+ * • The other nine — `composition-verified` (P04-M3): their finished §8.3
+ *   compositions are implemented and their rendered gallery pages were
+ *   inspected as recorded in the roadmap.  `foundation-planned` remains in
+ *   the vocabulary so any future unverified theme cannot over-claim.
  *
  * @module services/body-theme-registry
  */
@@ -107,117 +108,142 @@ const CLASSIC_FORMAL: BodyThemeStructuralTokens = {
   },
 };
 
-/** Minimalist — clean sans-serif typography, whitespace, quiet boundaries. */
+/**
+ * Minimalist — clean sans-serif typography, whitespace, quiet boundaries.
+ *
+ * Composition (P04-M3): airy rhythm — the widest heading margins of the
+ * catalogue (18/10 pt) with a light regular-weight H4, LEFT-ragged body
+ * text at 16 pt indent steps (no justification), hairline 0.5 pt rules,
+ * a WHITE table header capped by one decisive black rule with a regular
+ * (not bold) header row, non-italic captions with generous 12 pt bottom
+ * space, very quiet 8 pt / #999999 furniture, and soft #111111 body ink.
+ */
 const MINIMALIST: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'normal' },
     align: 'left',
-    marginTopPt: 14,
-    marginBottomPt: 8,
+    marginTopPt: 18,
+    marginBottomPt: 10,
     decoration: 'none',
   },
-  paragraphs: { align: 'left', indentStepPt: 18 },
-  lists: { indentPt: 20, itemSpacingPt: 6, markerStyle: 'dash' },
+  paragraphs: { align: 'left', indentStepPt: 16 },
+  lists: { indentPt: 16, itemSpacingPt: 6, markerStyle: 'dash' },
   tables: {
-    borderColor: '#999999',
+    borderColor: '#dddddd',
     borderWidthPt: 0.5,
-    headerBackground: '#f5f5f5',
-    headerBorderWidthPt: 0.5,
-    headerBorderColor: '#999999',
+    headerBackground: '#ffffff',
+    headerBorderWidthPt: 1,
+    headerBorderColor: '#000000',
     headerTextColor: '#000000',
-    headerWeight: 'bold',
+    headerWeight: 'normal',
     cellPaddingVpt: 4,
     cellPaddingHpt: 5,
-    cellDividerColor: '#dddddd',
+    cellDividerColor: '#eeeeee',
     cellDividerWidthPt: 0.5,
-    marginBottomPt: 10,
+    marginBottomPt: 12,
   },
   captions: {
     sizePt: 9,
     italic: false,
     marginTopPt: 4,
-    marginBottomPt: 10,
+    marginBottomPt: 12,
     tableAlign: 'left',
     figureAlign: 'center',
-    color: '#000000',
+    color: '#666666',
   },
   separators: {
-    sectionRuleColor: '#999999',
-    sectionRuleWidthPt: 0.75,
-    accentColor: '#777777',
+    sectionRuleColor: '#dddddd',
+    sectionRuleWidthPt: 0.5,
+    accentColor: '#000000',
   },
-  frame: { style: 'none', color: '#777777', widthPt: 1 },
+  frame: { style: 'none', color: '#dddddd', widthPt: 1 },
   pageFurniture: {
-    fontSizePt: 8.5,
-    offsetPt: 28,
+    fontSizePt: 8,
+    offsetPt: 26,
     align: 'center',
-    color: '#777777',
+    color: '#999999',
   },
   colors: {
-    text: '#000000',
+    text: '#111111',
     heading: '#000000',
-    accent: '#555555',
-    rule: '#999999',
-    mutedText: '#777777',
+    accent: '#000000',
+    rule: '#dddddd',
+    mutedText: '#999999',
   },
 };
 
-/** Editorial — expressive heading scale, deliberate alignment, reading rhythm. */
+/**
+ * Editorial — expressive heading scale, deliberate alignment, reading rhythm.
+ *
+ * Composition (P04-M3): magazine-style CENTERED all-bold headings in dark
+ * crimson ink (18/10 pt), justified body with crimson accents, BLACK
+ * table headers with white text on a #1a1a1a fill, centered crimson
+ * italic captions (10 pt), 1.25 pt graphic rules with a crimson accent,
+ * and RIGHT-aligned page furniture — the only centered-heading theme.
+ */
 const EDITORIAL: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'bold' },
-    align: 'left',
-    marginTopPt: 16,
-    marginBottomPt: 8,
-    decoration: 'underline',
+    align: 'center',
+    marginTopPt: 18,
+    marginBottomPt: 10,
+    decoration: 'none',
   },
   paragraphs: { align: 'justify', indentStepPt: 18 },
   lists: { indentPt: 24, itemSpacingPt: 5, markerStyle: 'circle' },
   tables: {
     borderColor: '#444444',
     borderWidthPt: 0.75,
-    headerBackground: '#f0f0f0',
+    headerBackground: '#1a1a1a',
     headerBorderWidthPt: 1,
-    headerBorderColor: '#222222',
-    headerTextColor: '#000000',
+    headerBorderColor: '#1a1a1a',
+    headerTextColor: '#ffffff',
     headerWeight: 'bold',
     cellPaddingVpt: 3,
     cellPaddingHpt: 5,
-    cellDividerColor: '#bbbbbb',
+    cellDividerColor: '#999999',
     cellDividerWidthPt: 0.5,
-    marginBottomPt: 8,
+    marginBottomPt: 10,
   },
   captions: {
-    sizePt: 9.5,
+    sizePt: 10,
     italic: true,
     marginTopPt: 3,
-    marginBottomPt: 8,
-    tableAlign: 'left',
+    marginBottomPt: 10,
+    tableAlign: 'center',
     figureAlign: 'center',
-    color: '#333333',
+    color: '#8b0000',
   },
   separators: {
-    sectionRuleColor: '#444444',
-    sectionRuleWidthPt: 1,
+    sectionRuleColor: '#333333',
+    sectionRuleWidthPt: 1.25,
     accentColor: '#8b0000',
   },
-  frame: { style: 'none', color: '#444444', widthPt: 1 },
+  frame: { style: 'none', color: '#333333', widthPt: 1 },
   pageFurniture: {
     fontSizePt: 9,
     offsetPt: 28,
-    align: 'center',
-    color: '#444444',
+    align: 'right',
+    color: '#333333',
   },
   colors: {
     text: '#111111',
-    heading: '#000000',
+    heading: '#8b0000',
     accent: '#8b0000',
-    rule: '#444444',
+    rule: '#333333',
     mutedText: '#666666',
   },
 };
 
-/** Scientific Journal — compact legible hierarchy, dense content, formal captions. */
+/**
+ * Scientific Journal — compact legible hierarchy, dense content, formal captions.
+ *
+ * Composition (P04-M3): the tightest rhythm in the catalogue — 8/4 pt
+ * heading margins, 12 pt indent steps, 2 pt table cell padding, 0.5 pt
+ * hairline rules, the smallest captions (8.5 pt italic, 2/6 pt) and
+ * small 8 pt furniture at a 24 pt offset, giving dense but legible
+ * technical pages with classic left/justify structure.
+ */
 const SCIENTIFIC_JOURNAL: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'bold' },
@@ -226,24 +252,24 @@ const SCIENTIFIC_JOURNAL: BodyThemeStructuralTokens = {
     marginBottomPt: 4,
     decoration: 'none',
   },
-  paragraphs: { align: 'justify', indentStepPt: 18 },
-  lists: { indentPt: 22, itemSpacingPt: 3, markerStyle: 'disc' },
+  paragraphs: { align: 'justify', indentStepPt: 12 },
+  lists: { indentPt: 18, itemSpacingPt: 2, markerStyle: 'disc' },
   tables: {
     borderColor: '#777777',
     borderWidthPt: 0.5,
     headerBackground: '#eeeeee',
-    headerBorderWidthPt: 0.75,
+    headerBorderWidthPt: 0.5,
     headerBorderColor: '#555555',
     headerTextColor: '#000000',
     headerWeight: 'bold',
     cellPaddingVpt: 2,
     cellPaddingHpt: 3,
-    cellDividerColor: '#bbbbbb',
+    cellDividerColor: '#aaaaaa',
     cellDividerWidthPt: 0.5,
     marginBottomPt: 6,
   },
   captions: {
-    sizePt: 9,
+    sizePt: 8.5,
     italic: true,
     marginTopPt: 2,
     marginBottomPt: 6,
@@ -272,29 +298,37 @@ const SCIENTIFIC_JOURNAL: BodyThemeStructuralTokens = {
   },
 };
 
-/** Technical Specification — numbered sections, precise labels, structured rules and tables. */
+/**
+ * Technical Specification — numbered sections, precise labels, structured rules and tables.
+ *
+ * Composition (P04-M3): UNDERLINED all-bold headings (spec-style), 20 pt
+ * indent steps, square list markers, a heavy 1 pt black table grid with
+ * 0.75 pt dividers, non-italic left-aligned technical labels (table AND
+ * figure captions left), 1.25 pt black section rules and LEFT-aligned
+ * furniture — precision over decoration.
+ */
 const TECHNICAL_SPECIFICATION: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'bold' },
     align: 'left',
-    marginTopPt: 12,
+    marginTopPt: 14,
     marginBottomPt: 6,
     decoration: 'underline',
   },
-  paragraphs: { align: 'justify', indentStepPt: 18 },
+  paragraphs: { align: 'justify', indentStepPt: 20 },
   lists: { indentPt: 26, itemSpacingPt: 4, markerStyle: 'square' },
   tables: {
     borderColor: '#333333',
-    borderWidthPt: 0.75,
+    borderWidthPt: 1,
     headerBackground: '#e0e0e0',
-    headerBorderWidthPt: 1,
+    headerBorderWidthPt: 1.25,
     headerBorderColor: '#000000',
     headerTextColor: '#000000',
     headerWeight: 'bold',
     cellPaddingVpt: 3,
-    cellPaddingHpt: 4,
+    cellPaddingHpt: 5,
     cellDividerColor: '#777777',
-    cellDividerWidthPt: 0.5,
+    cellDividerWidthPt: 0.75,
     marginBottomPt: 8,
   },
   captions: {
@@ -303,19 +337,19 @@ const TECHNICAL_SPECIFICATION: BodyThemeStructuralTokens = {
     marginTopPt: 3,
     marginBottomPt: 8,
     tableAlign: 'left',
-    figureAlign: 'center',
+    figureAlign: 'left',
     color: '#333333',
   },
   separators: {
     sectionRuleColor: '#333333',
-    sectionRuleWidthPt: 1,
+    sectionRuleWidthPt: 1.25,
     accentColor: '#333333',
   },
   frame: { style: 'none', color: '#333333', widthPt: 1 },
   pageFurniture: {
-    fontSizePt: 9,
-    offsetPt: 28,
-    align: 'center',
+    fontSizePt: 8.5,
+    offsetPt: 26,
+    align: 'left',
     color: '#333333',
   },
   colors: {
@@ -327,12 +361,21 @@ const TECHNICAL_SPECIFICATION: BodyThemeStructuralTokens = {
   },
 };
 
-/** Corporate — strong heading levels, branding accents, tidy page furniture. */
+/**
+ * Corporate — strong heading levels, branding accents, tidy page furniture.
+ *
+ * Composition (P04-M3): bold levels 1–3 with a regular H4 at 16/8 pt
+ * margins, consistent NAVY branding throughout — pale-blue table header
+ * fill (#d9e2f3) with navy text and a blue header border, navy captions,
+ * 1 pt brand-blue section rules and navy centered furniture at a tidy
+ * 26 pt offset; the only theme whose entire furniture/caption/rule set
+ * shares one brand color family.
+ */
 const CORPORATE: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'normal' },
     align: 'left',
-    marginTopPt: 14,
+    marginTopPt: 16,
     marginBottomPt: 8,
     decoration: 'none',
   },
@@ -347,13 +390,13 @@ const CORPORATE: BodyThemeStructuralTokens = {
     headerTextColor: '#1f3864',
     headerWeight: 'bold',
     cellPaddingVpt: 3,
-    cellPaddingHpt: 4,
+    cellPaddingHpt: 5,
     cellDividerColor: '#b4c7e7',
     cellDividerWidthPt: 0.5,
     marginBottomPt: 8,
   },
   captions: {
-    sizePt: 9.5,
+    sizePt: 9,
     italic: false,
     marginTopPt: 3,
     marginBottomPt: 8,
@@ -362,14 +405,14 @@ const CORPORATE: BodyThemeStructuralTokens = {
     color: '#1f3864',
   },
   separators: {
-    sectionRuleColor: '#8497b0',
+    sectionRuleColor: '#2f5597',
     sectionRuleWidthPt: 1,
     accentColor: '#2f5597',
   },
   frame: { style: 'none', color: '#2f5597', widthPt: 1 },
   pageFurniture: {
-    fontSizePt: 9,
-    offsetPt: 28,
+    fontSizePt: 8.5,
+    offsetPt: 26,
     align: 'center',
     color: '#1f3864',
   },
@@ -377,67 +420,83 @@ const CORPORATE: BodyThemeStructuralTokens = {
     text: '#000000',
     heading: '#000000',
     accent: '#2f5597',
-    rule: '#8497b0',
+    rule: '#2f5597',
     mutedText: '#666666',
   },
 };
 
-/** Geometric — geometric section markers, modular layout, graphic rules. */
+/**
+ * Geometric — geometric section markers, modular layout, graphic rules.
+ *
+ * Composition (P04-M3): teal-accented modular system — all-bold headings
+ * at 14/8 pt in dark teal ink, boxy 5/8 pt table cells on a pale teal
+ * header with teal header text, square list markers, the THICKEST
+ * section rules of the catalogue (1.5 pt, near-black graphic lines) and
+ * 9 pt furniture at a 30 pt offset.
+ */
 const GEOMETRIC: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'bold' },
     align: 'left',
     marginTopPt: 14,
-    marginBottomPt: 6,
-    decoration: 'underline',
+    marginBottomPt: 8,
+    decoration: 'none',
   },
-  paragraphs: { align: 'justify', indentStepPt: 20 },
+  paragraphs: { align: 'justify', indentStepPt: 18 },
   lists: { indentPt: 24, itemSpacingPt: 6, markerStyle: 'square' },
   tables: {
     borderColor: '#4a4a4a',
     borderWidthPt: 0.75,
-    headerBackground: '#ececec',
-    headerBorderWidthPt: 1.5,
+    headerBackground: '#e0f0ef',
+    headerBorderWidthPt: 1,
     headerBorderColor: '#1a1a1a',
-    headerTextColor: '#000000',
+    headerTextColor: '#0f4c5c',
     headerWeight: 'bold',
-    cellPaddingVpt: 4,
-    cellPaddingHpt: 6,
-    cellDividerColor: '#9a9a9a',
+    cellPaddingVpt: 5,
+    cellPaddingHpt: 8,
+    cellDividerColor: '#7fb8b8',
     cellDividerWidthPt: 0.5,
     marginBottomPt: 10,
   },
   captions: {
-    sizePt: 9,
+    sizePt: 9.5,
     italic: false,
     marginTopPt: 3,
     marginBottomPt: 10,
     tableAlign: 'left',
     figureAlign: 'center',
-    color: '#333333',
+    color: '#0f4c5c',
   },
   separators: {
     sectionRuleColor: '#1a1a1a',
-    sectionRuleWidthPt: 1.25,
-    accentColor: '#4a4a4a',
+    sectionRuleWidthPt: 1.5,
+    accentColor: '#0f4c5c',
   },
   frame: { style: 'none', color: '#1a1a1a', widthPt: 1 },
   pageFurniture: {
     fontSizePt: 9,
-    offsetPt: 28,
+    offsetPt: 30,
     align: 'center',
     color: '#4a4a4a',
   },
   colors: {
     text: '#000000',
-    heading: '#000000',
-    accent: '#1a1a1a',
-    rule: '#4a4a4a',
+    heading: '#0f4c5c',
+    accent: '#0f4c5c',
+    rule: '#1a1a1a',
     mutedText: '#666666',
   },
 };
 
-/** Framed Document — visible page/section framing, formal page treatment. */
+/**
+ * Framed Document — visible page/section framing, formal page treatment.
+ *
+ * Composition (P04-M3): the framed theme — a solid 1.5 pt page border
+ * around every sheet (the widest frame in the catalogue), 12/6 pt
+ * heading margins, traditional italic captions, bordered gray-header
+ * tables with a black header rule, and 9 pt furniture set 32 pt inside
+ * the frame so numbering never crowds the border.
+ */
 const FRAMED_DOCUMENT: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'bold' },
@@ -451,14 +510,14 @@ const FRAMED_DOCUMENT: BodyThemeStructuralTokens = {
   tables: {
     borderColor: '#555555',
     borderWidthPt: 0.75,
-    headerBackground: '#efefef',
+    headerBackground: '#e6e6e6',
     headerBorderWidthPt: 1,
-    headerBorderColor: '#333333',
+    headerBorderColor: '#000000',
     headerTextColor: '#000000',
     headerWeight: 'bold',
     cellPaddingVpt: 3,
     cellPaddingHpt: 4,
-    cellDividerColor: '#999999',
+    cellDividerColor: '#aaaaaa',
     cellDividerWidthPt: 0.5,
     marginBottomPt: 8,
   },
@@ -476,10 +535,10 @@ const FRAMED_DOCUMENT: BodyThemeStructuralTokens = {
     sectionRuleWidthPt: 1,
     accentColor: '#333333',
   },
-  frame: { style: 'solid', color: '#333333', widthPt: 1 },
+  frame: { style: 'solid', color: '#333333', widthPt: 1.5 },
   pageFurniture: {
     fontSizePt: 9,
-    offsetPt: 28,
+    offsetPt: 32,
     align: 'center',
     color: '#444444',
   },
@@ -492,13 +551,21 @@ const FRAMED_DOCUMENT: BodyThemeStructuralTokens = {
   },
 };
 
-/** Contemporary Asymmetrical — selective asymmetry, differentiated information zones. */
+/**
+ * Contemporary Asymmetrical — selective asymmetry, differentiated information zones.
+ *
+ * Composition (P04-M3): selective asymmetry while staying readable —
+ * the widest heading margins (20/10 pt) with a regular H4, LEFT-ragged
+ * body with deep 24 pt indent steps creating a distinct information
+ * column, RIGHT-aligned captions and page furniture (offset 30 pt), dash
+ * markers and asymmetric table cell padding (3/6 pt).
+ */
 const CONTEMPORARY_ASYMMETRICAL: BodyThemeStructuralTokens = {
   headings: {
     weight: { 1: 'bold', 2: 'bold', 3: 'bold', 4: 'normal' },
     align: 'left',
-    marginTopPt: 16,
-    marginBottomPt: 8,
+    marginTopPt: 20,
+    marginBottomPt: 10,
     decoration: 'none',
   },
   paragraphs: { align: 'left', indentStepPt: 24 },
@@ -534,7 +601,7 @@ const CONTEMPORARY_ASYMMETRICAL: BodyThemeStructuralTokens = {
   frame: { style: 'none', color: '#303030', widthPt: 1 },
   pageFurniture: {
     fontSizePt: 9,
-    offsetPt: 28,
+    offsetPt: 30,
     align: 'right',
     color: '#444444',
   },
@@ -547,56 +614,68 @@ const CONTEMPORARY_ASYMMETRICAL: BodyThemeStructuralTokens = {
   },
 };
 
-/** Traditional Serif — book-like serif text, formal hierarchy, classic spacing. */
+/**
+ * Traditional Serif — book-like serif text, formal hierarchy, classic spacing.
+ *
+ * Composition (P04-M3) — deliberately NOT Classic Formal with another
+ * shade: book-like typesetting where SIZE carries the hierarchy — a
+ * strong chapter-style H1 with REGULAR-weight levels 2–4 (Classic is
+ * all-bold), airier 14/8 pt heading margins (Classic 10/6), 21 pt
+ * indent steps (Classic 18), unfilled table headers with a regular
+ * header row and borderless cells (no vertical dividers), larger 10 pt
+ * italic captions with book-style 4/10 pt spacing, a warm brown accent
+ * (#5c4a32 — the only chromatic warm accent), and deep 8.5 pt furniture
+ * at a 34 pt offset (Classic 9 pt / 28).
+ */
 const TRADITIONAL_SERIF: BodyThemeStructuralTokens = {
   headings: {
-    weight: { 1: 'bold', 2: 'bold', 3: 'normal', 4: 'normal' },
+    weight: { 1: 'bold', 2: 'normal', 3: 'normal', 4: 'normal' },
     align: 'left',
-    marginTopPt: 12,
-    marginBottomPt: 6,
+    marginTopPt: 14,
+    marginBottomPt: 8,
     decoration: 'none',
   },
   paragraphs: { align: 'justify', indentStepPt: 21 },
-  lists: { indentPt: 26, itemSpacingPt: 4, markerStyle: 'disc' },
+  lists: { indentPt: 26, itemSpacingPt: 4, markerStyle: 'circle' },
   tables: {
-    borderColor: '#7a7a7a',
+    borderColor: '#999999',
     borderWidthPt: 0.5,
-    headerBackground: '#eeeeee',
+    headerBackground: '#ffffff',
     headerBorderWidthPt: 1,
     headerBorderColor: '#444444',
     headerTextColor: '#000000',
-    headerWeight: 'bold',
-    cellPaddingVpt: 3,
-    cellPaddingHpt: 4,
-    cellDividerColor: '#aaaaaa',
-    cellDividerWidthPt: 0.5,
-    marginBottomPt: 8,
+    headerWeight: 'normal',
+    cellPaddingVpt: 4,
+    cellPaddingHpt: 5,
+    cellDividerColor: '#cccccc',
+    cellDividerWidthPt: 0,
+    marginBottomPt: 10,
   },
   captions: {
-    sizePt: 9.5,
+    sizePt: 10,
     italic: true,
     marginTopPt: 4,
-    marginBottomPt: 8,
+    marginBottomPt: 10,
     tableAlign: 'left',
     figureAlign: 'center',
     color: '#000000',
   },
   separators: {
     sectionRuleColor: '#777777',
-    sectionRuleWidthPt: 0.75,
-    accentColor: '#555555',
+    sectionRuleWidthPt: 0.5,
+    accentColor: '#5c4a32',
   },
-  frame: { style: 'none', color: '#555555', widthPt: 1 },
+  frame: { style: 'none', color: '#5c4a32', widthPt: 1 },
   pageFurniture: {
-    fontSizePt: 9,
-    offsetPt: 28,
+    fontSizePt: 8.5,
+    offsetPt: 34,
     align: 'center',
-    color: '#555555',
+    color: '#666666',
   },
   colors: {
-    text: '#000000',
-    heading: '#000000',
-    accent: '#555555',
+    text: '#1a1a1a',
+    heading: '#1a1a1a',
+    accent: '#5c4a32',
     rule: '#777777',
     mutedText: '#666666',
   },
@@ -623,6 +702,8 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Restrained rules and formal, quiet table treatment',
         'Neutral page furniture and monochrome-compatible palette',
       ],
+      structuralDesign:
+        'Formal report baseline: all-bold levels 1–4 at 10/6 pt heading margins, justified body with 18 pt indent steps, restrained 0.75 pt rules, quiet gray-header tables with bold headers and 0.5 pt dividers, italic 9.5 pt captions, centered 9 pt furniture at a 28 pt offset, and an all-neutral gray palette.',
       implementationStatus: 'default-verified',
     },
     structural: CLASSIC_FORMAL,
@@ -637,7 +718,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Quiet section boundaries instead of heavy rules',
         'Lightweight table and caption treatment',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Airy rhythm: widest heading margins (18/10 pt) with a regular-weight H4, left-ragged body at 16 pt indent steps, hairline 0.5 pt rules, a white table header capped by one decisive black rule with a regular (non-bold) header row, non-italic captions with 12 pt bottom space, and quiet 8 pt / #999999 furniture on soft #111111 body ink.',
+      implementationStatus: 'composition-verified',
     },
     structural: MINIMALIST,
   },
@@ -649,9 +732,11 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
       plannedCharacteristics: [
         'Expressive heading scale with deliberate alignment',
         'Clear reading rhythm between sections',
-        'Underlined heading decoration as an editorial rule',
+        'Centered expressive headings in editorial accent ink',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Magazine composition: the only CENTERED all-bold headings, in dark crimson ink at 18/10 pt; justified body; black table headers with white text on #1a1a1a; centered crimson italic captions (10 pt); 1.25 pt rules with crimson accents; and right-aligned page furniture.',
+      implementationStatus: 'composition-verified',
     },
     structural: EDITORIAL,
   },
@@ -665,7 +750,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Formal captions and technical label treatment',
         'Dense table layout with hairline rules',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Journal density: tightest rhythm in the catalogue — 8/4 pt heading margins, 12 pt indent steps, 2 pt table cell padding, 0.5 pt hairlines, the smallest captions (8.5 pt italic, 2/6 pt), and small 8 pt furniture at a 24 pt offset.',
+      implementationStatus: 'composition-verified',
     },
     structural: SCIENTIFIC_JOURNAL,
   },
@@ -679,7 +766,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Structured rules and strongly bordered tables',
         'Non-italic technical caption treatment',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Specification structure: underlined all-bold headings at 14/6 pt, 20 pt indent steps, square list markers, a heavy 1 pt black table grid with 0.75 pt dividers, non-italic left-aligned labels (table and figure), 1.25 pt black section rules, and left-aligned furniture.',
+      implementationStatus: 'composition-verified',
     },
     structural: TECHNICAL_SPECIFICATION,
   },
@@ -693,7 +782,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Consistent branding accent colors',
         'Tidy, branded page furniture and table headers',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Branded hierarchy: bold levels 1–3 with a regular H4 at 16/8 pt, navy-on-pale-blue table headers (#d9e2f3 / #1f3864 / #2f5597), navy captions, 1 pt brand-blue section rules, and navy centered furniture at a 26 pt offset — one brand color family across the whole page.',
+      implementationStatus: 'composition-verified',
     },
     structural: CORPORATE,
   },
@@ -707,7 +798,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Graphic rules with bolder table framing',
         'Squarish list markers and structured spacing',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Modular graphic system: teal-accented all-bold headings at 14/8 pt in #0f4c5c ink, boxy 5/8 pt table cells on a pale teal header with teal header text, square markers, the thickest section rules of the catalogue (1.5 pt near-black graphic lines), and 9 pt furniture at a 30 pt offset.',
+      implementationStatus: 'composition-verified',
     },
     structural: GEOMETRIC,
   },
@@ -721,7 +814,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Section framing and formal page treatment',
         'Traditional, formal table and caption treatment',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Formal framed treatment: a solid 1.5 pt page border around every sheet (the widest frame in the catalogue), 12/6 pt heading margins, traditional italic captions, bordered gray-header tables with a black header rule, and 9 pt furniture set 32 pt inside the frame.',
+      implementationStatus: 'composition-verified',
     },
     structural: FRAMED_DOCUMENT,
   },
@@ -735,7 +830,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Differentiated information zones via indent steps',
         'Right-biased captions and page furniture alignment',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Selective asymmetry: widest heading margins (20/10 pt) with a regular H4, left-ragged body with deep 24 pt indent steps forming a distinct information column, right-aligned captions and page furniture (offset 30 pt), dash markers, and asymmetric table cell padding (3/6 pt).',
+      implementationStatus: 'composition-verified',
     },
     structural: CONTEMPORARY_ASYMMETRICAL,
   },
@@ -749,7 +846,9 @@ export const BODY_THEME_REGISTRY: Record<BodyThemeId, BodyThemeDefinition> = {
         'Formal hierarchy with softer lower-level headings',
         'Classic, restrained table and caption treatment',
       ],
-      implementationStatus: 'foundation-planned',
+      structuralDesign:
+        'Book-like typesetting (deliberately distinct from Classic Formal): size-driven hierarchy — a strong chapter-style H1 with regular-weight levels 2–4 (Classic is all-bold), airier 14/8 pt heading margins, 21 pt indent steps, unfilled table headers with a regular header row and borderless cells (no vertical dividers), larger 10 pt italic captions at 4/10 pt, a warm brown accent (#5c4a32), and deep 8.5 pt furniture at a 34 pt offset.',
+      implementationStatus: 'composition-verified',
     },
     structural: TRADITIONAL_SERIF,
   },
