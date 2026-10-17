@@ -24,6 +24,13 @@
  *   bold/italic/underline spans mapped to nested <Text> styles.
  * • Display header — the fixed body-page header honors
  *   `pageTypography.displayHeader` (P04-M1, §8.4).
+ * • Body themes   — `pageTypography.bodyThemeId` + `monochrome` resolve
+ *   through `services/body-theme-tokens.ts` (P04-M2) into ONE token set
+ *   consumed everywhere below; the stylesheet holds only engine-level
+ *   constants (font mapping, flex/absolute geometry).  Every themed value
+ *   flows from `resolveBodyTheme`.  Unsupported token consumption (list
+ *   indent, separator/accent rules) is an explicit P04-M2 limitation —
+ *   see the token module.
  * • Tables       — react-pdf v4 has NO Table primitive; the table is
  *   composed of flex rows with fixed column widths and unbreakable rows
  *   (wrap={false}), so a row moves to the next page whole.
@@ -55,12 +62,12 @@ import type {
   ParagraphBlockData,
   TableBlockData,
 } from '../../types/blocks';
-import type { TypographySettings } from '../../types/document';
 import { effectivePageDimensionsMm } from '../../services/page-typography';
 import {
-  deriveHeadingSizesPt,
-  type HeadingLevel,
-} from '../../services/typography-tokens';
+  DEFAULT_TEXT_COLOR,
+  resolveBodyTheme,
+  type BodyThemeTokens,
+} from '../../services/body-theme-tokens';
 
 /** mm → pt conversion (1 mm = 72 / 25.4 pt). */
 export function mmToPt(mm: number): number {
@@ -95,85 +102,36 @@ const PAGE_DIMENSIONS_PT: Record<PageSize, { width: number; height: number }> = 
   Legal: { width: 792, height: 612 },
 };
 
+/**
+ * Engine-level base styles only (P04-M2): font mapping (schema family →
+ * PDF standard-14 Times), flex/absolute geometry.  Every themed value —
+ * sizes, weights, alignment, spacing, borders, colors — comes from the
+ * resolved body-theme token set in `PocDocument` below, so the framework
+ * is the single source of styling truth.
+ */
 const styles = StyleSheet.create({
   bodyPage: {
     paddingHorizontal: 0,
     paddingVertical: 0,
     fontFamily: POC_BODY_FONT,
-    fontSize: 11,
-    lineHeight: 1.5,
   },
   heading: {
     fontFamily: POC_BODY_FONT,
-    fontWeight: 'bold',
-    marginBottom: 6,
-    marginTop: 10,
   },
-  paragraph: {
-    marginBottom: 6,
-    textAlign: 'justify',
-  },
-  table: {
-    marginBottom: 8,
-  },
-  tableRow: {
-    flexDirection: 'row',
-    borderBottomWidth: 0.5,
-    borderBottomColor: '#666666',
-  },
-  tableHeaderRow: {
-    flexDirection: 'row',
-    backgroundColor: '#e8e8e8',
-    borderBottomWidth: 1,
-    borderBottomColor: '#333333',
-  },
-  cell: {
-    paddingVertical: 3,
-    paddingHorizontal: 4,
-    borderRightWidth: 0.5,
-    borderRightColor: '#999999',
-  },
-  cellHeader: {
-    paddingVertical: 3,
-    paddingHorizontal: 4,
-    fontWeight: 'bold',
-    borderRightWidth: 0.5,
-    borderRightColor: '#999999',
-  },
-  tableCaption: {
+  caption: {
     fontFamily: POC_BODY_FONT,
-    fontStyle: 'italic',
-    fontSize: 9.5,
-    marginTop: 3,
-    marginBottom: 8,
-  },
-  imageCaption: {
-    fontFamily: POC_BODY_FONT,
-    fontStyle: 'italic',
-    fontSize: 9.5,
-    marginTop: 3,
-    marginBottom: 8,
-    textAlign: 'center',
   },
   footer: {
     fontFamily: POC_BODY_FONT,
-    fontSize: 9,
     position: 'absolute',
-    bottom: 28,
     left: 0,
     right: 0,
-    textAlign: 'center',
-    color: '#444444',
   },
   header: {
     fontFamily: POC_BODY_FONT,
-    fontSize: 9,
     position: 'absolute',
-    top: 28,
     left: 0,
     right: 0,
-    textAlign: 'center',
-    color: '#444444',
   },
 });
 
@@ -203,72 +161,146 @@ function renderSpans(spans: InlineSpan[]): React.ReactNode {
 // Block renderers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Heading({
-  block,
-  headingSizes,
-}: {
-  block: HeadingBlockData;
-  headingSizes: Record<HeadingLevel, number>;
-}) {
+function Heading({ block, tokens }: { block: HeadingBlockData; tokens: BodyThemeTokens }) {
+  const heading = tokens.headings;
   return (
-    <Text style={[styles.heading, { fontSize: headingSizes[block.level] }]} wrap>
+    <Text
+      style={[
+        styles.heading,
+        {
+          fontSize: tokens.typography.headingSizesPt[block.level],
+          fontWeight: heading.weight[block.level],
+          marginTop: heading.marginTopPt,
+          marginBottom: heading.marginBottomPt,
+          // Deviation-only properties: classic-formal matches the engine
+          // defaults, so the default path emits the exact style set it did
+          // before theming existed (byte-identity protection, P04-M2).
+          ...(heading.align !== 'left' ? { textAlign: heading.align } : {}),
+          ...(heading.decoration !== 'none'
+            ? { textDecoration: heading.decoration }
+            : {}),
+          ...(tokens.colors.heading !== DEFAULT_TEXT_COLOR
+            ? { color: tokens.colors.heading }
+            : {}),
+        },
+      ]}
+      wrap
+    >
       {block.text}
     </Text>
   );
 }
 
-function Paragraph({ block, typography }: { block: ParagraphBlockData; typography: TypographySettings }) {
-  const indent = block.indentLevel > 0 ? block.indentLevel * 18 : 0;
+function Paragraph({ block, tokens }: { block: ParagraphBlockData; tokens: BodyThemeTokens }) {
+  const indent = block.indentLevel > 0 ? block.indentLevel * tokens.paragraphs.indentStepPt : 0;
   return (
-    <Text style={[styles.paragraph, { marginLeft: indent, marginBottom: typography.paragraphSpacingPt }]} wrap>
+    <Text
+      style={[
+        {
+          marginLeft: indent,
+          marginBottom: tokens.typography.paragraphSpacingPt,
+          textAlign: tokens.paragraphs.align,
+          ...(tokens.colors.text !== DEFAULT_TEXT_COLOR
+            ? { color: tokens.colors.text }
+            : {}),
+        },
+      ]}
+      wrap
+    >
       {renderSpans(block.spans)}
     </Text>
   );
 }
 
-function Table({ block, contentWidth }: { block: TableBlockData; contentWidth: number }) {
+/**
+ * Caption style from the resolved caption tokens, shared by table and
+ * figure captions (single token-application site).  `alignKey` selects
+ * which token the slot uses; an `align` of `'left'` is omitted because it
+ * equals the engine default — that keeps classic-formal's table caption
+ * emitting exactly the style set it did before theming (byte-identity
+ * protection) while still applying every real deviation.
+ */
+function captionStyle(
+  caption: BodyThemeTokens['captions'],
+  alignKey: 'tableAlign' | 'figureAlign',
+) {
+  const fontStyle: 'normal' | 'italic' = caption.italic ? 'italic' : 'normal';
+  const align = caption[alignKey];
+  return [
+    styles.caption,
+    {
+      fontStyle,
+      fontSize: caption.sizePt,
+      marginTop: caption.marginTopPt,
+      marginBottom: caption.marginBottomPt,
+      ...(align !== 'left' ? { textAlign: align } : {}),
+      ...(caption.color !== DEFAULT_TEXT_COLOR ? { color: caption.color } : {}),
+    },
+  ];
+}
+
+function Table({ block, contentWidth, tokens }: { block: TableBlockData; contentWidth: number; tokens: BodyThemeTokens }) {
+  const t = tokens.tables;
+  const caption = tokens.captions;
   return (
-    <View style={styles.table}>
+    <View style={{ marginBottom: t.marginBottomPt }}>
       {block.rows.map((row, rowIndex) => {
         const isHeader = block.hasHeaderRow && rowIndex === 0;
         return (
           <View
             key={row.id}
-            style={isHeader ? styles.tableHeaderRow : styles.tableRow}
+            style={{
+              flexDirection: 'row',
+              borderBottomWidth: isHeader ? t.headerBorderWidthPt : t.borderWidthPt,
+              borderBottomColor: isHeader ? t.headerBorderColor : t.borderColor,
+              ...(isHeader ? { backgroundColor: t.headerBackground } : {}),
+            }}
             wrap={false}
           >
-            {row.cells.map((cell, cellIndex) => (
-              <Text
-                key={cell.id}
-                style={[
-                  isHeader || cell.isHeader ? styles.cellHeader : styles.cell,
-                  {
+            {row.cells.map((cell, cellIndex) => {
+              const isHeaderCell = isHeader || cell.isHeader;
+              return (
+                <Text
+                  key={cell.id}
+                  style={{
                     width: contentWidth * (COLUMN_FRACTIONS[cellIndex] ?? 0.25),
                     textAlign: cell.hAlign,
-                  },
-                ]}
-                wrap
-              >
-                {renderSpans(cell.spans)}
-              </Text>
-            ))}
+                    paddingVertical: t.cellPaddingVpt,
+                    paddingHorizontal: t.cellPaddingHpt,
+                    borderRightWidth: t.cellDividerWidthPt,
+                    borderRightColor: t.cellDividerColor,
+                    ...(isHeaderCell ? { fontWeight: t.headerWeight } : {}),
+                    ...(isHeaderCell && t.headerTextColor !== DEFAULT_TEXT_COLOR
+                      ? { color: t.headerTextColor }
+                      : {}),
+                  }}
+                  wrap
+                >
+                  {renderSpans(cell.spans)}
+                </Text>
+              );
+            })}
           </View>
         );
       })}
-      {block.caption && <Text style={styles.tableCaption}>{block.caption}</Text>}
+      {block.caption && (
+        <Text style={captionStyle(caption, 'tableAlign')}>{block.caption}</Text>
+      )}
     </View>
   );
 }
 
-function ImageBlock({ block, doc }: { block: ImageBlockData; doc: DocStudioDocument }) {
+function ImageBlock({ block, doc, tokens }: { block: ImageBlockData; doc: DocStudioDocument; tokens: BodyThemeTokens }) {
   const [pageWidthMm] = effectivePageDimensionsMm(doc.pageSetup.size, doc.pageSetup.orientation);
   const contentWidth = mmToPt(pageWidthMm) - mmToPt(doc.pageSetup.margins.leftMm + doc.pageSetup.margins.rightMm);
+  const caption = tokens.captions;
+  const captionStyles = captionStyle(caption, 'figureAlign');
   return (
     <View style={{ marginBottom: 8 }}>
       {block.images.map((image) => {
         if (!image.assetId) {
           return (
-            <Text key={image.id} style={styles.imageCaption}>
+            <Text key={image.id} style={captionStyles}>
               [Empty image slot]
             </Text>
           );
@@ -294,7 +326,7 @@ function ImageBlock({ block, doc }: { block: ImageBlockData; doc: DocStudioDocum
                       : 'flex-start',
               }}
             />
-            {image.caption && <Text style={styles.imageCaption}>{image.caption}</Text>}
+            {image.caption && <Text style={captionStyles}>{image.caption}</Text>}
           </View>
         );
       })}
@@ -306,20 +338,18 @@ function BlockRenderer({
   block,
   doc,
   contentWidth,
-  typography,
-  headingSizes,
+  tokens,
 }: {
   block: AnyBlockData;
   doc: DocStudioDocument;
   contentWidth: number;
-  typography: TypographySettings;
-  headingSizes: Record<HeadingLevel, number>;
+  tokens: BodyThemeTokens;
 }) {
   switch (block.type) {
     case 'heading':
-      return <Heading block={block} headingSizes={headingSizes} />;
+      return <Heading block={block} tokens={tokens} />;
     case 'paragraph':
-      return <Paragraph block={block} typography={typography} />;
+      return <Paragraph block={block} tokens={tokens} />;
     case 'page-break':
       // Explicit schema page break. The break is applied by PocDocument to
       // the NEXT block's wrapper (an empty zero-height View is skipped by
@@ -327,14 +357,25 @@ function BlockRenderer({
       // emit a minimal marker node.
       return <View style={{ height: 0 }} />;
     case 'table':
-      return <Table block={block} contentWidth={contentWidth} />;
+      return <Table block={block} contentWidth={contentWidth} tokens={tokens} />;
     case 'image':
-      return <ImageBlock block={block} doc={doc} />;
+      return <ImageBlock block={block} doc={doc} tokens={tokens} />;
     default:
       // Unsupported block in the PoC: rendered as a visible marker so the
       // gap is obvious during evaluation rather than silently dropped.
+      // Spacing/alignment/ink come from the resolved tokens (the classic
+      // values reproduce the original marker exactly).
       return (
-        <Text style={[styles.paragraph, { fontStyle: 'italic', color: '#888888' }]}>
+        <Text
+          style={[
+            {
+              marginBottom: tokens.typography.paragraphSpacingPt,
+              textAlign: tokens.paragraphs.align,
+              fontStyle: 'italic',
+              color: tokens.colors.mutedText,
+            },
+          ]}
+        >
           [P02-M4 PoC: block type “{block.type}” not yet mapped]
         </Text>
       );
@@ -347,8 +388,18 @@ function BlockRenderer({
 
 export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactElement {
   const { size, orientation, margins } = doc.pageSetup;
-  const typography = doc.pageTypography.typography;
-  const headingSizes = deriveHeadingSizesPt(typography.baseFontSizePt);
+  // Single theme-resolution call site (P04-M2): the document's existing
+  // settings resolve into the one token set consumed by every block and by
+  // the page furniture below. The resolver is deterministic, never mutates
+  // the document, and throws on an unknown `bodyThemeId`.
+  const tokens = resolveBodyTheme(
+    doc.pageTypography.bodyThemeId,
+    doc.pageTypography.typography,
+    doc.pageTypography.monochrome,
+  ).tokens;
+  const furniture = tokens.pageFurniture;
+  // Extracted so TypeScript narrows `'none'` away inside the frame block.
+  const frameStyle = tokens.frame.style;
   const marginTop = mmToPt(margins.topMm);
   const marginRight = mmToPt(margins.rightMm);
   const marginBottom = mmToPt(margins.bottomMm);
@@ -374,24 +425,58 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
         style={[
           styles.bodyPage,
           {
-            fontSize: typography.baseFontSizePt,
-            lineHeight: typography.lineHeight,
+            fontSize: tokens.typography.baseFontSizePt,
+            lineHeight: tokens.typography.lineHeight,
             paddingTop: marginTop,
             paddingLeft: marginLeft,
             paddingRight: marginRight,
             paddingBottom: marginBottom,
+            // Page framing (e.g. framed-document): applied only when the
+            // theme requests it — classic-formal (`style: 'none'`) emits
+            // nothing new here.
+            ...(frameStyle !== 'none'
+              ? {
+                  borderWidth: tokens.frame.widthPt,
+                  borderColor: tokens.frame.color,
+                  borderStyle: frameStyle,
+                }
+              : {}),
           },
         ]}
         wrap
       >
         {/* Repeated page furniture (fixed): header + page numbering.
-            The header honors the §8.4 display-header preference (P04-M1). */}
+            The header honors the §8.4 display-header preference (P04-M1);
+            sizes/colors/offset come from the theme tokens. */}
         {doc.pageTypography.displayHeader && (
-          <Text style={styles.header} fixed>
+          <Text
+            style={[
+              styles.header,
+              {
+                fontSize: furniture.fontSizePt,
+                top: furniture.offsetPt,
+                textAlign: furniture.align,
+                color: furniture.color,
+              },
+            ]}
+            fixed
+          >
             {doc.metadata.documentId} — DocStudio Renderer Proof of Concept
           </Text>
         )}
-        <Text style={styles.footer} fixed render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
+        <Text
+          style={[
+            styles.footer,
+            {
+              fontSize: furniture.fontSizePt,
+              bottom: furniture.offsetPt,
+              textAlign: furniture.align,
+              color: furniture.color,
+            },
+          ]}
+          fixed
+          render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`}
+        />
 
         {/* Blocks are rendered as DIRECT children of <Page> on purpose:
             react-pdf v4 only honors the `break` prop on direct Page
@@ -408,8 +493,7 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
               block={block.data}
               doc={doc}
               contentWidth={contentWidth}
-              typography={typography}
-              headingSizes={headingSizes}
+              tokens={tokens}
             />
           );
           return forceBreak ? (

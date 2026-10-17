@@ -17,7 +17,8 @@
     "verify:p03-m3": "node verify_p03_m3.mjs",
     "verify:p03-m4": "node verify_p03_m4.mjs",
     "verify:p03-m5": "node verify_p03_m5.mjs",
-    "verify:p04-m1": "node verify_p04_m1.mjs"
+    "verify:p04-m1": "node verify_p04_m1.mjs",
+    "verify:p04-m2": "node verify_p04_m2.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",
