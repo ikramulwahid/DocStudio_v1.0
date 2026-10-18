@@ -21,6 +21,11 @@ import type {
   BlockSpacingField,
 } from '../../services/block-actions';
 import type {
+  ContentActionResult,
+  HeadingContentPatch,
+  ParagraphContentPatch,
+} from '../../services/block-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -92,6 +97,16 @@ interface WorkspaceProps {
     field: BlockSpacingField,
     value: number,
   ) => BlockActionResult;
+  /** Commit a heading content patch (P05-M2, §10.1). */
+  onHeadingContentChange: (
+    blockId: DocUUID,
+    patch: HeadingContentPatch,
+  ) => ContentActionResult;
+  /** Commit a paragraph content patch (P05-M2, §10.2). */
+  onParagraphContentChange: (
+    blockId: DocUUID,
+    patch: ParagraphContentPatch,
+  ) => ContentActionResult;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -124,6 +139,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onMoveBlock,
   onDeleteBlock,
   onSpacingChange,
+  onHeadingContentChange,
+  onParagraphContentChange,
 }) => {
   return (
     <div className="workspace">
@@ -158,6 +175,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onMoveBlock={onMoveBlock}
         onDeleteBlock={onDeleteBlock}
         onSpacingChange={onSpacingChange}
+        onHeadingContentChange={onHeadingContentChange}
+        onParagraphContentChange={onParagraphContentChange}
       />
       <PreviewPanel document={activeDocument} />
     </div>

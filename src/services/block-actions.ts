@@ -85,7 +85,7 @@ const reject = (code: BlockErrorCode, message: string): BlockActionResult => ({
 });
 
 /** Rebuild the document with new blocks + a freshly stamped modifiedAt. */
-const stamped = (
+export const stamped = (
   source: DocStudioDocument,
   blocks: ContentBlock[],
   now: string,
@@ -95,7 +95,7 @@ const stamped = (
   metadata: { ...source.metadata, modifiedAt: now },
 });
 
-const indexOfBlock = (doc: DocStudioDocument, blockId: DocUUID): number =>
+export const indexOfBlock = (doc: DocStudioDocument, blockId: DocUUID): number =>
   doc.blocks.findIndex((block) => block.id === blockId);
 
 // ─────────────────────────────────────────────────────────────────────────────

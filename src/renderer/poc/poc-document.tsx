@@ -53,6 +53,7 @@ import {
   Text,
   View,
   Image,
+  Link,
   StyleSheet,
 } from '@react-pdf/renderer';
 import type { DocStudioDocument, PageSize } from '../../types/document';
@@ -72,6 +73,11 @@ import {
   resolveBodyTheme,
   type BodyThemeTokens,
 } from '../../services/body-theme-tokens';
+import {
+  computeHeadingNumbering,
+  HEADING_PREFIX_SEPARATOR,
+} from '../../services/heading-numbering';
+import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
 import { PocCoverPage } from './poc-cover-page';
 
 /** mm → pt conversion (1 mm = 72 / 25.4 pt). */
@@ -175,26 +181,81 @@ const COLUMN_FRACTIONS = [0.3, 0.24, 0.24, 0.22];
 // Inline rich text
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Inline rich text (P05-M2 additions: strikethrough, font colour,
+ * highlight and SAFE hyperlinks).  Every new property is applied only
+ * when the span actually carries it, so spans without those fields emit
+ * exactly the style set they always did — the P02-M4/P04 byte-identity
+ * guard.  Hrefs are re-sanitised at render time (`sanitizeHref`), so an
+ * unsafe link that somehow reached stored data can never become a live
+ * PDF link annotation; colours are normalised the same way.  A link
+ * renders as a react-pdf `Link` (a real PDF link annotation); everything
+ * else stays a plain `Text`.
+ */
 function renderSpans(spans: InlineSpan[]): React.ReactNode {
-  return spans.map((span, i) => (
-    <Text
-      key={i}
-      style={{
-        fontWeight: span.bold ? 'bold' : 'normal',
-        fontStyle: span.italic ? 'italic' : 'normal',
-        textDecoration: span.underline ? 'underline' : 'none',
-      }}
-    >
-      {span.text}
-    </Text>
-  ));
+  return spans.map((span, i) => {
+    const decoration: 'none' | 'underline' | 'line-through' | 'underline line-through' =
+      span.underline === true && span.strikethrough === true
+        ? 'underline line-through'
+        : span.underline === true
+          ? 'underline'
+          : span.strikethrough === true
+            ? 'line-through'
+            : 'none';
+    const color = normalizeHexColor(span.color);
+    const highlight = normalizeHexColor(span.highlight);
+    // Concrete literal-typed object: assignable to both Text's and Link's
+    // style props without widening to `string`.
+    const style: {
+      fontWeight: 'bold' | 'normal';
+      fontStyle: 'italic' | 'normal';
+      textDecoration: 'none' | 'underline' | 'line-through' | 'underline line-through';
+      color?: string;
+      backgroundColor?: string;
+    } = {
+      fontWeight: span.bold ? 'bold' : 'normal',
+      fontStyle: span.italic ? 'italic' : 'normal',
+      textDecoration: decoration,
+      ...(color !== null ? { color } : {}),
+      ...(highlight !== null ? { backgroundColor: highlight } : {}),
+    };
+    const href = sanitizeHref(span.href);
+    if (href !== null) {
+      return (
+        <Link key={i} src={href} style={style}>
+          {span.text}
+        </Link>
+      );
+    }
+    return (
+      <Text key={i} style={style}>
+        {span.text}
+      </Text>
+    );
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Block renderers
 // ─────────────────────────────────────────────────────────────────────────────
 
-function Heading({ block, tokens }: { block: HeadingBlockData; tokens: BodyThemeTokens }) {
+/**
+ * Heading block (§10.1).  Outline numbering (P05-M2) is DERIVED at
+ * render time by `computeHeadingNumbering` over the authoritative block
+ * order — never stored in `text` — and passed in as `prefix`; when no
+ * prefix is supplied the emitted node is exactly the pre-numbering one
+ * (byte-identity guard: the P02-M4 baseline and the P04 galleries use
+ * `numbered: false` headings throughout).
+ */
+function Heading({
+  block,
+  tokens,
+  prefix,
+}: {
+  block: HeadingBlockData;
+  tokens: BodyThemeTokens;
+  prefix?: string;
+}) {
   const heading = tokens.headings;
   return (
     <Text
@@ -219,7 +280,7 @@ function Heading({ block, tokens }: { block: HeadingBlockData; tokens: BodyTheme
       ]}
       wrap
     >
-      {block.text}
+      {prefix !== undefined ? `${prefix}${HEADING_PREFIX_SEPARATOR}${block.text}` : block.text}
     </Text>
   );
 }
@@ -541,15 +602,19 @@ export function BlockRenderer({
   doc,
   contentWidth,
   tokens,
+  headingPrefix,
 }: {
   block: AnyBlockData;
   doc: DocStudioDocument;
   contentWidth: number;
   tokens: BodyThemeTokens;
+  /** Derived outline prefix for this heading block (P05-M2); optional so
+   *  callers without numbering context render unchanged. */
+  headingPrefix?: string;
 }) {
   switch (block.type) {
     case 'heading':
-      return <Heading block={block} tokens={tokens} />;
+      return <Heading block={block} tokens={tokens} prefix={headingPrefix} />;
     case 'paragraph':
       return <Paragraph block={block} tokens={tokens} />;
     case 'page-break':
@@ -694,6 +759,11 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
     doc.pageTypography.monochrome,
   ).tokens;
   const { contentWidth } = computePocLayout(doc);
+  // Outline numbering (P05-M2, §10.1): ONE derivation over the
+  // authoritative block order, shared by every heading below — the same
+  // engine the editor uses, so preview/export can never disagree with
+  // the editing surface.  Prefixes are derived, never stored.
+  const headingPrefixes = computeHeadingNumbering(doc.blocks);
 
   return (
     <Document
@@ -735,6 +805,7 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
               doc={doc}
               contentWidth={contentWidth}
               tokens={tokens}
+              headingPrefix={headingPrefixes.get(block.id)}
             />
           );
           return forceBreak ? (

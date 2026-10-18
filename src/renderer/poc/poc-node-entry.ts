@@ -76,3 +76,34 @@ export {
   COVER_SAMPLE_CUSTOM_PROJECT_ID,
   COVER_SAMPLE_CUSTOM_METHOD_ID,
 } from './cover-sample-doc';
+
+// ── P05-M2 (headings + rich-text paragraph) — additive exports only ──────────
+// Heading numbering engine (pure) plus the heading/paragraph content actions
+// and the inline-span algebra.  Every export below is exercised by
+// verify_p05_m2.mjs through this entry so the suite compiles the same module
+// graph the renderer uses.
+export {
+  HEADING_LEVELS,
+  HEADING_PREFIX_SEPARATOR,
+  computeHeadingNumbering,
+} from '../../services/heading-numbering';
+export {
+  MAX_PARAGRAPH_INDENT,
+  updateHeadingContent,
+  updateParagraphContent,
+} from '../../services/block-content';
+export {
+  spansToPlainText,
+  plainTextToSpans,
+  normalizeHexColor,
+  validateColorPatch,
+  sanitizeHref,
+  normalizeSpans,
+  applySpanFormatting,
+  applySpanLink,
+  applySpanColor,
+  clearSpanFormatting,
+  isFlagActiveOverRange,
+  hrefOverRange,
+  remapSpansAfterTextEdit,
+} from '../../services/rich-text';

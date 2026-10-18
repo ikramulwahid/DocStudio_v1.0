@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Icon } from '../common/Icon';
 import {
   BLOCK_CATEGORIES,
@@ -16,6 +16,14 @@ import type {
 } from '../../services/block-actions';
 import type { BlockType } from '../../types/blocks';
 import type { ContentBlock, DocUUID } from '../../types/document';
+import { computeHeadingNumbering } from '../../services/heading-numbering';
+import { HeadingContentEditor } from './HeadingContentEditor';
+import { ParagraphContentEditor } from './ParagraphContentEditor';
+import type {
+  ContentActionResult,
+  HeadingContentPatch,
+  ParagraphContentPatch,
+} from '../../services/block-content';
 import './EditorPanel.css';
 
 interface EditorPanelProps {
@@ -39,6 +47,16 @@ interface EditorPanelProps {
     field: BlockSpacingField,
     value: number,
   ) => BlockActionResult;
+  /** Commit a heading content patch (P05-M2, §10.1). */
+  onHeadingContentChange: (
+    blockId: DocUUID,
+    patch: HeadingContentPatch,
+  ) => ContentActionResult;
+  /** Commit a paragraph content patch (P05-M2, §10.2). */
+  onParagraphContentChange: (
+    blockId: DocUUID,
+    patch: ParagraphContentPatch,
+  ) => ContentActionResult;
 }
 
 interface EditorNotice {
@@ -47,15 +65,16 @@ interface EditorNotice {
 }
 
 /**
- * The modular document editor (P05-M1 block framework).
+ * The modular document editor (P05-M1 block framework, extended P05-M2).
  *
  * Renders the AUTHORITATIVE `document.blocks` list and wires every action
- * to the App through immutable `block-actions` operations — there is no
- * second block store in component state.  Selection is session state owned
- * by the App, so selecting never dirties the document; content editors for
- * headings/paragraphs (P05-M2), lists/callouts (P05-M3) and tables (P05-M4)
- * arrive in later checkpoints — inserted blocks currently show truthful
- * structural summaries.
+ * to the App through immutable `block-actions`/`block-content` operations —
+ * there is no second block store in component state.  Selection is session
+ * state owned by the App, so selecting never dirties the document.  The
+ * selected heading (§10.1) and paragraph (§10.2) blocks additionally show
+ * their content editors; list/callout (P05-M3) and table (P05-M4) content
+ * editors arrive in later checkpoints — other inserted blocks currently
+ * show truthful structural summaries.
  */
 export const EditorPanel: React.FC<EditorPanelProps> = ({
   blocks,
@@ -66,6 +85,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onMoveBlock,
   onDeleteBlock,
   onSpacingChange,
+  onHeadingContentChange,
+  onParagraphContentChange,
 }) => {
   const [insertType, setInsertType] = useState<BlockType>('paragraph');
   const [notice, setNotice] = useState<EditorNotice | null>(null);
@@ -76,6 +97,10 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
   const selected =
     selectedBlockId !== null ? (blocks.find((block) => block.id === selectedBlockId) ?? null) : null;
+
+  // §10.1 consistency: the editor shows the SAME derived numbering prefix
+  // the renderer will print (never stored in the document).
+  const headingPrefixes = useMemo(() => computeHeadingNumbering(blocks), [blocks]);
 
   // Sync spacing drafts to the selection: runs only when the selected block
   // CHANGES (spacing commits update the document, not the selection, so
@@ -136,8 +161,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             <div className="insert-card-heading">
               <span className="insert-card-title">Insert block</span>
               <span className="insert-card-hint">
-                Structure, order and spacing are editable now; rich content editing for headings,
-                paragraphs, lists, callouts and tables arrives in P05-M2–M4.
+                Structure, order and spacing are editable now; heading and paragraph content editing
+                is available on the selected block, and list, callout and table content editors
+                arrive in P05-M3–M4.
               </span>
             </div>
             <div className="insert-controls">
@@ -287,39 +313,59 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                     </div>
 
                     {isSelected && (
-                      <div className="block-spacing-panel" aria-label={`Spacing for block ${position}`}>
-                        <span className="block-spacing-title">Spacing (points)</span>
-                        <label className="spacing-field" htmlFor={`ds-spacing-top-${block.id}`}>
-                          <span className="spacing-field-label">Above</span>
-                          <input
-                            id={`ds-spacing-top-${block.id}`}
-                            className="spacing-input"
-                            type="number"
-                            min={0}
-                            step={0.5}
-                            inputMode="decimal"
-                            value={spacingDrafts.top}
-                            aria-label={`Spacing above block ${position}, in points`}
-                            onChange={(e) => handleSpacingInput('topPt', e.target.value)}
+                      <>
+                        {block.data.type === 'heading' && (
+                          <HeadingContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            numberingPrefix={headingPrefixes.get(block.id)}
+                            onHeadingContentChange={onHeadingContentChange}
                           />
-                          <span className="spacing-field-unit">pt</span>
-                        </label>
-                        <label className="spacing-field" htmlFor={`ds-spacing-bottom-${block.id}`}>
-                          <span className="spacing-field-label">Below</span>
-                          <input
-                            id={`ds-spacing-bottom-${block.id}`}
-                            className="spacing-input"
-                            type="number"
-                            min={0}
-                            step={0.5}
-                            inputMode="decimal"
-                            value={spacingDrafts.bottom}
-                            aria-label={`Spacing below block ${position}, in points`}
-                            onChange={(e) => handleSpacingInput('bottomPt', e.target.value)}
+                        )}
+                        {block.data.type === 'paragraph' && (
+                          <ParagraphContentEditor
+                            blockId={block.id}
+                            spans={block.data.spans}
+                            hAlign={block.data.hAlign}
+                            indentLevel={block.data.indentLevel}
+                            onParagraphContentChange={onParagraphContentChange}
+                            onLocalError={(text) => setNotice({ severity: 'error', text })}
                           />
-                          <span className="spacing-field-unit">pt</span>
-                        </label>
-                      </div>
+                        )}
+                        <div className="block-spacing-panel" aria-label={`Spacing for block ${position}`}>
+                          <span className="block-spacing-title">Spacing (points)</span>
+                          <label className="spacing-field" htmlFor={`ds-spacing-top-${block.id}`}>
+                            <span className="spacing-field-label">Above</span>
+                            <input
+                              id={`ds-spacing-top-${block.id}`}
+                              className="spacing-input"
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              inputMode="decimal"
+                              value={spacingDrafts.top}
+                              aria-label={`Spacing above block ${position}, in points`}
+                              onChange={(e) => handleSpacingInput('topPt', e.target.value)}
+                            />
+                            <span className="spacing-field-unit">pt</span>
+                          </label>
+                          <label className="spacing-field" htmlFor={`ds-spacing-bottom-${block.id}`}>
+                            <span className="spacing-field-label">Below</span>
+                            <input
+                              id={`ds-spacing-bottom-${block.id}`}
+                              className="spacing-input"
+                              type="number"
+                              min={0}
+                              step={0.5}
+                              inputMode="decimal"
+                              value={spacingDrafts.bottom}
+                              aria-label={`Spacing below block ${position}, in points`}
+                              onChange={(e) => handleSpacingInput('bottomPt', e.target.value)}
+                            />
+                            <span className="spacing-field-unit">pt</span>
+                          </label>
+                        </div>
+                      </>
                     )}
                   </li>
                 );

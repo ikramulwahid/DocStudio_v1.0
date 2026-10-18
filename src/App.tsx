@@ -59,6 +59,13 @@ import {
   type BlockPlacement,
   type BlockSpacingField,
 } from './services/block-actions';
+import {
+  updateHeadingContent,
+  updateParagraphContent,
+  type ContentActionResult,
+  type HeadingContentPatch,
+  type ParagraphContentPatch,
+} from './services/block-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -498,6 +505,29 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── Block content (P05-M2) ─────────────────────────────────────────────
+  // Heading (§10.1) and paragraph (§10.2) content commits go through the
+  // immutable block-content services; failures surface the service's
+  // understandable message inline and leave the document untouched.
+
+  const handleHeadingContentChange = (
+    blockId: DocUUID,
+    patch: HeadingContentPatch,
+  ): ContentActionResult => {
+    const result = updateHeadingContent(activeDocument, blockId, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  const handleParagraphContentChange = (
+    blockId: DocUUID,
+    patch: ParagraphContentPatch,
+  ): ContentActionResult => {
+    const result = updateParagraphContent(activeDocument, blockId, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -589,6 +619,8 @@ export const App: React.FC = () => {
         onMoveBlock={handleMoveBlock}
         onDeleteBlock={handleDeleteBlock}
         onSpacingChange={handleSpacingChange}
+        onHeadingContentChange={handleHeadingContentChange}
+        onParagraphContentChange={handleParagraphContentChange}
       />
       {chooserOpen && (
         <TemplateChooser
