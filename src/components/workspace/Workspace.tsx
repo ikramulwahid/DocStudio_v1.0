@@ -2,7 +2,15 @@ import React from 'react';
 import { LeftPanel } from '../left-panel/LeftPanel';
 import { EditorPanel } from '../editor-panel/EditorPanel';
 import { PreviewPanel } from '../preview-panel/PreviewPanel';
-import type { DocumentMetadata, PageSetup, PageTypographySettings } from '../../types/document';
+import type {
+  AssetRecord,
+  CustomMetadataField,
+  DocStudioDocument,
+  DocumentMetadata,
+  FrontPageSettings,
+  PageSetup,
+  PageTypographySettings,
+} from '../../types/document';
 import type { LabProfile } from '../../types/lab-profile';
 import type {
   BodyThemePatch,
@@ -10,6 +18,7 @@ import type {
   SettingsUpdateResult,
   TypographyPatch,
 } from '../../services/page-typography';
+import type { FrontPagePatch, FrontPageUpdateResult } from '../../services/front-page';
 import './Workspace.css';
 
 interface WorkspaceProps {
@@ -41,6 +50,20 @@ interface WorkspaceProps {
   onBodyThemeChange?: (patch: BodyThemePatch) => SettingsUpdateResult;
   /** Commit the display-header preference (P04-M1). */
   onDisplayHeaderChange?: (value: boolean) => SettingsUpdateResult;
+  /** Authoritative `document.frontPage` (P04-M4, §7). */
+  frontPage?: FrontPageSettings;
+  /** Authoritative `document.metadata.customFields` (cover `custom:<id>` labels). */
+  customFields?: readonly CustomMetadataField[];
+  /** Authoritative `document.assets` (cover image filename display). */
+  assets?: Record<string, AssetRecord>;
+  /** Commit a front-page patch (P04-M4, §7). */
+  onFrontPageChange?: (patch: FrontPagePatch) => FrontPageUpdateResult;
+  /** Open the native picker and embed a cover image (async; cancel = no-op). */
+  onCoverImageSelect?: (target: 'logo' | 'background') => Promise<FrontPageUpdateResult>;
+  /** Clear a cover image reference and prune the orphan when safe. */
+  onCoverImageRemove?: (target: 'logo' | 'background') => FrontPageUpdateResult;
+  /** Active document for the preview's "render active document" option (P04-M4). */
+  activeDocument?: DocStudioDocument;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -58,6 +81,13 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onTypographyChange,
   onBodyThemeChange,
   onDisplayHeaderChange,
+  frontPage,
+  customFields,
+  assets,
+  onFrontPageChange,
+  onCoverImageSelect,
+  onCoverImageRemove,
+  activeDocument,
 }) => {
   return (
     <div className="workspace">
@@ -76,9 +106,15 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onTypographyChange={onTypographyChange}
         onBodyThemeChange={onBodyThemeChange}
         onDisplayHeaderChange={onDisplayHeaderChange}
+        frontPage={frontPage}
+        customFields={customFields}
+        assets={assets}
+        onFrontPageChange={onFrontPageChange}
+        onCoverImageSelect={onCoverImageSelect}
+        onCoverImageRemove={onCoverImageRemove}
       />
       <EditorPanel />
-      <PreviewPanel />
+      <PreviewPanel document={activeDocument} />
     </div>
   );
 };

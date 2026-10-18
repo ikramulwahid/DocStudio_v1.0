@@ -40,6 +40,15 @@ import {
   type TypographyPatch,
 } from './services/page-typography';
 import {
+  updateFrontPage,
+  applyImportedCoverAsset,
+  removeCoverAsset,
+  type FrontPagePatch,
+  type FrontPageUpdateResult,
+} from './services/front-page';
+import { importImageAsset } from './services/image-import';
+import { pickAndReadImage } from './services/image-io';
+import {
   getBuiltinTemplates,
   resolveChooserSelection,
   type TemplateChoice,
@@ -347,6 +356,49 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── Front page / cover designer (§7, P04-M4) ─────────────────────────
+  const handleFrontPageChange = (patch: FrontPagePatch): FrontPageUpdateResult => {
+    const result = updateFrontPage(activeDocument, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  // Image selection opens the NATIVE picker; cancelling is a true no-op
+  // and any failure (dialog, read, validation) leaves the document
+  // untouched.  The picked file's BYTES are embedded into the document
+  // asset bundle — no external absolute path is ever persisted.
+  const handleCoverImageSelect = async (
+    target: 'logo' | 'background',
+  ): Promise<FrontPageUpdateResult> => {
+    let picked: Awaited<ReturnType<typeof pickAndReadImage>>;
+    try {
+      picked = await pickAndReadImage();
+    } catch (e) {
+      return {
+        ok: false,
+        code: 'image-io',
+        message: e instanceof DocumentFileError ? e.message : 'The image could not be selected.',
+      };
+    }
+    if (picked === null) {
+      // Cancelled: same-reference no-op, nothing is dirtied.
+      return { ok: true, doc: activeDocument, changed: false };
+    }
+    const imported = importImageAsset(picked.bytes, picked.fileName);
+    if (!imported.ok) {
+      return { ok: false, code: 'image-import', message: imported.message };
+    }
+    const result = applyImportedCoverAsset(activeDocument, target, imported.asset);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  const handleCoverImageRemove = (target: 'logo' | 'background'): FrontPageUpdateResult => {
+    const result = removeCoverAsset(activeDocument, target);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -423,6 +475,13 @@ export const App: React.FC = () => {
         onTypographyChange={handleTypographyChange}
         onBodyThemeChange={handleBodyThemeChange}
         onDisplayHeaderChange={handleDisplayHeaderChange}
+        frontPage={activeDocument.frontPage}
+        customFields={activeDocument.metadata.customFields}
+        assets={activeDocument.assets}
+        onFrontPageChange={handleFrontPageChange}
+        onCoverImageSelect={handleCoverImageSelect}
+        onCoverImageRemove={handleCoverImageRemove}
+        activeDocument={activeDocument}
       />
       {chooserOpen && (
         <TemplateChooser

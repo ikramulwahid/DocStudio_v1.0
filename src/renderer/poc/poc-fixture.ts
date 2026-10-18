@@ -75,6 +75,16 @@ export function buildPocFixture(): DocStudioDocument {
     modifiedAt: POC_CREATED_AT,
   };
 
+  // ── Front page: explicitly disabled (P04-M4) ─────────────────────────────
+  // This fixture is the P02-M4 BODY-ONLY compatibility reference: the
+  // committed baseline `fixtures/p02-m4/renderer-poc-output.pdf`
+  // (13,854 bytes) predates cover rendering, so the fixture pins
+  // `frontPage.enabled = false` to keep regenerating that exact
+  // body-only artifact. This is fixture intent, NOT a global switch —
+  // real documents render their cover whenever `frontPage.enabled`
+  // is true (P04-M4).
+  doc.frontPage = { ...doc.frontPage, enabled: false };
+
   // Page setup stays at schema defaults: A4 portrait, 25 mm margins.
   // Typography stays at schema defaults: 11 pt, 1.5 line-height, 6 pt spacing.
 

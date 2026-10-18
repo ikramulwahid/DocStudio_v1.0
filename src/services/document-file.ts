@@ -60,6 +60,7 @@ export type DocumentFileErrorCode =
   | 'no-migration' // schemaVersion older; no migration module available
   | 'invalid-structure' // parsed JSON that is not a valid DocStudioDocument
   | 'io-read' // filesystem read failure (permission, missing file, ...)
+  | 'io-read-image' // cover image pick/read failure (P04-M4)
   | 'io-write'; // filesystem write failure (permission, disk, ...)
 
 /**
@@ -236,6 +237,21 @@ function collectValidationErrors(data: Record<string, unknown>): ErrList {
       requireString(frame, 'color', 'frame', errs);
       requireNumber(frame, 'cornerRadiusMm', 'frame', errs);
       requireNumber(frame, 'insetMm', 'frame', errs);
+    }
+    // Optional placement overrides (P04-M4).  Absent in schema-v1 files
+    // created before P04-M4 — validated ONLY when present, so older
+    // documents open unchanged with theme defaults.
+    if (frontPage['placement'] !== undefined) {
+      const placement = requireRecord(frontPage, 'placement', 'frontPage', errs);
+      if (placement) {
+        for (const el of ['title', 'subtitle', 'organizationName'] as const) {
+          if (placement[el] === undefined) continue;
+          const entry = requireRecord(placement, el, 'placement', errs);
+          if (!entry) continue;
+          requireString(entry, 'align', `placement.${el}`, errs);
+          requireString(entry, 'band', `placement.${el}`, errs);
+        }
+      }
     }
   }
 

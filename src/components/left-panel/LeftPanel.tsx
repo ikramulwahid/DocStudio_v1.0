@@ -3,8 +3,16 @@ import { CollapsibleSection } from './CollapsibleSection';
 import { DocumentInfoPanel } from './DocumentInfoPanel';
 import { LabProfilePanel } from './LabProfilePanel';
 import { PageTypographyPanel } from './PageTypographyPanel';
+import { FrontPagePanel } from './FrontPagePanel';
 import { SectionState } from '../../types';
-import type { DocumentMetadata, PageSetup, PageTypographySettings } from '../../types/document';
+import type {
+  AssetRecord,
+  CustomMetadataField,
+  DocumentMetadata,
+  FrontPageSettings,
+  PageSetup,
+  PageTypographySettings,
+} from '../../types/document';
 import type { LabProfile } from '../../types/lab-profile';
 import type {
   BodyThemePatch,
@@ -12,6 +20,7 @@ import type {
   SettingsUpdateResult,
   TypographyPatch,
 } from '../../services/page-typography';
+import type { FrontPagePatch, FrontPageUpdateResult } from '../../services/front-page';
 import './LeftPanel.css';
 
 interface LeftPanelProps {
@@ -35,6 +44,12 @@ interface LeftPanelProps {
   pageTypography?: PageTypographySettings;
   /** `document.frontPage.enabled` — gates the display-header control (P04-M1, §8.4). */
   frontPageEnabled?: boolean;
+  /** Authoritative `document.frontPage` (P04-M4, §7). */
+  frontPage?: FrontPageSettings;
+  /** Authoritative `document.metadata.customFields` (labels for `custom:<id>` cover fields). */
+  customFields?: readonly CustomMetadataField[];
+  /** Authoritative `document.assets` (logo/background filename display). */
+  assets?: Record<string, AssetRecord>;
   /** Commit a page-setup patch (P04-M1). */
   onPageSetupChange?: (patch: PageSetupPatch) => SettingsUpdateResult;
   /** Commit a typography patch (P04-M1). */
@@ -43,6 +58,12 @@ interface LeftPanelProps {
   onBodyThemeChange?: (patch: BodyThemePatch) => SettingsUpdateResult;
   /** Commit the display-header preference (P04-M1). */
   onDisplayHeaderChange?: (value: boolean) => SettingsUpdateResult;
+  /** Commit a front-page patch — cover designer (P04-M4, §7). */
+  onFrontPageChange?: (patch: FrontPagePatch) => FrontPageUpdateResult;
+  /** Open the native picker and embed a cover image (async; cancel = no-op). */
+  onCoverImageSelect?: (target: 'logo' | 'background') => Promise<FrontPageUpdateResult>;
+  /** Clear a cover image reference and prune the orphan when safe. */
+  onCoverImageRemove?: (target: 'logo' | 'background') => FrontPageUpdateResult;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -56,10 +77,16 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   pageSetup,
   pageTypography,
   frontPageEnabled,
+  frontPage,
+  customFields,
+  assets,
   onPageSetupChange,
   onTypographyChange,
   onBodyThemeChange,
   onDisplayHeaderChange,
+  onFrontPageChange,
+  onCoverImageSelect,
+  onCoverImageRemove,
 }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
@@ -159,26 +186,32 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           )}
         </CollapsibleSection>
 
-        {/* 2. Front Page */}
+        {/* 2. Front Page (P04-M4, §7) */}
         <CollapsibleSection
           id="front-page"
           title="Front Page"
           icon="cover"
           isOpen={sections.frontPage}
           onToggle={() => toggleSection('frontPage')}
-          badge="Phase 04"
+          badge="P04-M4"
         >
-          <div className="placeholder-box">
-            <span className="placeholder-tag">Cover Designer</span>
-            <p className="placeholder-text">
-              Toggle front page, select from 10 distinct cover themes, logo placement, frames, and monochrome adaptation.
-            </p>
-            <div className="form-row-placeholder">
-              <span className="form-label-placeholder">Cover Layout Theme</span>
-              <div className="form-input-placeholder">Classic Formal (Default)</div>
+          {frontPage && customFields && assets && onFrontPageChange && onCoverImageSelect && onCoverImageRemove ? (
+            <FrontPagePanel
+              frontPage={frontPage}
+              customFields={customFields}
+              assets={assets}
+              onFrontPageChange={onFrontPageChange}
+              onCoverImageSelect={onCoverImageSelect}
+              onCoverImageRemove={onCoverImageRemove}
+            />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Cover Designer</span>
+              <span className="placeholder-subtext">
+                Cover designer is unavailable because no active document was provided.
+              </span>
             </div>
-            <span className="placeholder-subtext">Front-page layout engine scheduled for Phase 04.</span>
-          </div>
+          )}
         </CollapsibleSection>
 
         {/* 3. Page & Typography (P04-M1) */}

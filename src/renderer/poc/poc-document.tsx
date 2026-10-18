@@ -72,6 +72,7 @@ import {
   resolveBodyTheme,
   type BodyThemeTokens,
 } from '../../services/body-theme-tokens';
+import { PocCoverPage } from './poc-cover-page';
 
 /** mm → pt conversion (1 mm = 72 / 25.4 pt). */
 export function mmToPt(mm: number): number {
@@ -704,6 +705,12 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
       creationDate={new Date(doc.metadata.createdAt)}
       modificationDate={new Date(doc.metadata.modifiedAt)}
     >
+      {/* Designed cover (P04-M4): rendered as a separate first page when
+          enabled. It carries NO body furniture — no display header, no
+          page numbering — so the pre-existing off-page footer defect
+          (DEC-006, body pages only) cannot reach the cover, and the
+          body-only path below is byte-identical when the cover is off. */}
+      {doc.frontPage.enabled && <PocCoverPage doc={doc} />}
       <Page
         size={PAGE_FORMATS[size]}
         orientation={orientation}

@@ -23,3 +23,56 @@ export { renderThemeGalleryPdfBytes, ThemeGalleryDocument } from './poc-theme-ga
 export { updateBodyTheme } from '../../services/page-typography';
 export { serializeDocument, validateDocument } from '../../services/document-file';
 export { duplicateDocument } from '../../services/document-actions';
+
+// ── P04-M4 (front page / cover themes) — additive exports only ──────────────
+export {
+  COVER_THEME_IDS,
+  COVER_THEME_REGISTRY,
+  isCoverThemeId,
+  resolveCoverTheme,
+} from '../../services/cover-theme-registry';
+export {
+  applyCoverMonochrome,
+  effectiveCoverPlacement,
+} from '../../services/cover-theme-tokens';
+export {
+  updateFrontPage,
+  applyImportedCoverAsset,
+  removeCoverAsset,
+  collectReferencedAssetIds,
+  coverFieldLabel,
+  isValidCoverColor,
+  LOGO_WIDTH_MM_RANGE,
+  FRAME_THICKNESS_PT_RANGE,
+  FRAME_CORNER_RADIUS_MM_RANGE,
+  FRAME_INSET_MM_RANGE,
+  SYNOPSIS_MAX_LENGTH,
+} from '../../services/front-page';
+export {
+  importImageAsset,
+  sniffImageMimeType,
+  bytesToBase64,
+  COVER_IMAGE_MAX_BYTES,
+  SUPPORTED_IMPORT_MIME_TYPES,
+} from '../../services/image-import';
+export {
+  PocCoverPage,
+  COVER_COMPOSITIONS,
+  coverMetadataEntries,
+  resolveCoverAsset,
+  buildCoverCtx,
+  effectiveLogoWidthMm,
+} from './poc-cover-page';
+export {
+  renderCoverGalleryPdfBytes,
+  CoverGalleryDocument,
+  coverManifestEntries,
+} from './poc-cover-gallery';
+export {
+  buildCoverSampleDoc,
+  COVER_SAMPLE_CREATED_AT,
+  COVER_SAMPLE_LOGO_ID,
+  COVER_SAMPLE_BACKGROUND_ID,
+  COVER_SAMPLE_CUSTOM_PROJECT_ID,
+  COVER_SAMPLE_CUSTOM_METHOD_ID,
+} from './cover-sample-doc';

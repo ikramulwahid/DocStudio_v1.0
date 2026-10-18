@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Icon } from '../common/Icon';
 import { PocViewer } from '../../renderer/poc/PocViewer';
+import type { DocStudioDocument } from '../../types/document';
 import './PreviewPanel.css';
 
-export const PreviewPanel: React.FC = () => {
+export const PreviewPanel: React.FC<{ document?: DocStudioDocument }> = ({ document: activeDoc }) => {
   const [showMarginGuides, setShowMarginGuides] = useState<boolean>(true);
   const [fitMode, setFitMode] = useState<'width' | 'page'>('width');
   const [zoomLevel] = useState<number>(100);
@@ -90,7 +91,7 @@ export const PreviewPanel: React.FC = () => {
 
       <div className="preview-viewport">
         {showRendererPoc ? (
-          <PocViewer />
+          <PocViewer document={activeDoc} />
         ) : (
           <div
             className="preview-paper"

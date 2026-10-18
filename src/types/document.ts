@@ -335,6 +335,42 @@ export type CoverVisibleMetadataField =
     >
   | `custom:${DocUUID}`; // references CustomMetadataField.id
 
+/**
+ * Horizontal alignment expressible for a principal cover element
+ * (title / subtitle / organization name) — project_details.md §7.1.
+ */
+export type CoverTextAlign = 'left' | 'center' | 'right';
+
+/**
+ * Practical vertical positioning band for a principal cover element.
+ * Bands are relative zones of the cover page (top / middle / bottom);
+ * exact geometry is defined per cover theme, never free coordinates.
+ */
+export type CoverVerticalBand = 'top' | 'middle' | 'bottom';
+
+/**
+ * Optional placement override for one principal cover element (§7.1
+ * "configure title, subtitle, and laboratory-name placement").  Added
+ * P04-M4 as an OPTIONAL schema addition: schema-v1 documents created
+ * before P04-M4 have no `placement` key at all and resolve to the
+ * selected cover theme's defaults (no migration required).
+ */
+export interface CoverElementPlacement {
+  align: CoverTextAlign;
+  band: CoverVerticalBand;
+}
+
+/**
+ * Per-element placement overrides.  Any absent element keeps its
+ * cover theme's default placement, so partial overrides coexist with
+ * theme-specific compositions.
+ */
+export interface FrontPagePlacement {
+  title?: CoverElementPlacement;
+  subtitle?: CoverElementPlacement;
+  organizationName?: CoverElementPlacement;
+}
+
 /** Front-page designer configuration. */
 export interface FrontPageSettings {
   /**
@@ -357,6 +393,12 @@ export interface FrontPageSettings {
   logoWidthMm?: number;
   /** Asset ID for an optional background/hero image. */
   backgroundImageAssetId?: DocUUID;
+  /**
+   * Optional principal-element placement overrides (P04-M4).
+   * Absent in pre-P04-M4 schema-v1 documents; the cover-theme resolver
+   * then uses the selected theme's per-element defaults.
+   */
+  placement?: FrontPagePlacement;
   /** Frame/border configuration for the cover page. */
   frame: CoverFrameSettings;
 }

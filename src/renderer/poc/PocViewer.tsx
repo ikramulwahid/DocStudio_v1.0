@@ -22,8 +22,9 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Document as PdfJsDocument, Page as PdfJsPage, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
-import { renderPocFixturePdfBytes } from './poc-render';
+import { renderDocPdfBytes, renderPocFixturePdfBytes } from './poc-render';
 import { savePdfViaDialog } from '../../services/pdf-export-io';
+import type { DocStudioDocument } from '../../types/document';
 import './PocViewer.css';
 
 // PDF.js worker bundled locally (offline; no CDN).
@@ -33,16 +34,19 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 const EXPORT_FILE_NAME = 'p02-m4-renderer-poc.pdf';
+const ACTIVE_EXPORT_FILE_NAME = 'docstudio-active-document.pdf';
 /** Preview render width in CSS px (fixed for deterministic comparison). */
 const PREVIEW_PAGE_WIDTH = 480;
 
-export const PocViewer: React.FC = () => {
+export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document: activeDoc }) => {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [exportedTo, setExportedTo] = useState<string | null>(null);
+  // Which source produced the current bytes (drives the export filename).
+  const [source, setSource] = useState<'fixture' | 'active'>('fixture');
 
   // Preview source strategy (P02-M4 manual-test findings):
   // 1. pdf.js TRANSFERS the ArrayBuffer of raw bytes it is given to its
@@ -81,6 +85,7 @@ export const PocViewer: React.FC = () => {
       const started = performance.now();
       const bytes = await renderPocFixturePdfBytes();
       const ms = Math.round(performance.now() - started);
+      setSource('fixture');
       setPdfBytes(bytes);
       setStatus(`Rendered ${bytes.length.toLocaleString()} bytes in ${ms} ms — previewing the exact bytes that export writes.`);
     } catch (e) {
@@ -90,6 +95,36 @@ export const PocViewer: React.FC = () => {
       setBusy(false);
     }
   }, []);
+
+  // Render the ACTIVE document (P04-M4): the real editable document —
+  // including its designed cover when `frontPage.enabled` — through the
+  // same single render path the fixture uses.  The document is never
+  // mutated by rendering (pure React render → pdf bytes).
+  const handleRenderActive = useCallback(async () => {
+    if (!activeDoc) return;
+    setBusy(true);
+    setError(null);
+    setStatus(null);
+    setExportedTo(null);
+    try {
+      const started = performance.now();
+      const bytes = await renderDocPdfBytes(activeDoc);
+      const ms = Math.round(performance.now() - started);
+      setSource('active');
+      setPdfBytes(bytes);
+      setStatus(
+        `Rendered the active document (${bytes.length.toLocaleString()} bytes in ${ms} ms) — ` +
+          (activeDoc.frontPage.enabled
+            ? 'the cover renders as page 1.'
+            : 'the front page is off, so page 1 is the body.'),
+      );
+    } catch (e) {
+      console.error('[DocStudio] Active-document render failed:', e);
+      setError(e instanceof Error ? e.message : 'The active document could not be rendered.');
+    } finally {
+      setBusy(false);
+    }
+  }, [activeDoc]);
 
   const handleExport = useCallback(async () => {
     if (!pdfBytes) return;
@@ -101,7 +136,10 @@ export const PocViewer: React.FC = () => {
     }
     setError(null);
     try {
-      const saved = await savePdfViaDialog(pdfBytes, EXPORT_FILE_NAME);
+      const saved = await savePdfViaDialog(
+        pdfBytes,
+        source === 'active' ? ACTIVE_EXPORT_FILE_NAME : EXPORT_FILE_NAME,
+      );
       if (saved === null) {
         setStatus('Export cancelled — nothing was written.');
         return;
@@ -111,14 +149,25 @@ export const PocViewer: React.FC = () => {
     } catch (e) {
       setError(e instanceof Error ? e.message : 'The PDF could not be exported.');
     }
-  }, [pdfBytes]);
+  }, [pdfBytes, source]);
 
   return (
     <div className="poc-viewer">
       <div className="poc-controls">
         <button type="button" className="poc-btn" onClick={handleRender} disabled={busy} title="Render the deterministic P02-M4 sample document to a real PDF">
-          {busy ? 'Rendering…' : pdfBytes ? 'Re-render Sample' : 'Render Sample PDF'}
+          {busy ? 'Rendering…' : pdfBytes && source === 'fixture' ? 'Re-render Sample' : 'Render Sample PDF'}
         </button>
+        {activeDoc && (
+          <button
+            type="button"
+            className={`poc-btn ${source === 'active' ? 'poc-btn--active' : ''}`}
+            onClick={() => void handleRenderActive()}
+            disabled={busy}
+            title="Render the document you are editing — with its designed cover as page 1 when the front page is enabled"
+          >
+            {busy ? 'Rendering…' : pdfBytes && source === 'active' ? 'Re-render Document' : 'Render Active Document'}
+          </button>
+        )}
         <button type="button" className="poc-btn" onClick={handleExport} disabled={!pdfBytes || busy} title="Export the exact bytes shown in the preview (native save dialog)">
           Export PDF…
         </button>
