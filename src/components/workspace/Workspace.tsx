@@ -4,14 +4,22 @@ import { EditorPanel } from '../editor-panel/EditorPanel';
 import { PreviewPanel } from '../preview-panel/PreviewPanel';
 import type {
   AssetRecord,
+  ContentBlock,
   CustomMetadataField,
   DocStudioDocument,
+  DocUUID,
   DocumentMetadata,
   FrontPageSettings,
   PageSetup,
   PageTypographySettings,
 } from '../../types/document';
+import type { BlockType } from '../../types/blocks';
 import type { LabProfile } from '../../types/lab-profile';
+import type {
+  BlockActionResult,
+  BlockPlacement,
+  BlockSpacingField,
+} from '../../services/block-actions';
 import type {
   BodyThemePatch,
   PageSetupPatch,
@@ -64,6 +72,26 @@ interface WorkspaceProps {
   onCoverImageRemove?: (target: 'logo' | 'background') => FrontPageUpdateResult;
   /** Active document for the preview's "render active document" option (P04-M4). */
   activeDocument?: DocStudioDocument;
+  /** Authoritative `document.blocks` (P05-M1 block framework). */
+  blocks: readonly ContentBlock[];
+  /** Selected block's stable ID — App-owned session state (P05-M1). */
+  selectedBlockId: DocUUID | null;
+  /** Select a block by its stable ID (P05-M1). */
+  onSelectBlock: (blockId: DocUUID) => void;
+  /** Insert a block at the given placement in the active document (P05-M1). */
+  onInsertBlock: (type: BlockType, placement: BlockPlacement) => BlockActionResult;
+  /** Duplicate the identified block (P05-M1). */
+  onDuplicateBlock: (blockId: DocUUID) => BlockActionResult;
+  /** Move the identified block one position up or down (P05-M1). */
+  onMoveBlock: (blockId: DocUUID, direction: 'up' | 'down') => BlockActionResult;
+  /** Request block deletion — App owns the confirmation dialog (P05-M1). */
+  onDeleteBlock: (blockId: DocUUID) => void;
+  /** Commit one validated spacing field (points) for a block (P05-M1). */
+  onSpacingChange: (
+    blockId: DocUUID,
+    field: BlockSpacingField,
+    value: number,
+  ) => BlockActionResult;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -88,6 +116,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onCoverImageSelect,
   onCoverImageRemove,
   activeDocument,
+  blocks,
+  selectedBlockId,
+  onSelectBlock,
+  onInsertBlock,
+  onDuplicateBlock,
+  onMoveBlock,
+  onDeleteBlock,
+  onSpacingChange,
 }) => {
   return (
     <div className="workspace">
@@ -113,7 +149,16 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onCoverImageSelect={onCoverImageSelect}
         onCoverImageRemove={onCoverImageRemove}
       />
-      <EditorPanel />
+      <EditorPanel
+        blocks={blocks}
+        selectedBlockId={selectedBlockId}
+        onSelectBlock={onSelectBlock}
+        onInsertBlock={onInsertBlock}
+        onDuplicateBlock={onDuplicateBlock}
+        onMoveBlock={onMoveBlock}
+        onDeleteBlock={onDeleteBlock}
+        onSpacingChange={onSpacingChange}
+      />
       <PreviewPanel document={activeDocument} />
     </div>
   );

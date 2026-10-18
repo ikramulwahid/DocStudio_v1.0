@@ -7,6 +7,7 @@ import { createTemplatePersistenceManager } from './services/template-persistenc
 import {
   ThemeMode,
   DocStudioDocument,
+  DocUUID,
   DocumentMetadata,
   LabProfile,
 } from './types';
@@ -48,6 +49,17 @@ import {
 } from './services/front-page';
 import { importImageAsset } from './services/image-import';
 import { pickAndReadImage } from './services/image-io';
+import {
+  insertBlock,
+  duplicateBlock,
+  reorderBlock,
+  deleteBlock,
+  updateBlockSpacing,
+  type BlockActionResult,
+  type BlockPlacement,
+  type BlockSpacingField,
+} from './services/block-actions';
+import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
   resolveChooserSelection,
@@ -122,6 +134,16 @@ export const App: React.FC = () => {
   /** Active confirmation modal, when one is showing. */
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
 
+  // ── Block selection (P05-M1) ─────────────────────────────────────────────
+  /**
+   * Stable ID of the selected content block.  Selection is SESSION state,
+   * deliberately outside the document, so selecting a block can never
+   * dirty the document or alter persisted content.  Reconciled below: a
+   * selection pointing at a block that no longer exists (delete, clear,
+   * new/open/duplicate document) drops automatically.
+   */
+  const [selectedBlockId, setSelectedBlockId] = useState<DocUUID | null>(null);
+
   // ── Template chooser (P03-M2) ───────────────────────────────────────────────
   /**
    * Whether the New-document template chooser is open.  Opening or
@@ -141,6 +163,15 @@ export const App: React.FC = () => {
   const fingerprint = sessionFingerprint(activeDocument);
   const dirty = isDirty(fingerprint, baselineFingerprint);
   const sessionStatus = deriveSessionStatus(fingerprint, baselineFingerprint, activeFilePath !== null);
+
+  // Reconcile the block selection with the authoritative document: after a
+  // delete/clear/document-replacement the previously selected ID may no
+  // longer exist — the selection clears without touching the document.
+  useEffect(() => {
+    if (selectedBlockId !== null && !activeDocument.blocks.some((b) => b.id === selectedBlockId)) {
+      setSelectedBlockId(null);
+    }
+  }, [activeDocument, selectedBlockId]);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -399,6 +430,74 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── Block framework (P05-M1) ─────────────────────────────────────────────
+  /**
+   * Immutable block operations against the AUTHORITATIVE active document,
+   * same conventions as settings edits (P04-M1): the pure `block-actions`
+   * service returns a fresh document only on a real change (no-op patches
+   * return the same reference — no false Modified status), rejected
+   * operations leave the document untouched and the panel shows the
+   * service's understandable message inline.  Insert and duplicate also
+   * move the selection to the newly created block; the EditorPanel renders
+   * straight from `activeDocument.blocks` — there is no second block store.
+   */
+  const handleInsertBlock = (type: BlockType, placement: BlockPlacement): BlockActionResult => {
+    const result = insertBlock(activeDocument, type, placement);
+    if (result.ok) {
+      if (result.changed) setActiveDocument(result.doc);
+      setSelectedBlockId(result.blockId);
+    }
+    return result;
+  };
+
+  const handleDuplicateBlock = (blockId: DocUUID): BlockActionResult => {
+    const result = duplicateBlock(activeDocument, blockId);
+    if (result.ok) {
+      if (result.changed) setActiveDocument(result.doc);
+      setSelectedBlockId(result.blockId);
+    }
+    return result;
+  };
+
+  const handleMoveBlock = (blockId: DocUUID, direction: 'up' | 'down'): BlockActionResult => {
+    const result = reorderBlock(activeDocument, blockId, direction);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  /**
+   * Deletion is destructive, so it goes through the existing confirmation
+   * dialog before the model change runs (same pattern as Clear Contents).
+   * The captured `activeDocument` cannot change while the modal is open.
+   */
+  const handleDeleteBlock = (blockId: DocUUID): void => {
+    confirmAction(
+      'Delete this block?',
+      'The selected block and its content are removed from the document. ' +
+        'Document information and all other blocks are preserved. This cannot be undone.',
+      'Delete Block',
+      () => {
+        const result = deleteBlock(activeDocument, blockId);
+        if (!result.ok) {
+          setFileError(result.message);
+          return;
+        }
+        if (result.changed) setActiveDocument(result.doc);
+        setSelectedBlockId((prev) => (prev === blockId ? null : prev));
+      },
+    );
+  };
+
+  const handleSpacingChange = (
+    blockId: DocUUID,
+    field: BlockSpacingField,
+    value: number,
+  ): BlockActionResult => {
+    const result = updateBlockSpacing(activeDocument, blockId, field, value);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -482,6 +581,14 @@ export const App: React.FC = () => {
         onCoverImageSelect={handleCoverImageSelect}
         onCoverImageRemove={handleCoverImageRemove}
         activeDocument={activeDocument}
+        blocks={activeDocument.blocks}
+        selectedBlockId={selectedBlockId}
+        onSelectBlock={setSelectedBlockId}
+        onInsertBlock={handleInsertBlock}
+        onDuplicateBlock={handleDuplicateBlock}
+        onMoveBlock={handleMoveBlock}
+        onDeleteBlock={handleDeleteBlock}
+        onSpacingChange={handleSpacingChange}
       />
       {chooserOpen && (
         <TemplateChooser
