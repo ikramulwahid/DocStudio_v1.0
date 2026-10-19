@@ -21,6 +21,7 @@ import { HeadingContentEditor } from './HeadingContentEditor';
 import { ParagraphContentEditor } from './ParagraphContentEditor';
 import { ListContentEditor } from './ListContentEditor';
 import { CalloutContentEditor } from './CalloutContentEditor';
+import { TableContentEditor } from './TableContentEditor';
 import type {
   ContentActionResult,
   HeadingContentPatch,
@@ -32,6 +33,10 @@ import type {
   ListContentAction,
   ListContentActionResult,
 } from '../../services/list-callout-content';
+import type {
+  TableContentAction,
+  TableContentActionResult,
+} from '../../services/table-content';
 import './EditorPanel.css';
 
 interface EditorPanelProps {
@@ -75,6 +80,18 @@ interface EditorPanelProps {
     blockId: DocUUID,
     patch: CalloutContentPatch,
   ) => CalloutContentActionResult;
+  /** Dispatch one validated table action (P05-M4, §10.5). */
+  onTableContentAction: (
+    blockId: DocUUID,
+    action: TableContentAction,
+  ) => TableContentActionResult;
+  /** Ask the App to confirm a content-losing action (table column removal). */
+  onRequestConfirm: (
+    title: string,
+    message: string,
+    confirmLabel: string,
+    onConfirm: () => void,
+  ) => void;
 }
 
 interface EditorNotice {
@@ -88,13 +105,12 @@ interface EditorNotice {
  *
  * Renders the AUTHORITATIVE `document.blocks` list and wires every action
  * to the App through immutable `block-actions`/`block-content`/
- * `list-callout-content` operations — there is no second block store in
- * component state.  Selection is session state owned by the App, so
- * selecting never dirties the document.  The selected heading (§10.1),
- * paragraph (§10.2), list (§10.4) and callout (§10.3) blocks
- * additionally show their content editors; the table (P05-M4) content
- * editor arrives in a later checkpoint — other inserted blocks currently
- * show truthful structural summaries.
+ * `list-callout-content`/`table-content` operations — there is no second
+ * block store in component state.  Selection is session state owned by the
+ * App, so selecting never dirties the document.  The selected heading
+ * (§10.1), paragraph (§10.2), list (§10.4), callout (§10.3) and table
+ * (§10.5) blocks additionally show their content editors; other inserted
+ * blocks currently show truthful structural summaries.
  */
 export const EditorPanel: React.FC<EditorPanelProps> = ({
   blocks,
@@ -109,6 +125,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onParagraphContentChange,
   onListContentAction,
   onCalloutContentChange,
+  onTableContentAction,
+  onRequestConfirm,
 }) => {
   const [insertType, setInsertType] = useState<BlockType>('paragraph');
   const [notice, setNotice] = useState<EditorNotice | null>(null);
@@ -183,9 +201,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             <div className="insert-card-heading">
               <span className="insert-card-title">Insert block</span>
               <span className="insert-card-hint">
-                Structure, order and spacing are editable now; heading, paragraph, list and callout
-                content editing is available on the selected block — the table content editor
-                arrives in P05-M4.
+                Structure, order and spacing are editable now; heading, paragraph, list, callout
+                and table content editing is available on the selected block.
               </span>
             </div>
             <div className="insert-controls">
@@ -367,6 +384,15 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             blockId={block.id}
                             data={block.data}
                             onCalloutContentChange={onCalloutContentChange}
+                            onLocalError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'table' && (
+                          <TableContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onTableContentAction={onTableContentAction}
+                            onRequestConfirm={onRequestConfirm}
                             onLocalError={(text) => setNotice({ severity: 'error', text })}
                           />
                         )}

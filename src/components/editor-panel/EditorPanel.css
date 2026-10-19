@@ -756,3 +756,86 @@
   font-size: 12.5px;
   color: var(--panel-mid-text);
 }
+
+/* ── Table editor (P05-M4) ────────────────────────────────────────────────── */
+
+.table-check {
+  width: 16px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--panel-mid-accent);
+}
+
+.table-cols {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.table-col-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.table-col-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--panel-mid-text-muted);
+  user-select: none;
+}
+
+.table-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.table-grid__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.table-row-label {
+  width: 44px;
+  flex: none;
+  font-size: 11px;
+  color: var(--panel-mid-text-muted);
+  user-select: none;
+}
+
+.table-grid__cells {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.table-cell-input {
+  min-width: 96px;
+  flex: 1 1 0;
+}
+
+.table-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+.table-row-actions .rt-tool-btn,
+.table-cols .rt-tool-btn {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.table-row-actions .rt-tool-btn:disabled,
+.table-cols .rt-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}

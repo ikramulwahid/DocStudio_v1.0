@@ -32,6 +32,10 @@ import type {
   ListContentActionResult,
 } from '../../services/list-callout-content';
 import type {
+  TableContentAction,
+  TableContentActionResult,
+} from '../../services/table-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -123,6 +127,18 @@ interface WorkspaceProps {
     blockId: DocUUID,
     patch: CalloutContentPatch,
   ) => CalloutContentActionResult;
+  /** Dispatch one validated table action (P05-M4, §10.5). */
+  onTableContentAction: (
+    blockId: DocUUID,
+    action: TableContentAction,
+  ) => TableContentActionResult;
+  /** Ask the App to confirm a content-losing action (table column removal). */
+  onRequestConfirm: (
+    title: string,
+    message: string,
+    confirmLabel: string,
+    onConfirm: () => void,
+  ) => void;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -159,6 +175,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onParagraphContentChange,
   onListContentAction,
   onCalloutContentChange,
+  onTableContentAction,
+  onRequestConfirm,
 }) => {
   return (
     <div className="workspace">
@@ -197,6 +215,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onParagraphContentChange={onParagraphContentChange}
         onListContentAction={onListContentAction}
         onCalloutContentChange={onCalloutContentChange}
+        onTableContentAction={onTableContentAction}
+        onRequestConfirm={onRequestConfirm}
       />
       <PreviewPanel document={activeDocument} />
     </div>

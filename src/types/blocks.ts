@@ -189,6 +189,18 @@ export interface TableBlockData {
   /** Whether the first row receives header styling. */
   hasHeaderRow: boolean;
   headerStyle: TableHeaderStyle;
+  /**
+   * P05-M4 header-style source policy (schema v1, additive & optional).
+   *
+   * Absent (or `'theme'`) keeps the pre-P05-M4 behaviour: the body
+   * THEME's table tokens draw the header row, so every existing file
+   * and the byte-verified P02-M4/P04-M3 artifacts render exactly as
+   * before.  `'block'` means the user explicitly chose light/medium/
+   * heavy in the editor — the renderer then applies that stored
+   * treatment (never silently reverts to the theme default).  Mirrors
+   * the optional list `markerSource` field.
+   */
+  headerStyleSource?: 'theme' | 'block';
   /** Caption displayed below the table. */
   caption?: string;
   /** Table reference label, e.g. "Table 1". Managed by the renderer. */

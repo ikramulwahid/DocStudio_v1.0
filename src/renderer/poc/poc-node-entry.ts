@@ -140,3 +140,30 @@ export {
   applyListContentAction,
   updateCalloutContent,
 } from '../../services/list-callout-content';
+
+// ── P05-M4 (tables + spacing) — additive exports only ────────────────────────
+// Table layout maths (pure) plus the table content actions.  Every export
+// below is exercised by verify_p05_m4.mjs through this entry so the suite
+// compiles the same module graph the renderer uses.
+export {
+  COLUMN_FRACTIONS,
+  allocateTableColumnWidths,
+  estimateRowHeightPt,
+  tableColumnCount,
+} from './table-layout';
+export {
+  TABLE_HEADER_STYLES,
+  TABLE_HEADER_STYLE_SOURCES,
+  H_ALIGNMENTS,
+  MIN_TABLE_ROWS,
+  MIN_TABLE_COLUMNS,
+  MAX_TABLE_CAPTION_LENGTH,
+  updateTableSettings,
+  setTableCellText,
+  setTableCellAlignment,
+  addTableRow,
+  removeTableRow,
+  addTableColumn,
+  removeTableColumn,
+  applyTableContentAction,
+} from '../../services/table-content';

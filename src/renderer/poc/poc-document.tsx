@@ -68,6 +68,7 @@ import type {
   ParagraphBlockData,
   SectionBreakBlockData,
   TableBlockData,
+  TableHeaderStyle,
 } from '../../types/blocks';
 import { effectivePageDimensionsMm } from '../../services/page-typography';
 import {
@@ -75,6 +76,7 @@ import {
   resolveBodyTheme,
   toMonochromeColor,
   type BodyThemeTokens,
+  type TableTokens,
 } from '../../services/body-theme-tokens';
 import {
   computeHeadingNumbering,
@@ -83,6 +85,7 @@ import {
 import { computeListLabels } from '../../services/list-numbering';
 import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
 import { PocCoverPage } from './poc-cover-page';
+import { allocateTableColumnWidths, estimateRowHeightPt, tableColumnCount } from './table-layout';
 
 /** mm → pt conversion (1 mm = 72 / 25.4 pt). */
 export function mmToPt(mm: number): number {
@@ -129,6 +132,8 @@ export interface PocLayout {
   marginBottom: number;
   marginLeft: number;
   pageWidthPt: number;
+  /** Page height in points (portrait → long edge; landscape → short edge). */
+  pageHeightPt: number;
   contentWidth: number;
 }
 
@@ -141,8 +146,10 @@ export function computePocLayout(doc: DocStudioDocument): PocLayout {
   const pageSizePt = PAGE_DIMENSIONS_PT[doc.pageSetup.size];
   const pageWidthPt =
     orientation === 'landscape' ? pageSizePt.height : pageSizePt.width;
+  const pageHeightPt =
+    orientation === 'landscape' ? pageSizePt.width : pageSizePt.height;
   const contentWidth = pageWidthPt - marginLeft - marginRight;
-  return { marginTop, marginRight, marginBottom, marginLeft, pageWidthPt, contentWidth };
+  return { marginTop, marginRight, marginBottom, marginLeft, pageWidthPt, pageHeightPt, contentWidth };
 }
 
 /**
@@ -178,8 +185,10 @@ const styles = StyleSheet.create({
   },
 });
 
-/** Column width fractions for PoC tables (4 columns). */
-const COLUMN_FRACTIONS = [0.3, 0.24, 0.24, 0.22];
+/** Column width fractions for PoC tables moved to `table-layout.ts`
+ *  (P05-M4): one pure, unit-tested width policy shared with the verify
+ *  suite.  The exported `COLUMN_FRACTIONS` there is the same array that
+ *  lived here, so 4-column rendering stays byte-identical. */
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline rich text
@@ -337,23 +346,124 @@ function captionStyle(
   ];
 }
 
-function Table({ block, contentWidth, tokens }: { block: TableBlockData; contentWidth: number; tokens: BodyThemeTokens }) {
+/** Row-style contract for the table renderer (plain values only). */
+interface TableRowStyle {
+  borderBottomWidth: number;
+  borderBottomColor: string;
+  borderTopWidth?: number;
+  borderTopColor?: string;
+  backgroundColor?: string;
+}
+
+/**
+ * Header-row treatment (§10.5 light/medium/heavy + §4.6 source policy).
+ *
+ * The THEME path returns exactly the pre-P05-M4 values, so every
+ * existing schema-v1 document renders byte-identically; only an
+ * explicit `headerStyleSource: 'block'` opt-in applies the stored
+ * treatment.  The three explicit treatments are structural — neutral
+ * grey fills and increasing border weights (heavy adds a top rule) —
+ * so they stay distinguishable in monochrome through contrast and
+ * structure, not colour alone.
+ */
+function headerRowStyle(headerStyle: TableHeaderStyle | undefined, t: TableTokens): TableRowStyle {
+  switch (headerStyle) {
+    case 'medium':
+      return {
+        borderBottomWidth: 1.5,
+        borderBottomColor: t.headerBorderColor,
+        backgroundColor: '#ECECEC',
+      };
+    case 'heavy':
+      return {
+        borderBottomWidth: 2.5,
+        borderBottomColor: t.headerBorderColor,
+        borderTopWidth: 2.5,
+        borderTopColor: t.headerBorderColor,
+        backgroundColor: '#D8D8D8',
+      };
+    case 'light':
+    default:
+      return { borderBottomWidth: 0.75, borderBottomColor: t.headerBorderColor };
+  }
+}
+
+function tableRowStyle(
+  block: TableBlockData,
+  isHeader: boolean,
+  t: TableTokens,
+): TableRowStyle {
+  if (!isHeader) {
+    return { borderBottomWidth: t.borderWidthPt, borderBottomColor: t.borderColor };
+  }
+  if (block.headerStyleSource === 'block') {
+    return headerRowStyle(block.headerStyle, t);
+  }
+  // Theme default — the exact pre-P05-M4 expression (byte-identical).
+  return {
+    borderBottomWidth: t.headerBorderWidthPt,
+    borderBottomColor: t.headerBorderColor,
+    backgroundColor: t.headerBackground,
+  };
+}
+
+/**
+ * Table block (§10.5) — cell grid + optional caption.
+ *
+ * Widths come from the pure `table-layout` policy: one array computed
+ * per table and applied to EVERY row, so boundaries line up across
+ * rows and the widths always total `contentWidth` for any column
+ * count and any page size (A4/A3/A5/Letter/Legal, portrait or
+ * landscape flow through the same geometry).
+ *
+ * Page-boundary behaviour (§10.5 "predictable table behavior when a
+ * table crosses a page boundary"):
+ * • Cell text wraps inside the cell (`wrap` on the Text), never
+ *   truncated.
+ * • Rows are atomic (`wrap={false}`): the engine moves an unbreakable
+ *   row to the next page rather than splitting it, so rows that fit a
+ *   page stay intact, and a long table flows between rows (verified:
+ *   multi-page tables retain all content).
+ * • A row ESTIMATED taller than a whole content page is rendered
+ *   wrappable instead — the engine cannot keep such a row atomic
+ *   (it drops the overflow, verified by probe), so it is allowed to
+ *   split and its content is preserved.  Normal rows are far below the
+ *   threshold, so this path never activates for existing documents.
+ * • Header rows are NOT repeated on continuation pages: react-pdf has
+ *   no table primitive and no reliable repeat mechanism, and the
+ *   renderer cannot know how much vertical space preceding content
+ *   consumed.  Recorded as a Phase 08 (pagination engine) limitation.
+ * • Custom column resizing is not implemented; the distributed widths
+ *   above are the deliberate, consistent policy.
+ */
+function Table({
+  block,
+  doc,
+  contentWidth,
+  tokens,
+}: {
+  block: TableBlockData;
+  doc: DocStudioDocument;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}) {
   const t = tokens.tables;
   const caption = tokens.captions;
+  const columnCount = tableColumnCount(block);
+  const widths = allocateTableColumnWidths(columnCount, contentWidth);
+  const fallbackWidth = columnCount > 0 ? contentWidth / columnCount : 0;
+  const { pageHeightPt, marginTop, marginBottom } = computePocLayout(doc);
+  const availableRowHeight = pageHeightPt - marginTop - marginBottom;
   return (
     <View style={{ marginBottom: t.marginBottomPt }}>
       {block.rows.map((row, rowIndex) => {
         const isHeader = block.hasHeaderRow && rowIndex === 0;
+        const atomic = estimateRowHeightPt(row, widths, tokens) <= availableRowHeight;
         return (
           <View
             key={row.id}
-            style={{
-              flexDirection: 'row',
-              borderBottomWidth: isHeader ? t.headerBorderWidthPt : t.borderWidthPt,
-              borderBottomColor: isHeader ? t.headerBorderColor : t.borderColor,
-              ...(isHeader ? { backgroundColor: t.headerBackground } : {}),
-            }}
-            wrap={false}
+            style={{ flexDirection: 'row', ...tableRowStyle(block, isHeader, t) }}
+            wrap={!atomic}
           >
             {row.cells.map((cell, cellIndex) => {
               const isHeaderCell = isHeader || cell.isHeader;
@@ -361,7 +471,7 @@ function Table({ block, contentWidth, tokens }: { block: TableBlockData; content
                 <Text
                   key={cell.id}
                   style={{
-                    width: contentWidth * (COLUMN_FRACTIONS[cellIndex] ?? 0.25),
+                    width: widths[cellIndex] ?? fallbackWidth,
                     textAlign: cell.hAlign,
                     paddingVertical: t.cellPaddingVpt,
                     paddingHorizontal: t.cellPaddingHpt,
@@ -756,7 +866,7 @@ export function BlockRenderer({
       // emit a minimal marker node.
       return <View style={{ height: 0 }} />;
     case 'table':
-      return <Table block={block} contentWidth={contentWidth} tokens={tokens} />;
+      return <Table block={block} doc={doc} contentWidth={contentWidth} tokens={tokens} />;
     case 'image':
       return <ImageBlock block={block} doc={doc} tokens={tokens} />;
     case 'list':

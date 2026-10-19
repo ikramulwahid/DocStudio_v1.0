@@ -74,6 +74,11 @@ import {
   type ListContentAction,
   type ListContentActionResult,
 } from './services/list-callout-content';
+import {
+  applyTableContentAction,
+  type TableContentAction,
+  type TableContentActionResult,
+} from './services/table-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -561,6 +566,17 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // Table dispatcher (P05-M4, §10.5) — same narrow-prop pattern as the
+  // list dispatcher above; every operation keeps its own validation.
+  const handleTableContentAction = (
+    blockId: DocUUID,
+    action: TableContentAction,
+  ): TableContentActionResult => {
+    const result = applyTableContentAction(activeDocument, blockId, action);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -656,6 +672,8 @@ export const App: React.FC = () => {
         onParagraphContentChange={handleParagraphContentChange}
         onListContentAction={handleListContentAction}
         onCalloutContentChange={handleCalloutContentChange}
+        onTableContentAction={handleTableContentAction}
+        onRequestConfirm={confirmAction}
       />
       {chooserOpen && (
         <TemplateChooser
