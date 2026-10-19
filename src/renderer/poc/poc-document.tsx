@@ -59,6 +59,8 @@ import {
 import type { DocStudioDocument, PageSize } from '../../types/document';
 import type {
   AnyBlockData,
+  BulletStyle,
+  CalloutBlockData,
   HeadingBlockData,
   InlineSpan,
   ImageBlockData,
@@ -71,12 +73,14 @@ import { effectivePageDimensionsMm } from '../../services/page-typography';
 import {
   DEFAULT_TEXT_COLOR,
   resolveBodyTheme,
+  toMonochromeColor,
   type BodyThemeTokens,
 } from '../../services/body-theme-tokens';
 import {
   computeHeadingNumbering,
   HEADING_PREFIX_SEPARATOR,
 } from '../../services/heading-numbering';
+import { computeListLabels } from '../../services/list-numbering';
 import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
 import { PocCoverPage } from './poc-cover-page';
 
@@ -497,20 +501,30 @@ function SectionBreakBlock({
 }
 
 /**
- * `list` block (P04-M3 — narrow, reusable support).
+ * `list` block (P04-M3 narrow base; P05-M3 full marker support).
  *
- * Scope: bullet lists (the theme's `lists.markerStyle` drawn as real PDF
- * shapes — disc/circle/square/dash — so no non-WinAnsi glyph is needed on
- * the standard-14 fonts), numbered lists (decimal prefix) and checklists
- * (filled square = checked).  Nesting depth steps by the paragraph indent
- * token; item spacing comes from `lists.itemSpacingPt`; marker ink is the
- * theme accent so each theme's list identity is visible.
- *
- * Deliberately NOT in scope: block-level `bulletStyle`/`numberStyle`
- * overrides (the theme's marker token is authoritative here), roman/alpha
- * numbering and checklist state editing — Phase 05 territory.  This is the
- * list support the ten themes need to demonstrate their list treatment, not
- * full block-renderer coverage.
+ * Rendering rules
+ * ───────────────
+ * • BULLET markers follow the P05-M3 marker-source policy: when
+ *   `markerSource` is absent or `'theme'` (every pre-P05-M3 file, all
+ *   template factories and the byte-verified P04-M3 gallery fixtures),
+ *   the body THEME's `lists.markerStyle` token draws the marker — the
+ *   exact P04-M3 behaviour, byte-for-byte.  When the user explicitly
+ *   stored `markerSource: 'block'`, the block's `bulletStyle` is honoured
+ *   exactly (disc/circle/square/dash as real PDF shapes; `arrow` as the
+ *   WinAnsi-safe chevron glyph `›` — the standard-14 fonts cannot
+ *   encode geometric triangles, and `›` (U+203A, CP1252 0x9B) prints
+ *   correctly on every available font).
+ * • NUMBERED markers are DERIVED per list via `computeListLabels`
+ *   (P05-M3): depth-aware counters with the block's `numberStyle`, so
+ *   decimal/alpha/roman and nesting all render correctly.  Themes define
+ *   no numbering token, so `numberStyle` is always honoured; a depth-0
+ *   decimal list prints "1.", "2.", … exactly as the P04-M3 renderer
+ *   did (byte-identity preserved for every gallery fixture).
+ * • CHECKLIST items draw filled (checked) / hollow (unchecked) squares.
+ * • Nesting depth steps by the paragraph indent token; item spacing comes
+ *   from `lists.itemSpacingPt`; marker ink is the theme accent so each
+ *   theme's list identity stays visible.
  */
 function ListBlock({
   block,
@@ -528,6 +542,15 @@ function ListBlock({
   const textStyle =
     tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
 
+  // P05-M3 marker-source policy (module doc): the theme token stays
+  // authoritative unless the user explicitly chose a block-level style.
+  const bulletStyle: BulletStyle =
+    block.markerSource === 'block' ? block.bulletStyle : list.markerStyle;
+  // Derived numbering for NUMBERED lists only; bullet/checklist markers
+  // are shapes and never touch this (P04-M3 byte-identity).
+  const labels: readonly string[] | null =
+    block.listType === 'numbered' ? computeListLabels(block.items, block.numberStyle) : null;
+
   const markerBox = (extra: Record<string, number | string | undefined>): React.ReactElement => (
     <View
       style={{
@@ -543,14 +566,14 @@ function ListBlock({
 
   const renderMarker = (item: ListBlockData['items'][number], index: number): React.ReactNode => {
     if (block.listType === 'numbered') {
-      return <Text style={{ marginRight: 6, color: markerInk }}>{`${index + 1}.`}</Text>;
+      return <Text style={{ marginRight: 6, color: markerInk }}>{labels?.[index] ?? ''}</Text>;
     }
     if (block.listType === 'checklist') {
       return item.checked
         ? markerBox({})
         : markerBox({ backgroundColor: undefined, borderWidth: 0.8, borderColor: markerInk });
     }
-    switch (list.markerStyle) {
+    switch (bulletStyle) {
       case 'circle':
         return markerBox({
           backgroundColor: undefined,
@@ -571,6 +594,12 @@ function ListBlock({
               backgroundColor: markerInk,
             }}
           />
+        );
+      case 'arrow':
+        // WinAnsi-safe chevron (U+203A) — an arrowhead the standard-14
+        // fonts can actually encode (module doc).
+        return (
+          <Text style={{ marginRight: 6, marginTop: markerTop - 1, color: markerInk }}>{'›'}</Text>
         );
       case 'disc':
       default:
@@ -597,12 +626,109 @@ function ListBlock({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Callout block (P05-M3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Semantic callout identities (project_details §10.3): each variant has a
+ * visible uppercase LABEL and a dark accent rule/panel.  Meaning never
+ * relies on colour alone — the label text carries it, so every variant
+ * stays understandable in monochrome and in printed PDF output; the
+ * accent is converted with the shared `toMonochromeColor` policy when
+ * the document requests monochrome.  Unknown custom variants keep their
+ * stored name as the label with a neutral gray accent (safe fallback —
+ * never a crash, never silently dropped content).
+ */
+const CALLOUT_VARIANTS: Record<string, { label: string; accent: string }> = {
+  info: { label: 'INFORMATION', accent: '#2f5d8a' },
+  warning: { label: 'WARNING', accent: '#8a6400' },
+  success: { label: 'SUCCESS', accent: '#2c6e49' },
+  note: { label: 'NOTE', accent: '#4d4d4d' },
+  danger: { label: 'DANGER', accent: '#9e2b25' },
+};
+
+/** Very light panel tint derived from an accent colour (`#rrggbb`). */
+function tintFromHex(hex: string, alpha: number): string {
+  const match = /^#([0-9a-fA-F]{6})$/.exec(hex);
+  if (match === null) return 'rgba(120, 120, 120, 0.06)';
+  const value = Number.parseInt(match[1], 16);
+  const r = (value >> 16) & 0xff;
+  const g = (value >> 8) & 0xff;
+  const b = value & 0xff;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+function CalloutBlock({
+  block,
+  tokens,
+  monochrome,
+}: {
+  block: CalloutBlockData;
+  tokens: BodyThemeTokens;
+  monochrome: boolean;
+}): React.ReactElement {
+  const variant =
+    typeof block.variant === 'string' && block.variant.trim() !== ''
+      ? block.variant.trim()
+      : 'CALLOUT';
+  const known = CALLOUT_VARIANTS[variant.toLowerCase()];
+  const label = known?.label ?? variant.toUpperCase();
+  const accent = monochrome
+    ? toMonochromeColor(known?.accent ?? '#6b6b6b')
+    : (known?.accent ?? '#6b6b6b');
+  const tint = tintFromHex(accent, 0.06);
+  const baseSize = tokens.typography.baseFontSizePt;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const hasTitle = block.title !== undefined && block.title !== '';
+
+  return (
+    <View style={{ flexDirection: 'row', marginBottom: tokens.typography.paragraphSpacingPt }}>
+      {/* Semantic accent rule — the meaning itself lives in the label. */}
+      <View style={{ width: 3, marginRight: 6, backgroundColor: accent }} />
+      <View
+        style={{
+          flex: 1,
+          borderWidth: 0.6,
+          borderColor: accent,
+          backgroundColor: tint,
+          paddingLeft: 8,
+          paddingRight: 8,
+          paddingTop: 5,
+          paddingBottom: 5,
+        }}
+      >
+        <Text
+          style={{
+            fontSize: baseSize * 0.75,
+            letterSpacing: 0.6,
+            fontWeight: 'bold',
+            color: accent,
+          }}
+        >
+          {label}
+        </Text>
+        {hasTitle ? (
+          <Text style={{ fontWeight: 'bold', marginTop: 3, ...textStyle }}>{block.title}</Text>
+        ) : null}
+        {/* Empty bodies are a deliberate state: the label (and title) still
+            render; the body node is omitted rather than emitting empty text. */}
+        {block.spans.length > 0 ? (
+          <Text style={{ marginTop: 3, ...textStyle }}>{renderSpans(block.spans)}</Text>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
 export function BlockRenderer({
   block,
   doc,
   contentWidth,
   tokens,
   headingPrefix,
+  monochrome = false,
 }: {
   block: AnyBlockData;
   doc: DocStudioDocument;
@@ -611,12 +737,18 @@ export function BlockRenderer({
   /** Derived outline prefix for this heading block (P05-M2); optional so
    *  callers without numbering context render unchanged. */
   headingPrefix?: string;
+  /** Document monochrome mode (P05-M3 callout accents); defaults to
+   *  false so callers without the flag render unchanged. */
+  monochrome?: boolean;
 }) {
   switch (block.type) {
     case 'heading':
       return <Heading block={block} tokens={tokens} prefix={headingPrefix} />;
     case 'paragraph':
       return <Paragraph block={block} tokens={tokens} />;
+    case 'callout':
+      // Semantic callout (P05-M3, §10.3) — label + optional title + body.
+      return <CalloutBlock block={block} tokens={tokens} monochrome={monochrome} />;
     case 'page-break':
       // Explicit schema page break. The break is applied by PocDocument to
       // the NEXT block's wrapper (an empty zero-height View is skipped by
@@ -753,11 +885,11 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
   // settings resolve into the one token set consumed by every block and by
   // the page furniture below. The resolver is deterministic, never mutates
   // the document, and throws on an unknown `bodyThemeId`.
-  const tokens = resolveBodyTheme(
+  const { monochrome, tokens } = resolveBodyTheme(
     doc.pageTypography.bodyThemeId,
     doc.pageTypography.typography,
     doc.pageTypography.monochrome,
-  ).tokens;
+  );
   const { contentWidth } = computePocLayout(doc);
   // Outline numbering (P05-M2, §10.1): ONE derivation over the
   // authoritative block order, shared by every heading below — the same
@@ -806,6 +938,7 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
               contentWidth={contentWidth}
               tokens={tokens}
               headingPrefix={headingPrefixes.get(block.id)}
+              monochrome={monochrome}
             />
           );
           return forceBreak ? (

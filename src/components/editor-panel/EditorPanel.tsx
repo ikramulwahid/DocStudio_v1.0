@@ -19,11 +19,19 @@ import type { ContentBlock, DocUUID } from '../../types/document';
 import { computeHeadingNumbering } from '../../services/heading-numbering';
 import { HeadingContentEditor } from './HeadingContentEditor';
 import { ParagraphContentEditor } from './ParagraphContentEditor';
+import { ListContentEditor } from './ListContentEditor';
+import { CalloutContentEditor } from './CalloutContentEditor';
 import type {
   ContentActionResult,
   HeadingContentPatch,
   ParagraphContentPatch,
 } from '../../services/block-content';
+import type {
+  CalloutContentActionResult,
+  CalloutContentPatch,
+  ListContentAction,
+  ListContentActionResult,
+} from '../../services/list-callout-content';
 import './EditorPanel.css';
 
 interface EditorPanelProps {
@@ -57,6 +65,16 @@ interface EditorPanelProps {
     blockId: DocUUID,
     patch: ParagraphContentPatch,
   ) => ContentActionResult;
+  /** Dispatch one validated list action (P05-M3, §10.4). */
+  onListContentAction: (
+    blockId: DocUUID,
+    action: ListContentAction,
+  ) => ListContentActionResult;
+  /** Commit a callout content patch (P05-M3, §10.3). */
+  onCalloutContentChange: (
+    blockId: DocUUID,
+    patch: CalloutContentPatch,
+  ) => CalloutContentActionResult;
 }
 
 interface EditorNotice {
@@ -65,15 +83,17 @@ interface EditorNotice {
 }
 
 /**
- * The modular document editor (P05-M1 block framework, extended P05-M2).
+ * The modular document editor (P05-M1 block framework, extended P05-M2
+ * and P05-M3).
  *
  * Renders the AUTHORITATIVE `document.blocks` list and wires every action
- * to the App through immutable `block-actions`/`block-content` operations —
- * there is no second block store in component state.  Selection is session
- * state owned by the App, so selecting never dirties the document.  The
- * selected heading (§10.1) and paragraph (§10.2) blocks additionally show
- * their content editors; list/callout (P05-M3) and table (P05-M4) content
- * editors arrive in later checkpoints — other inserted blocks currently
+ * to the App through immutable `block-actions`/`block-content`/
+ * `list-callout-content` operations — there is no second block store in
+ * component state.  Selection is session state owned by the App, so
+ * selecting never dirties the document.  The selected heading (§10.1),
+ * paragraph (§10.2), list (§10.4) and callout (§10.3) blocks
+ * additionally show their content editors; the table (P05-M4) content
+ * editor arrives in a later checkpoint — other inserted blocks currently
  * show truthful structural summaries.
  */
 export const EditorPanel: React.FC<EditorPanelProps> = ({
@@ -87,6 +107,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onSpacingChange,
   onHeadingContentChange,
   onParagraphContentChange,
+  onListContentAction,
+  onCalloutContentChange,
 }) => {
   const [insertType, setInsertType] = useState<BlockType>('paragraph');
   const [notice, setNotice] = useState<EditorNotice | null>(null);
@@ -161,9 +183,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             <div className="insert-card-heading">
               <span className="insert-card-title">Insert block</span>
               <span className="insert-card-hint">
-                Structure, order and spacing are editable now; heading and paragraph content editing
-                is available on the selected block, and list, callout and table content editors
-                arrive in P05-M3–M4.
+                Structure, order and spacing are editable now; heading, paragraph, list and callout
+                content editing is available on the selected block — the table content editor
+                arrives in P05-M4.
               </span>
             </div>
             <div className="insert-controls">
@@ -329,6 +351,22 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             hAlign={block.data.hAlign}
                             indentLevel={block.data.indentLevel}
                             onParagraphContentChange={onParagraphContentChange}
+                            onLocalError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'list' && (
+                          <ListContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onListContentAction={onListContentAction}
+                            onLocalError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'callout' && (
+                          <CalloutContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onCalloutContentChange={onCalloutContentChange}
                             onLocalError={(text) => setNotice({ severity: 'error', text })}
                           />
                         )}

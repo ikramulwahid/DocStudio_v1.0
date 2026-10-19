@@ -66,6 +66,14 @@ import {
   type HeadingContentPatch,
   type ParagraphContentPatch,
 } from './services/block-content';
+import {
+  applyListContentAction,
+  updateCalloutContent,
+  type CalloutContentActionResult,
+  type CalloutContentPatch,
+  type ListContentAction,
+  type ListContentActionResult,
+} from './services/list-callout-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -528,6 +536,31 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── List & callout content (P05-M3) ────────────────────────────────────
+  // List (§10.4) actions and callout (§10.3) patches go through the
+  // immutable list-callout-content services; failures surface the
+  // service's understandable message inline and leave the document
+  // untouched.  The list dispatcher keeps the prop flow narrow while
+  // every operation keeps its own validated service above it.
+
+  const handleListContentAction = (
+    blockId: DocUUID,
+    action: ListContentAction,
+  ): ListContentActionResult => {
+    const result = applyListContentAction(activeDocument, blockId, action);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  const handleCalloutContentChange = (
+    blockId: DocUUID,
+    patch: CalloutContentPatch,
+  ): CalloutContentActionResult => {
+    const result = updateCalloutContent(activeDocument, blockId, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -621,6 +654,8 @@ export const App: React.FC = () => {
         onSpacingChange={handleSpacingChange}
         onHeadingContentChange={handleHeadingContentChange}
         onParagraphContentChange={handleParagraphContentChange}
+        onListContentAction={handleListContentAction}
+        onCalloutContentChange={handleCalloutContentChange}
       />
       {chooserOpen && (
         <TemplateChooser

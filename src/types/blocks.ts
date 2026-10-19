@@ -143,6 +143,18 @@ export interface ListBlockData {
   listType: ListType;
   bulletStyle: BulletStyle;
   numberStyle: NumberStyle;
+  /**
+   * P05-M3 bullet-marker source policy (schema v1, additive & optional).
+   *
+   * Absent (or `'theme'`) keeps the P04-M3 behaviour: the body THEME's
+   * `lists.markerStyle` token draws bullet markers, so every existing
+   * file and the byte-verified theme gallery render exactly as before.
+   * `'block'` means the user explicitly chose `bulletStyle` in the
+   * editor — the renderer honours it exactly (never silently reverts to
+   * the theme marker).  `numberStyle` is always honoured: themes define
+   * no numbering token, so there is no theme/block conflict for numbers.
+   */
+  markerSource?: 'theme' | 'block';
   items: ListItem[];
 }
 

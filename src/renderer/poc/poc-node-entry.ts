@@ -107,3 +107,36 @@ export {
   hrefOverRange,
   remapSpansAfterTextEdit,
 } from '../../services/rich-text';
+
+// ── P05-M3 (lists + callouts) — additive exports only ────────────────────────
+// List numbering engine (pure) plus the list/callout content actions.
+// Every export below is exercised by verify_p05_m3.mjs through this entry so
+// the suite compiles the same module graph the renderer uses.
+export {
+  ROMAN_MAX,
+  formatDecimal,
+  formatAlpha,
+  formatRoman,
+  formatListCounter,
+  computeListLabels,
+} from '../../services/list-numbering';
+export {
+  MAX_LIST_DEPTH,
+  LIST_TYPES,
+  BULLET_STYLES,
+  NUMBER_STYLES,
+  LIST_MARKER_SOURCES,
+  MAX_CALLOUT_VARIANT_LENGTH,
+  MAX_CALLOUT_TITLE_LENGTH,
+  updateListSettings,
+  updateListItemText,
+  addListItem,
+  removeListItem,
+  moveListItem,
+  moveListItemTo,
+  indentListItem,
+  outdentListItem,
+  setItemChecked,
+  applyListContentAction,
+  updateCalloutContent,
+} from '../../services/list-callout-content';

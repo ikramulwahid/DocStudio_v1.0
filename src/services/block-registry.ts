@@ -104,9 +104,10 @@ type BlockRegistryMap = { readonly [K in BlockType]: BlockRegistryEntry };
 /**
  * Central block-type metadata + default factories.
  *
- * Every registered type is insertable in P05-M1; block types whose content
- * editors arrive in later checkpoints (P05-M2 headings/paragraphs, P05-M3
- * lists/callouts, P05-M4 tables) insert with truthful default content and a
+ * Every registered type is insertable in P05-M1; the content editors
+ * arrived with P05-M2 (headings/paragraphs) and P05-M3
+ * (lists/callouts); the table editor is P05-M4.  Types without a
+ * content editor yet insert with truthful default content and a
  * structural summary — no content editor is implied here.
  */
 export const BLOCK_REGISTRY = {

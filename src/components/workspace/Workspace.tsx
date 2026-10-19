@@ -26,6 +26,12 @@ import type {
   ParagraphContentPatch,
 } from '../../services/block-content';
 import type {
+  CalloutContentActionResult,
+  CalloutContentPatch,
+  ListContentAction,
+  ListContentActionResult,
+} from '../../services/list-callout-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -107,6 +113,16 @@ interface WorkspaceProps {
     blockId: DocUUID,
     patch: ParagraphContentPatch,
   ) => ContentActionResult;
+  /** Dispatch one validated list action (P05-M3, §10.4). */
+  onListContentAction: (
+    blockId: DocUUID,
+    action: ListContentAction,
+  ) => ListContentActionResult;
+  /** Commit a callout content patch (P05-M3, §10.3). */
+  onCalloutContentChange: (
+    blockId: DocUUID,
+    patch: CalloutContentPatch,
+  ) => CalloutContentActionResult;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -141,6 +157,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onSpacingChange,
   onHeadingContentChange,
   onParagraphContentChange,
+  onListContentAction,
+  onCalloutContentChange,
 }) => {
   return (
     <div className="workspace">
@@ -177,6 +195,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onSpacingChange={onSpacingChange}
         onHeadingContentChange={onHeadingContentChange}
         onParagraphContentChange={onParagraphContentChange}
+        onListContentAction={onListContentAction}
+        onCalloutContentChange={onCalloutContentChange}
       />
       <PreviewPanel document={activeDocument} />
     </div>
