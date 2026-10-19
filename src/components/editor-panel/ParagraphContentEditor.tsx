@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { InlineSpan, ParagraphAlignment } from '../../types/blocks';
 import type { DocUUID } from '../../types/document';
 import {
@@ -13,6 +13,7 @@ import {
   clearSpanFormatting,
   hrefOverRange,
   isFlagActiveOverRange,
+  normalizeHexColor,
   remapSpansAfterTextEdit,
   sanitizeHref,
   spansToPlainText,
@@ -64,6 +65,34 @@ function isRichTextError(
   return !Array.isArray(result);
 }
 
+/** Read the textarea's LIVE selection, clamped to its current value. */
+function liveSelection(el: HTMLTextAreaElement | null): CharRange {
+  if (el === null) return { start: 0, end: 0 };
+  const start = Math.min(el.selectionStart, el.value.length);
+  const end = Math.max(start, Math.min(el.selectionEnd, el.value.length));
+  return { start, end };
+}
+
+/**
+ * Resolve the target of a colour/highlight action (P05-FIX-01).
+ *
+ * The authoritative target is the range FROZEN when the colour control was
+ * activated (`onMouseDown`/`onKeyDown` — both fire before the control takes
+ * focus, so the textarea's selection is still the user's chosen one).  If no
+ * freeze happened (programmatic activation), the textarea's live selection is
+ * used only while it is non-empty.  A collapsed caret yields an EMPTY target
+ * — we never fall back to an earlier, stale range, so every formatting
+ * action has one clear, predictable target.
+ */
+function resolveApplyTarget(
+  frozen: CharRange | null,
+  el: HTMLTextAreaElement | null,
+): CharRange {
+  if (frozen !== null) return frozen;
+  const live = liveSelection(el);
+  return live.end > live.start ? live : { start: 0, end: 0 };
+}
+
 /**
  * Content editor for the selected PARAGRAPH block (project_details §10.2).
  *
@@ -87,6 +116,21 @@ export const ParagraphContentEditor: React.FC<ParagraphContentEditorProps> = ({
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [selection, setSelection] = useState<CharRange>({ start: 0, end: 0 });
   const [linkDraft, setLinkDraft] = useState('');
+  // P05-FIX-01: the colour controls are STATE-BACKED so the chosen colour
+  // stays reflected after applying it (they used to be hard-wired to
+  // #c0392b / #f9e79f, which made React re-vert the input after every pick).
+  const [fontColorChoice, setFontColorChoice] = useState('#c0392b');
+  const [highlightChoice, setHighlightChoice] = useState('#f9e79f');
+  const colorInputRef = useRef<HTMLInputElement | null>(null);
+  const highlightInputRef = useRef<HTMLInputElement | null>(null);
+  /** Formatting target frozen when a colour control is activated. */
+  const pendingTargetRef = useRef<CharRange | null>(null);
+  /** Latest props for the native picker listeners (see useEffect below). */
+  const latestRef = useRef({ spans, blockId, onParagraphContentChange, onLocalError });
+
+  useEffect(() => {
+    latestRef.current = { spans, blockId, onParagraphContentChange, onLocalError };
+  });
 
   const plain = useMemo(() => spansToPlainText(spans), [spans]);
   const range: CharRange = {
@@ -104,6 +148,21 @@ export const ParagraphContentEditor: React.FC<ParagraphContentEditorProps> = ({
     setSelection({ start, end });
   };
 
+  /**
+   * P05-FIX-01: freeze the formatting target from the LIVE textarea
+   * selection the moment a colour control is ACTIVATED.  `onMouseDown` /
+   * `onKeyDown` fire before the control takes focus, i.e. before the
+   * picker can move focus or the engine can replay a (possibly collapsed)
+   * `select` event on the blurred textarea — so the frozen range is exactly
+   * what the user had selected.  A collapsed caret freezes an EMPTY target
+   * (never a stale earlier range): each action gets one predictable target.
+   */
+  const captureTarget = (): void => {
+    const target = liveSelection(textareaRef.current);
+    pendingTargetRef.current = target;
+    setSelection(target);
+  };
+
   /** Commit a rewritten span list produced by the pure algebra. */
   const commitSpans = (next: InlineSpan[]): void => {
     onParagraphContentChange(blockId, { spans: next });
@@ -116,6 +175,74 @@ export const ParagraphContentEditor: React.FC<ParagraphContentEditorProps> = ({
     }
     commitSpans(result);
   };
+
+  /**
+   * P05-FIX-01: apply colour/highlight from NATIVE `input`/`change`
+   * listeners on the colour inputs.
+   *
+   * React's synthetic `onChange` for `type="color"` consults its input
+   * value tracker and SILENTLY DROPS the event whenever the picked value
+   * reached the input through the JavaScript `value` setter (tracker and
+   * DOM already agree) — the owner saw exactly that: the picker opened,
+   * a colour was chosen, and nothing formatted with no feedback.  Native
+   * listeners are not subject to that suppression, so they are the
+   * authoritative applying path; React's `onChange` below only mirrors the
+   * swatch display state when it fires.
+   *
+   * The target is the range frozen at activation; focus and selection are
+   * restored to the textarea when the picker completes (`change`).
+   */
+  useEffect(() => {
+    const applyFromControl = (kind: 'color' | 'highlight', eventType: string): void => {
+      const p = latestRef.current;
+      const input = kind === 'color' ? colorInputRef.current : highlightInputRef.current;
+      if (input === null) return;
+      const raw = input.value;
+      // Keep the control reflecting the chosen colour (even when the apply
+      // itself is rejected — the notice explains why nothing was formatted).
+      const norm = normalizeHexColor(raw);
+      if (norm !== null) {
+        if (kind === 'color') setFontColorChoice(norm);
+        else setHighlightChoice(norm);
+      }
+      const target = resolveApplyTarget(pendingTargetRef.current, textareaRef.current);
+      const restoreFocus = (): void => {
+        const el = textareaRef.current;
+        if (el !== null && eventType === 'change') {
+          el.focus();
+          el.setSelectionRange(target.start, target.end);
+        }
+      };
+      if (target.end <= target.start) {
+        p.onLocalError('Select some text before changing its colour.');
+        restoreFocus();
+        return;
+      }
+      const result = applySpanColor(p.spans, target, kind, raw);
+      if (isRichTextError(result)) {
+        p.onLocalError(result.message);
+        restoreFocus();
+        return;
+      }
+      p.onParagraphContentChange(p.blockId, { spans: result });
+      setSelection(target);
+      restoreFocus();
+    };
+    const onColor = (e: Event): void => applyFromControl('color', e.type);
+    const onHighlight = (e: Event): void => applyFromControl('highlight', e.type);
+    const colorEl = colorInputRef.current;
+    const highlightEl = highlightInputRef.current;
+    colorEl?.addEventListener('input', onColor);
+    colorEl?.addEventListener('change', onColor);
+    highlightEl?.addEventListener('input', onHighlight);
+    highlightEl?.addEventListener('change', onHighlight);
+    return () => {
+      colorEl?.removeEventListener('input', onColor);
+      colorEl?.removeEventListener('change', onColor);
+      highlightEl?.removeEventListener('input', onHighlight);
+      highlightEl?.removeEventListener('change', onHighlight);
+    };
+  }, []);
 
   /** Replay a plain-text edit (typing, cutting) onto the span model. */
   const handleTextChange = (nextPlain: string): void => {
@@ -151,12 +278,33 @@ export const ParagraphContentEditor: React.FC<ParagraphContentEditorProps> = ({
     handleAlgebraResult(applySpanFormatting(spans, range, flag, on));
   };
 
+  /**
+   * P05-FIX-01: apply/clear a colour from the toolbar BUTTONS (A× / ×)
+   * through the same frozen-target rules as the pickers: the target is the
+   * range frozen on this control's `onMouseDown`/`onKeyDown`, feedback
+   * appears when it is empty, and focus/selection return to the text.
+   */
   const applyColor = (kind: 'color' | 'highlight', value: string | null): void => {
-    if (!hasSelection) {
+    const target = resolveApplyTarget(pendingTargetRef.current, textareaRef.current);
+    if (target.end <= target.start) {
       onLocalError('Select some text before changing its colour.');
+      textareaRef.current?.focus();
       return;
     }
-    handleAlgebraResult(applySpanColor(spans, range, kind, value));
+    handleAlgebraResult(applySpanColor(spans, target, kind, value));
+    if (value !== null) {
+      const norm = normalizeHexColor(value);
+      if (norm !== null) {
+        if (kind === 'color') setFontColorChoice(norm);
+        else setHighlightChoice(norm);
+      }
+    }
+    setSelection(target);
+    const el = textareaRef.current;
+    if (el !== null) {
+      el.focus();
+      el.setSelectionRange(target.start, target.end);
+    }
   };
 
   const applyLink = (): void => {
@@ -239,38 +387,54 @@ export const ParagraphContentEditor: React.FC<ParagraphContentEditorProps> = ({
           </button>
         ))}
         <span className="rt-toolbar-sep" aria-hidden="true" />
-        <label className="rt-color-field" title="Font colour">
+        <label
+          className="rt-color-field"
+          title="Font colour"
+          onMouseDown={captureTarget}
+          onKeyDown={captureTarget}
+        >
           <span className="rt-color-label">A</span>
           <input
+            ref={colorInputRef}
             type="color"
             className="rt-color-input"
-            value="#c0392b"
+            value={fontColorChoice}
             aria-label="Font colour for the selected text"
-            onChange={(e) => applyColor('color', e.target.value)}
+            onChange={(e) => setFontColorChoice(e.target.value)}
           />
         </label>
         <button
           type="button"
           className="rt-tool-btn"
           title="Remove the font colour from the selected text"
+          onMouseDown={captureTarget}
+          onKeyDown={captureTarget}
           onClick={() => applyColor('color', null)}
         >
           A×
         </button>
-        <label className="rt-color-field" title="Highlight colour">
+        <label
+          className="rt-color-field"
+          title="Highlight colour"
+          onMouseDown={captureTarget}
+          onKeyDown={captureTarget}
+        >
           <span className="rt-color-label rt-color-label--mark">MARK</span>
           <input
+            ref={highlightInputRef}
             type="color"
             className="rt-color-input"
-            value="#f9e79f"
+            value={highlightChoice}
             aria-label="Highlight colour for the selected text"
-            onChange={(e) => applyColor('highlight', e.target.value)}
+            onChange={(e) => setHighlightChoice(e.target.value)}
           />
         </label>
         <button
           type="button"
           className="rt-tool-btn"
           title="Remove the highlight from the selected text"
+          onMouseDown={captureTarget}
+          onKeyDown={captureTarget}
           onClick={() => applyColor('highlight', null)}
         >
           ×
