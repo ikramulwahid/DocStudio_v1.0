@@ -37,6 +37,20 @@ import type {
   TableContentAction,
   TableContentActionResult,
 } from '../../services/table-content';
+import type {
+  StructuralContentAction,
+  StructuralContentActionResult,
+} from '../../services/structural-block-content';
+import {
+  HorizontalLineEditor,
+  MetadataBlockEditor,
+  PageBreakMarker,
+  ReferenceEditor,
+  RevisionHistoryEditor,
+  SectionBreakEditor,
+  ExhibitEditor,
+} from './StructuralContentEditor';
+import type { AssetRecord, CustomMetadataField } from '../../types/document';
 import './EditorPanel.css';
 
 interface EditorPanelProps {
@@ -85,6 +99,15 @@ interface EditorPanelProps {
     blockId: DocUUID,
     action: TableContentAction,
   ) => TableContentActionResult;
+  /** Dispatch one validated structural action (P06-M2, §6.2). */
+  onStructuralAction: (
+    blockId: DocUUID,
+    action: StructuralContentAction,
+  ) => StructuralContentActionResult;
+  /** Document custom fields — labels/ids for the metadata block picker. */
+  customFields?: readonly CustomMetadataField[];
+  /** Embedded assets — the exhibit block may reference an image asset. */
+  assets?: readonly AssetRecord[];
   /** Ask the App to confirm a content-losing action (table column removal). */
   onRequestConfirm: (
     title: string,
@@ -109,8 +132,12 @@ interface EditorNotice {
  * block store in component state.  Selection is session state owned by the
  * App, so selecting never dirties the document.  The selected heading
  * (§10.1), paragraph (§10.2), list (§10.4), callout (§10.3) and table
- * (§10.5) blocks additionally show their content editors; other inserted
- * blocks currently show truthful structural summaries.
+ * (§10.5) blocks additionally show their content editors; the P06-M2
+ * structural blocks (horizontal rule, section break, page break marker,
+ * metadata, revision history, references, exhibit) show their own
+ * content editors wired through `structural-block-content`; the
+ * remaining lab-specific block types show truthful structural
+ * summaries until their checkpoints.
  */
 export const EditorPanel: React.FC<EditorPanelProps> = ({
   blocks,
@@ -126,6 +153,9 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onListContentAction,
   onCalloutContentChange,
   onTableContentAction,
+  onStructuralAction,
+  customFields = [],
+  assets = [],
   onRequestConfirm,
 }) => {
   const [insertType, setInsertType] = useState<BlockType>('paragraph');
@@ -160,6 +190,25 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
       return;
     }
     setNotice(null);
+  };
+
+  /**
+   * Structural content dispatch (P06-M2): every structural editor routes
+   * its commits through the App's immutable
+   * `applyStructuralAction` service.  Failures surface the service's
+   * field-specific message; successes clear the notice.  A same-reference
+   * no-op is NOT an error — it simply leaves the document (and its
+   * Modified flag) untouched.
+   */
+  const handleStructural = (
+    blockId: DocUUID,
+    action: StructuralContentAction,
+  ): StructuralContentActionResult => {
+    const result = onStructuralAction(blockId, action);
+    setNotice(
+      result.ok ? null : { severity: 'error', text: result.message },
+    );
+    return result;
   };
 
   const handleInsert = (kind: 'end' | 'after'): void => {
@@ -394,6 +443,59 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             onTableContentAction={onTableContentAction}
                             onRequestConfirm={onRequestConfirm}
                             onLocalError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'horizontal-line' && (
+                          <HorizontalLineEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'section-break' && (
+                          <SectionBreakEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'page-break' && (
+                          <PageBreakMarker data={block.data} />
+                        )}
+                        {block.data.type === 'metadata-block' && (
+                          <MetadataBlockEditor
+                            blockId={block.id}
+                            data={block.data}
+                            customFields={customFields}
+                            onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'revision-history' && (
+                          <RevisionHistoryEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'reference' && (
+                          <ReferenceEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'exhibit' && (
+                          <ExhibitEditor
+                            blockId={block.id}
+                            data={block.data}
+                            assets={assets}
+                            onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
                           />
                         )}
                         <div className="block-spacing-panel" aria-label={`Spacing for block ${position}`}>

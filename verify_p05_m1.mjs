@@ -218,7 +218,12 @@ await test('8. summarizeBlockData is defined for all 21 defaults and key shapes'
     assert.ok(typeof summary === 'string' && summary.length > 0, `${type}: empty summary`);
   }
   assert.match(summarizeBlockData(BLOCK_REGISTRY.heading.createDefault().data), /H2/);
-  assert.equal(summarizeBlockData({ type: 'page-break' }), 'page break');
+  // P06-M2: the page-break summary now states its structural effect so the
+  // selected-block UI is self-explanatory (distinct from section-break).
+  assert.equal(
+    summarizeBlockData({ type: 'page-break' }),
+    'page break — next block starts on a new page',
+  );
   assert.match(
     summarizeBlockData({ type: 'paragraph', spans: [{ text: '' }], hAlign: 'left', indentLevel: 0 }),
     /no text yet/,

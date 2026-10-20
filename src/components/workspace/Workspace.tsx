@@ -37,6 +37,10 @@ import type {
   TableContentActionResult,
 } from '../../services/table-content';
 import type {
+  StructuralContentAction,
+  StructuralContentActionResult,
+} from '../../services/structural-block-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -145,6 +149,11 @@ interface WorkspaceProps {
     blockId: DocUUID,
     action: TableContentAction,
   ) => TableContentActionResult;
+  /** Dispatch one validated structural action (P06-M2, §6.2). */
+  onStructuralAction: (
+    blockId: DocUUID,
+    action: StructuralContentAction,
+  ) => StructuralContentActionResult;
   /** Ask the App to confirm a content-losing action (table column removal). */
   onRequestConfirm: (
     title: string,
@@ -192,6 +201,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onListContentAction,
   onCalloutContentChange,
   onTableContentAction,
+  onStructuralAction,
   onRequestConfirm,
 }) => {
   return (
@@ -235,6 +245,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onListContentAction={onListContentAction}
         onCalloutContentChange={onCalloutContentChange}
         onTableContentAction={onTableContentAction}
+        onStructuralAction={onStructuralAction}
+        customFields={customFields}
+        assets={assets ? Object.values(assets) : []}
         onRequestConfirm={onRequestConfirm}
       />
       <PreviewPanel document={activeDocument} />

@@ -365,6 +365,19 @@ export interface HorizontalLineBlockData {
   thicknessPt: number;
   /** CSS color, e.g. "#cccccc". */
   color: string;
+  /**
+   * P06-M2 rule-style source policy (schema v1, additive & optional).
+   *
+   * Absent (or `'theme'`) keeps the pre-P06-M2 behaviour: the body
+   * THEME's `separators` tokens draw the rule, so every existing file
+   * and the byte-verified P04-M3 gallery artifacts render exactly as
+   * before.  `'block'` means the user explicitly edited the stored
+   * `thicknessPt`/`color` in the editor — the renderer then honours
+   * those values exactly (never silently reverts to the theme).
+   * Mirrors the list `markerSource` and table `headerStyleSource`
+   * fields.
+   */
+  styleSource?: 'theme' | 'block';
 }
 
 export interface PageBreakBlockData {

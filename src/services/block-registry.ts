@@ -317,7 +317,7 @@ export const BLOCK_REGISTRY = {
   'horizontal-line': {
     type: 'horizontal-line',
     displayName: 'Horizontal Line',
-    description: 'Themed horizontal rule between sections.',
+    description: 'Horizontal rule between sections (theme-styled, or your own thickness/colour).',
     icon: 'header-footer',
     category: 'layout',
     createDefault: (): ContentBlock => ({
@@ -329,7 +329,7 @@ export const BLOCK_REGISTRY = {
   'page-break': {
     type: 'page-break',
     displayName: 'Page Break',
-    description: 'Starts the following content on a new page.',
+    description: 'Structural marker: starts the NEXT block on a new physical page.',
     icon: 'margin-guide',
     category: 'layout',
     createDefault: (): ContentBlock => ({
@@ -341,7 +341,7 @@ export const BLOCK_REGISTRY = {
   'section-break': {
     type: 'section-break',
     displayName: 'Section Break',
-    description: 'Optional section title with a themed divider.',
+    description: 'Inline divider with an optional section title — does NOT start a new page.',
     icon: 'margin-guide',
     category: 'layout',
     createDefault: (): ContentBlock => ({
@@ -434,13 +434,15 @@ export function summarizeBlockData(data: AnyBlockData): string {
         .map((signer) => signer.role)
         .join(', ')}`;
     case 'horizontal-line':
-      return `horizontal rule · ${data.thicknessPt} pt`;
+      return data.styleSource === 'block'
+        ? `horizontal rule · ${data.thicknessPt} pt · ${data.color} (block-styled)`
+        : `horizontal rule · ${data.thicknessPt} pt (theme-styled)`;
     case 'page-break':
-      return 'page break';
+      return 'page break — next block starts on a new page';
     case 'section-break':
       return data.title !== undefined && data.title.trim() !== ''
-        ? `section break — "${data.title}"`
-        : 'section break';
+        ? `section break (inline divider) — "${data.title}"`
+        : 'section break (inline divider — no new page)';
     case 'metadata-block':
       return `${data.visibleFields.length} metadata ${
         data.visibleFields.length === 1 ? 'field' : 'fields'

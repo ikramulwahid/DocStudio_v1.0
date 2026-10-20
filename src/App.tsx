@@ -87,6 +87,11 @@ import {
   type TableContentAction,
   type TableContentActionResult,
 } from './services/table-content';
+import {
+  applyStructuralAction,
+  type StructuralContentAction,
+  type StructuralContentActionResult,
+} from './services/structural-block-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -604,6 +609,23 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── Structural block content (P06-M2) ─────────────────────────────────────
+  // The seven structural types (horizontal rule, section break, metadata,
+  // revision history, references, exhibit) commit through the immutable
+  // `structural-block-content` service — same conventions: no-op returns
+  // the same reference (no false Modified status), real changes stamp
+  // `modifiedAt`, failures leave the document untouched and surface the
+  // service's field-specific message.  Page breaks deliberately have no
+  // content actions (structural marker only).
+  const handleStructuralAction = (
+    blockId: DocUUID,
+    action: StructuralContentAction,
+  ): StructuralContentActionResult => {
+    const result = applyStructuralAction(activeDocument, blockId, action);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -703,6 +725,7 @@ export const App: React.FC = () => {
         onListContentAction={handleListContentAction}
         onCalloutContentChange={handleCalloutContentChange}
         onTableContentAction={handleTableContentAction}
+        onStructuralAction={handleStructuralAction}
         onRequestConfirm={confirmAction}
       />
       {chooserOpen && (

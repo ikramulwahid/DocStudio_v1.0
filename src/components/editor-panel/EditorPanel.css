@@ -519,6 +519,64 @@
   color: var(--panel-mid-text-muted);
 }
 
+/* ── Structural block editors (P06-M2) ───────────────────────────────────── */
+
+.structural-field-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.structural-field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.structural-field-row:nth-child(odd) {
+  background: var(--panel-mid-bg);
+}
+
+.structural-field-label {
+  font-size: 12px;
+  color: var(--panel-mid-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.structural-field-actions {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.structural-entry-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.structural-entry-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--panel-mid-canvas-border);
+  border-radius: var(--radius-sm);
+}
+
 /* ── Rich-text toolbar (paragraph editor) ────────────────────────────────── */
 
 .rt-toolbar {

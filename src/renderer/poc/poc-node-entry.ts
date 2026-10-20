@@ -205,3 +205,32 @@ export {
   FurnitureProbeDocument,
   renderFurnitureProbePdfBytes,
 } from './poc-furniture-probe';
+
+// ── P06-M2 (structural blocks) — additive exports only ──────────────────────
+// The pure structural content service plus the registry surface the suite
+// needs for insertion/summary checks.  Every export below is exercised by
+// verify_p06_m2.mjs through this entry so the suite compiles the same module
+// graph the renderer uses.  Nothing here changes what `PocDocument` renders
+// for any committed baseline (block-styled rules require `styleSource:
+// 'block'`, which no existing document or gallery fixture carries).
+export {
+  HORIZONTAL_LINE_THICKNESS_PT_RANGE,
+  MAX_STRUCTURAL_TEXT_LENGTH,
+  metadataFieldChoices,
+  updateHorizontalLineContent,
+  updateSectionBreakContent,
+  setMetadataBlockFields,
+  addRevisionEntry,
+  updateRevisionEntry,
+  removeRevisionEntry,
+  updateReferenceTitle,
+  addReferenceEntry,
+  updateReferenceEntry,
+  removeReferenceEntry,
+  updateExhibitContent,
+  applyStructuralAction,
+} from '../../services/structural-block-content';
+export {
+  createBlock,
+  insertBlock,
+} from '../../services/block-actions';

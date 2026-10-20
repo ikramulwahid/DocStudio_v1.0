@@ -8,7 +8,12 @@
  * documented P04-M3 additions the ten themes need to show their structure:
  * `list` (bullet/numbered/checklist — see ListBlock for exact scope),
  * `horizontal-line` (themed section rule) and `section-break` (title +
- * themed rule).  Full block coverage belongs to Phase 08.
+ * themed rule), plus the P06-M2 structural content renderers:
+ * `metadata-block`, `revision-history`, `reference` and `exhibit`, the
+ * block-authored rule style (`horizontal-line` with
+ * `styleSource: 'block'`) and the reliable page-break position semantics.
+ * The remaining lab-specific block types keep the visible fallback marker
+ * until their checkpoints (P06-M3+/P06-M4).
  *
  * Mapping decisions (see the roadmap decision record):
  * • Page geometry — `pageSetup` (all five schema sizes, orientation,
@@ -40,7 +45,10 @@
  * • Tables       — react-pdf v4 has NO Table primitive; the table is
  *   composed of flex rows with fixed column widths and unbreakable rows
  *   (wrap={false}), so a row moves to the next page whole.
- * • Page breaks  — the schema `page-break` block maps to the `break` prop.
+ * • Page breaks  — the schema `page-break` block maps to the `break`
+ *   prop applied to the FOLLOWING content block; leading/trailing and
+ *   consecutive breaks are handled without emitting unintended blank
+ *   pages (P06-M2, see the mapping loop in `PocDocument`).
  * • Page numbers — resolved per page from the band's §9
  *   `pageNumberFormat` (`Page X of Y` / `X/Y` / `X` / `none`) through the
  *   engine's actual `{ pageNumber, totalPages }` (see
@@ -67,15 +75,21 @@ import type {
   AnyBlockData,
   BulletStyle,
   CalloutBlockData,
+  ExhibitBlockData,
   HeadingBlockData,
+  HorizontalLineBlockData,
   InlineSpan,
   ImageBlockData,
   ListBlockData,
+  MetadataBlockData,
   ParagraphBlockData,
+  ReferenceBlockData,
+  RevisionHistoryBlockData,
   SectionBreakBlockData,
   TableBlockData,
   TableHeaderStyle,
 } from '../../types/blocks';
+import { coverFieldLabel } from '../../services/front-page';
 import { effectivePageDimensionsMm } from '../../services/page-typography';
 import {
   DEFAULT_TEXT_COLOR,
@@ -554,16 +568,9 @@ function ImageBlock({ block, doc, tokens }: { block: ImageBlockData; doc: DocStu
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Section rule from the `horizontal-line` block (P04-M3).
- *
- * The rule's WEIGHT and COLOR come from the theme's `separators` tokens, so
- * every theme shows its own section-rule language (0.5 pt quiet boundaries
- * → 1.5 pt graphic lines).  The block's own `thicknessPt`/`color` author
- * values are NOT applied on this path — theme-driven separators are this
- * checkpoint's scope and the PoC has no block-style editor (documented
- * limitation, not silently dropped structure: the rule always renders).
- * Zero-height bordered views were verified as layout-unstable during
- * P02-M4, so the rule is a filled box of exactly the token height.
+ * Themed section rule (P04-M3): a filled box of exactly the theme
+ * token's height.  Zero-height bordered views were verified as
+ * layout-unstable during P02-M4.
  */
 function SectionRule({ tokens }: { tokens: BodyThemeTokens }): React.ReactElement {
   const rule = tokens.separators;
@@ -572,6 +579,49 @@ function SectionRule({ tokens }: { tokens: BodyThemeTokens }): React.ReactElemen
       style={{
         height: rule.sectionRuleWidthPt,
         backgroundColor: rule.sectionRuleColor,
+        marginBottom: tokens.typography.paragraphSpacingPt,
+      }}
+    />
+  );
+}
+
+/**
+ * `horizontal-line` block.
+ *
+ * The rule's WEIGHT and COLOR come from the theme's `separators` tokens
+ * on the default path, so every theme shows its own section-rule
+ * language (0.5 pt quiet boundaries → 1.5 pt graphic lines).
+ *
+ * P06-M2 rule-style source policy (mirrors list `markerSource` / table
+ * `headerStyleSource`): absent `styleSource` (or `'theme'`) keeps the
+ * exact P04-M3 behaviour — byte-identical for every existing document,
+ * template and gallery fixture.  `'block'` means the user edited the
+ * stored rule in the editor, and the renderer then honours the block's
+ * own `thicknessPt`/`color` (validated at the model boundary; the
+ * defensive render-time fallbacks never let an invalid stored value
+ * crash or vanish the rule).
+ */
+function HorizontalRuleBlock({
+  block,
+  tokens,
+}: {
+  block: HorizontalLineBlockData;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const rule = tokens.separators;
+  if (block.styleSource !== 'block') {
+    return <SectionRule tokens={tokens} />;
+  }
+  const thickness =
+    typeof block.thicknessPt === 'number' && Number.isFinite(block.thicknessPt) && block.thicknessPt > 0
+      ? block.thicknessPt
+      : rule.sectionRuleWidthPt;
+  const color = normalizeHexColor(block.color) ?? rule.sectionRuleColor;
+  return (
+    <View
+      style={{
+        height: thickness,
+        backgroundColor: color,
         marginBottom: tokens.typography.paragraphSpacingPt,
       }}
     />
@@ -839,6 +889,293 @@ function CalloutBlock({
   );
 }
 
+/**
+ * Muted italic note used by the structural renderers for honest empty
+ * or unavailable states (never fabricated content, never silent
+ * omission).  Ink is the theme's muted text so it stays legible in
+ * monochrome.
+ */
+function StructuralNote({ tokens, text }: { tokens: BodyThemeTokens; text: string }): React.ReactElement {
+  return (
+    <Text
+      style={{
+        marginBottom: tokens.typography.paragraphSpacingPt,
+        fontStyle: 'italic',
+        color: tokens.colors.mutedText,
+      }}
+    >
+      {text}
+    </Text>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Structural content blocks (P06-M2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Metadata block (P06-M2 §5.4): an ordered two-column table of the
+ * block's SELECTED metadata fields resolved against the AUTHORITATIVE
+ * `doc.metadata` at render time — the block stores field keys only, so
+ * values can never go stale.  Field order is preserved verbatim.
+ * Unresolvable fields (removed custom fields) are skipped safely;
+ * empty values are omitted (the cover page's documented policy), and a
+ * field selection with nothing to show renders an honest note instead
+ * of `undefined`/blank rows.
+ */
+function MetadataBlock({
+  block,
+  doc,
+  contentWidth,
+  tokens,
+}: {
+  block: MetadataBlockData;
+  doc: DocStudioDocument;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const t = tokens.tables;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  if (block.visibleFields.length === 0) {
+    return <StructuralNote tokens={tokens} text="[No metadata fields selected]" />;
+  }
+  const customFields = doc.metadata.customFields;
+  const rows: { label: string; value: string }[] = [];
+  for (const field of block.visibleFields) {
+    const label = coverFieldLabel(field, customFields);
+    if (label === null) continue; // removed/unknown custom field — skip safely
+    let value: string;
+    if (field.startsWith('custom:')) {
+      const id = field.slice('custom:'.length);
+      value = customFields.find((custom) => custom.id === id)?.value ?? '';
+    } else if (field === 'createdAt' || field === 'modifiedAt') {
+      value = doc.metadata[field].slice(0, 10);
+    } else {
+      const raw = (doc.metadata as unknown as Record<string, unknown>)[field];
+      if (typeof raw !== 'string') continue;
+      value = raw;
+    }
+    const trimmed = value.trim();
+    if (trimmed === '') continue; // never render empty/undefined values
+    rows.push({ label, value: trimmed });
+  }
+  if (rows.length === 0) {
+    return <StructuralNote tokens={tokens} text="[No metadata values to display]" />;
+  }
+  // Label column: 36 % of the page content width, bounded to a readable
+  // label/value balance on narrow (A5) and wide (A3 landscape) pages.
+  const labelWidth = Math.min(220, Math.max(110, contentWidth * 0.36));
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      {rows.map((row) => (
+        <View
+          key={row.label}
+          style={{
+            flexDirection: 'row',
+            paddingVertical: t.cellPaddingVpt,
+            borderBottomWidth: t.borderWidthPt,
+            borderBottomColor: t.borderColor,
+          }}
+        >
+          <Text style={{ width: labelWidth, fontWeight: 'bold', ...textStyle }} wrap>
+            {row.label}
+          </Text>
+          <Text style={{ flex: 1, paddingHorizontal: t.cellPaddingHpt, ...textStyle }} wrap>
+            {row.value}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Revision-history block (P06-M2 §5.5): a manually edited four-column
+ * table (Revision / Date / Author / Description).  Every supported
+ * column renders, descriptions WRAP instead of clipping, and an empty
+ * table shows an honest note.  This is ordinary document content — it
+ * is not Track Changes and not a tamper-proof audit trail (Phase 07
+ * owns saved revision snapshots).
+ */
+function RevisionHistoryBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: RevisionHistoryBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const t = tokens.tables;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  if (block.entries.length === 0) {
+    return <StructuralNote tokens={tokens} text="[No revision entries recorded]" />;
+  }
+  const widths = [0.12, 0.15, 0.23, 0.5].map((fraction) => contentWidth * fraction);
+  const headers = ['Revision', 'Date', 'Author', 'Description'];
+  const renderRow = (key: string, cells: string[], isHeader: boolean): React.ReactElement => (
+    <View
+      key={key}
+      style={{
+        flexDirection: 'row',
+        borderBottomWidth: isHeader ? t.headerBorderWidthPt : t.borderWidthPt,
+        borderBottomColor: isHeader ? t.headerBorderColor : t.borderColor,
+      }}
+      wrap={false}
+    >
+      {cells.map((cell, i) => (
+        <Text
+          key={`${key}-${i}`}
+          style={{
+            width: widths[i],
+            paddingVertical: t.cellPaddingVpt,
+            paddingHorizontal: t.cellPaddingHpt,
+            ...(isHeader ? { fontWeight: t.headerWeight } : {}),
+            ...textStyle,
+          }}
+          wrap
+        >
+          {cell}
+        </Text>
+      ))}
+    </View>
+  );
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      {renderRow('rev-header', headers, true)}
+      {block.entries.map((entry) =>
+        renderRow(entry.id, [entry.revision, entry.date, entry.author, entry.description], false),
+      )}
+    </View>
+  );
+}
+
+/**
+ * Reference block (P06-M2 §5.6): optional bold title + ordered citation
+ * entries.  Citations WRAP without losing text; a stored URL becomes a
+ * real PDF link ONLY when it passes `sanitizeHref` at render time —
+ * an unsafe URL renders as ordinary non-clickable text (never a live
+ * annotation, never silently dropped).  An empty list renders an
+ * honest note.
+ */
+function ReferenceBlock({
+  block,
+  tokens,
+}: {
+  block: ReferenceBlockData;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const t = tokens.tables;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const linkColor = tokens.colors.accent;
+  const keyWidth = 48;
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      {block.title !== undefined && block.title.trim() !== '' ? (
+        <Text style={{ fontWeight: 'bold', marginBottom: 4, ...textStyle }}>{block.title}</Text>
+      ) : null}
+      {block.entries.length === 0 ? (
+        <StructuralNote tokens={tokens} text="[No references listed]" />
+      ) : (
+        block.entries.map((entry) => {
+          const href = sanitizeHref(entry.url);
+          return (
+            <View
+              key={entry.id}
+              style={{
+                flexDirection: 'row',
+                paddingVertical: t.cellPaddingVpt,
+                borderBottomWidth: t.borderWidthPt,
+                borderBottomColor: t.borderColor,
+              }}
+            >
+              <Text style={{ width: keyWidth, fontWeight: 'bold', ...textStyle }}>{entry.key}</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={textStyle} wrap>
+                  {entry.citation}
+                </Text>
+                {entry.url !== undefined && entry.url.trim() !== '' ? (
+                  href !== null ? (
+                    <Link src={href} style={{ color: linkColor, textDecoration: 'underline' }}>
+                      {entry.url}
+                    </Link>
+                  ) : (
+                    <Text style={{ color: tokens.colors.mutedText }} wrap>
+                      {entry.url}
+                    </Text>
+                  )
+                ) : null}
+              </View>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+/**
+ * Exhibit / annexure block (P06-M2 §5.7): visible label + optional
+ * title/notes, all wrapping, never silently dropped.  An optional
+ * reference to an existing embedded IMAGE asset renders that image;
+ * a MISSING or non-image asset reference renders an honest visible
+ * note instead of crashing or disappearing (the image BLOCK keeps its
+ * strict throw contract — that is a different, P06-M4 concern).
+ */
+function ExhibitBlock({
+  block,
+  doc,
+  contentWidth,
+  tokens,
+}: {
+  block: ExhibitBlockData;
+  doc: DocStudioDocument;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const asset = block.assetId !== undefined ? doc.assets[block.assetId] : undefined;
+  const imageUsable =
+    block.assetId !== undefined &&
+    asset !== undefined &&
+    asset.base64Data !== '' &&
+    asset.mimeType.startsWith('image/');
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      <Text style={{ fontWeight: 'bold', ...textStyle }} wrap>
+        {block.label}
+      </Text>
+      {block.title !== undefined && block.title.trim() !== '' ? (
+        <Text style={{ marginTop: 2, fontStyle: 'italic', ...textStyle }} wrap>
+          {block.title}
+        </Text>
+      ) : null}
+      {block.notes !== undefined && block.notes.trim() !== '' ? (
+        <Text style={{ marginTop: 2, ...textStyle }} wrap>
+          {block.notes}
+        </Text>
+      ) : null}
+      {block.assetId !== undefined ? (
+        imageUsable ? (
+          <Image
+            src={`data:${asset.mimeType};base64,${asset.base64Data}`}
+            style={{ width: contentWidth, marginTop: 4, alignSelf: 'center' }}
+          />
+        ) : (
+          <StructuralNote
+            tokens={tokens}
+            text="[Referenced exhibit asset is missing or is not a renderable image — reselect an embedded image asset]"
+          />
+        )
+      ) : null}
+    </View>
+  );
+}
+
 export function BlockRenderer({
   block,
   doc,
@@ -880,11 +1217,27 @@ export function BlockRenderer({
       // Narrow list support (P04-M3) — see ListBlock for exact scope.
       return <ListBlock block={block} tokens={tokens} />;
     case 'horizontal-line':
-      // Themed section rule (P04-M3).
-      return <SectionRule tokens={tokens} />;
+      // Themed section rule (P04-M3) or the stored rule style (P06-M2
+      // rule-style source policy — see HorizontalRuleBlock).
+      return <HorizontalRuleBlock block={block} tokens={tokens} />;
     case 'section-break':
-      // Section title + themed rule (P04-M3).
+      // Section title + themed rule (P04-M3) — an INLINE divider; it
+      // never starts a new page (P06-M2 §5.3).
       return <SectionBreakBlock block={block} tokens={tokens} />;
+    case 'metadata-block':
+      // Ordered metadata table resolved from doc.metadata (P06-M2).
+      return <MetadataBlock block={block} doc={doc} contentWidth={contentWidth} tokens={tokens} />;
+    case 'revision-history':
+      // Manually edited revision table (P06-M2 §5.5).
+      return (
+        <RevisionHistoryBlock block={block} contentWidth={contentWidth} tokens={tokens} />
+      );
+    case 'reference':
+      // Citation list with sanitized links (P06-M2 §5.6).
+      return <ReferenceBlock block={block} tokens={tokens} />;
+    case 'exhibit':
+      // Exhibit label/title/notes + optional embedded image (P06-M2 §5.7).
+      return <ExhibitBlock block={block} doc={doc} contentWidth={contentWidth} tokens={tokens} />;
     default:
       // Unsupported block in the PoC: rendered as a visible marker so the
       // gap is obvious during evaluation rather than silently dropped.
@@ -1053,9 +1406,26 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
             breaks. */}
         {doc.blocks.map((block, index) => {
           // A schema `page-break` block forces the NEXT content block to
-          // start on a new physical page.
+          // start on a new physical page (P06-M2 §5.2, verified reliable
+          // for beginning/middle/consecutive/trailing positions):
+          // • The break is applied only when real content precedes the
+          //   break chain, so a leading break never creates an empty
+          //   first page.
+          // • Consecutive page breaks collapse into ONE page boundary
+          //   (the intervening markers render zero-height and do not
+          //   wrap in a breaking View), so repeated breaks never emit
+          //   unintended blank pages; the markers themselves are never
+          //   removed from the document.  A deliberate blank page can be
+          //   made with an empty paragraph between two breaks.
+          // • A trailing break has no following block, so it never
+          //   appends a blank trailing page.
+          const isPageBreak = (candidate: (typeof doc.blocks)[number]): boolean =>
+            candidate.data.type === 'page-break';
           const forceBreak =
-            index > 0 && doc.blocks[index - 1].data.type === 'page-break';
+            index > 0 &&
+            isPageBreak(doc.blocks[index - 1]) &&
+            !isPageBreak(block) &&
+            doc.blocks.slice(0, index - 1).some((previous) => !isPageBreak(previous));
           const renderer = (
             <BlockRenderer
               block={block.data}
