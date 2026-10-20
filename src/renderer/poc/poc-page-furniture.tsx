@@ -7,29 +7,22 @@
  * (project_details.md §9: "must be part of the final document rendering,
  * not UI-only overlays").
  *
- * DECISION BOUNDARY — PARTIALLY WIRED INTO `PocDocument`
- * ────────────────────────────────────────────────────
- * The WATERMARK layer below IS wired into `PocDocument` (P06-M1): the
- * legacy furniture had no watermark concept at all, and
- * `WatermarkLayer` returns `null` while the watermark is disabled, so
- * every committed render baseline (watermarks off) keeps its exact
- * bytes — no fixture, assertion or baseline is touched.
- *
- * The HEADER/FOOTER GRIDS are complete but NOT activated yet.  Replacing
- * the original hard-coded furniture (the "{documentId} - DocStudio
- * Renderer Proof of Concept" header line and the fixed "Page X of Y"
- * footer of P02-M4) with the settings-driven band layer necessarily
- * changes the bytes of every committed render baseline (P02-M4 fixture
- * PDF, P04-M2-M4 gallery artifacts — see DEC-006/DEC-008): any
- * document's output differs, because the old header text, the old
- * footer placement (the off-page DEC-006 defect) and the default grid's
- * per-page suppression cannot be reproduced from the grid model.  No
- * compatibility trick exists that is not a fixture/test-identity or
- * hidden-mode special case (forbidden), so the band-activation step
- * awaits the owner's explicit baseline-regeneration authorization
- * (DEC-008).  The components below are complete and verified against
- * their own renders by verify_p06_m1.mjs; only the band activation
- * inside `PocDocument` is deferred.
+ * DECISION BOUNDARY — FULLY WIRED INTO `PocDocument` (DEC-008)
+ * ───────────────────────────────────────────────────────────────
+ * As of DEC-008 option (a) (owner-authorized 2026-10-20), `PocDocument`
+ * renders `PocConfiguredFurniture` — the header/footer GRIDS and the
+ * watermark below — INSTEAD of the legacy hard-coded `PocPageFurniture`.
+ * The activation changed the bytes of the committed P02-M4 render
+ * baseline and the P06-M1 real-path watermark artifact; the affected
+ * baselines were regenerated under the explicit `UPDATE_ARTIFACTS=1`
+ * path and the obsolete historical-blob equality assertions were
+ * revised to strict comparisons against the new approved baseline
+ * (roadmap `P06-M1-DEC008` entry records old/new SHA-256 values).
+ * The legacy `PocPageFurniture` itself is untouched and remains mounted
+ * by the P04-M3 theme gallery only (its pre-existing DEC-006 footer
+ * defect therefore persists on that surface — DEC-006 stays OPEN).
+ * The probe (`poc-furniture-probe.tsx`) is preserved as supplementary
+ * evidence of this same layer on a dedicated surface.
  *
  * Engine geometry facts (verified empirically against the renderer in
  * P06-M1, not assumed)
@@ -309,9 +302,9 @@ interface WatermarkProps {
  * keeping `fixed` and the per-page concerns separate (geometry notes
  * above).
  *
- * EXPORTED (P06-M1): `PocDocument` renders this layer alongside the
- * legacy furniture — it returns `null` while the watermark is disabled,
- * which is exactly what keeps every committed baseline byte-identical.
+ * EXPORTED: mounted through `PocConfiguredFurniture` in `PocDocument`
+ * (and directly by the probe); it returns `null` while the watermark is
+ * disabled, which keeps watermark-off renders deterministic.
  *
  * The stored (positionX, positionY) fractions are measured over the
  * content column from the paper corner (model JSDoc); rotation is
@@ -366,11 +359,10 @@ export function WatermarkLayer({ doc }: WatermarkProps): React.ReactElement | nu
 /**
  * The complete settings-driven furniture layer for a body page:
  * header grid + footer grid + watermark, all from `doc.headerFooter`.
- * Designed to replace `PocPageFurniture` inside `PocDocument` once the
- * owner authorizes the baseline regeneration (module doc).  Until then
- * `PocDocument` renders `WatermarkLayer` from this module alongside the
- * legacy furniture, so watermark settings already reach the live
- * document path.
+ *
+ * ACTIVATED (DEC-008 option (a), 2026-10-20): `PocDocument` renders
+ * this component in place of the legacy `PocPageFurniture`; the probe
+ * surface renders it too, as supplementary evidence.
  */
 export function PocConfiguredFurniture({
   doc,

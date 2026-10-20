@@ -522,14 +522,17 @@ await testAsync('13. the supported PDF rendering path uses the resolved framewor
   assert.ok(pageCount(pdfMinimalist) >= 2 && pageCount(pdfFramed) >= 2, 'themed renders paginate');
 });
 
-await testAsync('14. P02-M4 baseline PDF remains byte-identical to the committed reference', async () => {
-  const committed = gitShow(`${BASELINE_COMMIT}:fixtures/p02-m4/renderer-poc-output.pdf`);
+await testAsync('14. P02-M4 baseline PDF byte-matches the committed approved reference (DEC-008 baseline)', async () => {
+  // The APPROVED baseline is the committed working-tree fixture (fresh
+  // render must equal it exactly); the pre-transition artifact stays
+  // retrievable from git history, and the transition is only valid while
+  // the approved baseline genuinely supersedes it.
+  const committed = readFileSync(fixturePath);
   assert.ok(isPdf(committed), 'committed baseline is a genuine PDF');
-  // The working-tree fixture is still the committed baseline (this suite
-  // never writes it; verify_p02_m4 regenerates it only when run).
-  const working = readFileSync(fixturePath);
-  assert.equal(working.length, committed.length, 'working fixture same length as committed');
-  assert.equal(Buffer.compare(working, committed), 0, 'working fixture equals committed baseline');
+  const historical = gitShow(`${BASELINE_COMMIT}:fixtures/p02-m4/renderer-poc-output.pdf`);
+  assert.ok(isPdf(historical), 'pre-transition baseline preserved in git history');
+  assert.notEqual(Buffer.compare(committed, historical), 0,
+    'approved baseline intentionally diverged under the authorized DEC-008 transition');
   // The fresh render of the default fixture is byte-identical to it.
   assert.equal(pdfDefault.length, committed.length,
     `fresh render ${pdfDefault.length} B vs committed ${committed.length} B`);

@@ -24,8 +24,12 @@
  *   (`services/typography-tokens.ts`) scaled by the configured base font
  *   size (P04-M1, project_details.md §8.2); Times-Bold with inline
  *   bold/italic/underline spans mapped to nested <Text> styles.
- * • Display header — the fixed body-page header honors
- *   `pageTypography.displayHeader` (P04-M1, §8.4).
+ * • Page furniture — header/footer GRIDS and page numbering come from
+ *   the authoritative `doc.headerFooter` settings (P06-M1, §9; band
+ *   activation authorized as DEC-008 option (a) on 2026-10-20), with
+ *   `pageTypography.displayHeader` staying the master switch for the
+ *   header grid (P04-M1, §8.4).  The legacy hard-coded `PocPageFurniture`
+ *   remains exported for the P04-M3 theme gallery only.
  * • Body themes   — `pageTypography.bodyThemeId` + `monochrome` resolve
  *   through `services/body-theme-tokens.ts` (P04-M2) into ONE token set
  *   consumed everywhere below; the stylesheet holds only engine-level
@@ -37,8 +41,10 @@
  *   composed of flex rows with fixed column widths and unbreakable rows
  *   (wrap={false}), so a row moves to the next page whole.
  * • Page breaks  — the schema `page-break` block maps to the `break` prop.
- * • Page numbers — fixed footer text using the `render` prop
- *   (pageNumber / totalPages), repeated on every page.
+ * • Page numbers — resolved per page from the band's §9
+ *   `pageNumberFormat` (`Page X of Y` / `X/Y` / `X` / `none`) through the
+ *   engine's actual `{ pageNumber, totalPages }` (see
+ *   `poc-page-furniture.tsx` for the geometry and suppression rules).
  * • Images       — embedded base64 assets render as data URIs (exactly how
  *   `.docstudio` assets are stored); a missing asset throws a clear error
  *   instead of silently omitting content.
@@ -85,7 +91,7 @@ import {
 import { computeListLabels } from '../../services/list-numbering';
 import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
 import { PocCoverPage } from './poc-cover-page';
-import { WatermarkLayer } from './poc-page-furniture';
+import { PocConfiguredFurniture } from './poc-page-furniture';
 import { allocateTableColumnWidths, estimateRowHeightPt, tableColumnCount } from './table-layout';
 
 /** mm → pt conversion (1 mm = 72 / 25.4 pt). */
@@ -1019,11 +1025,9 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
       modificationDate={new Date(doc.metadata.modifiedAt)}
     >
       {/* Designed cover (P04-M4): rendered as a separate first page when
-          enabled. It carries NO body furniture — no display header, no
-          page numbering, no watermark — so the pre-existing off-page
-          footer defect (DEC-006, body pages only) cannot reach the cover,
-          and the body-only path below is byte-identical when the cover
-          is off. */}
+          enabled. It carries NO body furniture — no header/footer grid,
+          no page numbering, no watermark — so the cover stays clean and
+          the configured bands below (DEC-008) can never reach it. */}
       {doc.frontPage.enabled && <PocCoverPage doc={doc} />}
       <Page
         size={PAGE_FORMATS[size]}
@@ -1031,16 +1035,16 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
         style={pocPageStyle(doc, tokens)}
         wrap
       >
-        <PocPageFurniture doc={doc} tokens={tokens} />
-
-        {/* Watermark (P06-M1, §9): the document's stored watermark
-            settings rendered as REAL page furniture. The legacy
-            furniture above is unchanged (DEC-006/DEC-008); this layer
-            renders nothing — literally `null` — while the watermark is
-            disabled, so every committed baseline (watermarks off) keeps
-            its exact bytes, while an enabled watermark now reaches the
-            live preview and export through the normal document path. */}
-        <WatermarkLayer doc={doc} />
+        {/* Page furniture (P06-M1 §9; DEC-008 option (a) authorized
+            2026-10-20): the AUTHORITATIVE `doc.headerFooter` header and
+            footer grids, per-band page-number modes, first-body-page
+            suppression and the watermark — the settings the left panel
+            edits, rendered as REAL page furniture. This replaces the
+            legacy hard-coded `PocPageFurniture` path (baseline
+            transition authorized and recorded in the roadmap); that
+            component itself is untouched and still mounts in the P04-M3
+            theme gallery. */}
+        <PocConfiguredFurniture doc={doc} tokens={tokens} />
 
         {/* Blocks are rendered as DIRECT children of <Page> on purpose:
             react-pdf v4 only honors the `break` prop on direct Page

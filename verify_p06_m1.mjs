@@ -20,12 +20,13 @@
  *     `duplicateDocument` settings identity;
  *  7. probe PDFs — the settings-driven `PocConfiguredFurniture` grid and
  *     watermark rendered per physical page by the REAL react-pdf engine
- *     (the probe exists because grid activation inside `PocDocument` is
- *     deferred — see below);
- *  8. real-path guards — P02-M4 and P04-M3 byte identity, watermark
- *     on→off byte-neutrality, and the DEC-006/DEC-008 boundary: a header
- *     grid patch must NOT change `PocDocument` output while bands are not
- *     activated;
+ *     (preserved as supplementary evidence after DEC-008 activation);
+ *  8. real-path (DEC-008 option (a), authorized 2026-10-20) — the grids
+ *     are ACTIVE inside `PocDocument`: committed-baseline byte identity,
+ *     per-band switches, all four page-number modes, token resolution,
+ *     first-body-page suppression + cover exclusion, `displayHeader`
+ *     scoping, watermark drawn exactly once, and pdfjs-verified band
+ *     LAYOUT positions (on-page, in the margin bands, no body overlap);
  *  9. panel behaviour under a real jsdom + real React runtime.
  *
  * HONEST SCOPE NOTES (also recorded in project_roadmap.md)
@@ -33,9 +34,11 @@
  * • The draft wording "removing the last row disables the band" is
  *   implemented as a REJECTION (`too-few-rows`) instead: a band always
  *   keeps at least one row.  The actual behaviour is asserted as-is.
- * • The header/footer GRID bands are NOT activated inside `PocDocument`
- *   (DEC-006/DEC-008 baseline boundary); the watermark IS.  Test 10.5
- *   asserts the byte-identity consequence of that boundary.
+ * • DEC-008 activation changed the committed P02-M4 baseline and this
+ *   suite's real-path watermark artifact; regeneration is ONLY via
+ *   `UPDATE_ARTIFACTS=1` (normal runs fail on a missing/stale artifact
+ *   and never write).  Test 10.5 asserts the activated boundary (grid
+ *   patches DO change `PocDocument` output now).
  * • The native Windows colour-picker UI itself cannot be driven from
  *   Node — the panel's authoritative native-listener apply path IS
  *   driven here (11.11); the picker dialog remains an owner retest.
@@ -56,6 +59,9 @@ const require = createRequire(import.meta.url);
 const root = path.dirname(new URL(import.meta.url).pathname.replace(/^\//, ''));
 const OUT_DIR = path.join(root, 'fixtures', 'p06-m1');
 const CACHE = path.join(root, 'node_modules', '.cache', 'ds-p06-m1-verify');
+// DEC-008 baseline policy: committed artifacts are APPROVED evidence.
+// Normal runs verify and never write; UPDATE_ARTIFACTS=1 regenerates.
+const UPDATE_ARTIFACTS = process.env.UPDATE_ARTIFACTS === '1';
 
 // ── Test harness ────────────────────────────────────────────────────────────
 let passed = 0;
@@ -775,9 +781,25 @@ const countOf = (text, needle) => compact(text).split(compact(needle)).length - 
 
 const probeBuffer = async (doc) => Buffer.from(await renderFurnitureProbePdfBytes(doc));
 const probeTexts = async (doc) => pdfPages(await probeBuffer(doc)).map((p) => pageText(p));
+/**
+ * Committed-artifact policy (DEC-008): a normal run verifies the fresh
+ * render against the committed artifact and FAILS when it is missing or
+ * stale — it NEVER writes.  `UPDATE_ARTIFACTS=1` is the explicit
+ * opt-in regeneration path.
+ */
 const storeArtifact = (name, buf) => {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(path.join(OUT_DIR, name), buf);
+  const p = path.join(OUT_DIR, name);
+  if (UPDATE_ARTIFACTS) {
+    fs.writeFileSync(p, buf);
+    console.log(`      regenerated artifact ${name} (${buf.length} B)`);
+    return;
+  }
+  assert.ok(fs.existsSync(p),
+    `${name}: committed artifact missing - run UPDATE_ARTIFACTS=1 to generate it`);
+  assert.ok(buf.equals(fs.readFileSync(p)),
+    `${name}: fresh render must byte-match the committed artifact (run UPDATE_ARTIFACTS=1 to regenerate)`);
+  console.log(`      verified artifact ${name} (${buf.length} B) matches committed copy`);
 };
 
 await test('9.1 default probe: 3 pages, default grid tokens on body pages, first page suppressed', async () => {
@@ -788,12 +810,8 @@ await test('9.1 default probe: 3 pages, default grid tokens on body pages, first
   const again = await probeBuffer(doc);
   assert.ok(bytes.equals(again), 'probe render is deterministic');
 
-  const artPath = path.join(OUT_DIR, 'furniture-probe-default.pdf');
-  if (fs.existsSync(artPath)) {
-    assert.ok(bytes.equals(fs.readFileSync(artPath)), 'byte-identical to the committed probe artifact');
-  } else {
-    console.log('      (bootstrapping fixtures/p06-m1/furniture-probe-default.pdf)');
-  }
+  // Committed-artifact guard (never silently rewritten): storeArtifact
+  // byte-verifies against fixtures/p06-m1/furniture-probe-default.pdf.
   storeArtifact('furniture-probe-default.pdf', bytes);
 
   const texts = pdfPages(bytes).map((p) => pageText(p));
@@ -1004,22 +1022,33 @@ await test('9.10 watermark disabled or blank renders NOTHING (byte-identical pai
 // ═══════════════════════════════════════════════════════════════════════════
 // 10. Real path: PocDocument integration + committed-baseline guards
 // ═══════════════════════════════════════════════════════════════════════════
-group('real path: PocDocument integration and byte-identity guards');
+group('real path: activated furniture (DEC-008) + byte-identity guards');
 
 let freshRender = null;
 
-await test('10.1 fresh fixture render byte-matches the committed P02-M4 baseline (git blob 2f31e02)', async () => {
+await test('10.1 fresh fixture render byte-matches the committed approved baseline (DEC-008 transition)', async () => {
   freshRender = Buffer.from(await renderDocPdfBytes(buildPocFixture()));
   assert.ok(isPdf(freshRender), 'valid PDF');
+  // The APPROVED baseline is the committed working-tree fixture; a
+  // missing or stale fixture fails here (regenerate ONLY via
+  // UPDATE_ARTIFACTS=1 on verify_p02_m4.mjs).
+  const committedPath = path.join(root, 'fixtures', 'p02-m4', 'renderer-poc-output.pdf');
+  assert.ok(fs.existsSync(committedPath),
+    'committed baseline missing - run UPDATE_ARTIFACTS=1 (verify_p02_m4) to approve it');
+  const committed = fs.readFileSync(committedPath);
+  assert.equal(freshRender.length, committed.length,
+    `fresh ${freshRender.length} B vs committed ${committed.length} B`);
+  assert.ok(freshRender.equals(committed), 'byte-identical to the committed approved baseline');
+  // The PRE-transition baseline stays retrievable from git history, and
+  // the authorized DEC-008 activation genuinely superseded it.
   const blob = execSync('git show 2f31e02:fixtures/p02-m4/renderer-poc-output.pdf', {
     cwd: root,
     maxBuffer: 64 * 1024 * 1024,
     encoding: 'buffer',
   });
-  assert.equal(freshRender.length, blob.length, 'same byte length');
-  assert.ok(freshRender.equals(blob), 'byte-identical to the committed baseline');
-  const working = fs.readFileSync(path.join(root, 'fixtures', 'p02-m4', 'renderer-poc-output.pdf'));
-  assert.ok(working.equals(freshRender), 'working-tree fixture byte-matches a fresh render');
+  assert.ok(isPdf(blob), 'pre-transition baseline preserved in git history');
+  assert.ok(!freshRender.equals(blob),
+    'renderer intentionally diverged under the authorized DEC-008 transition');
 });
 
 await test('10.2 theme-gallery artifacts byte-match fresh renders (P04-M3 regression guard)', async () => {
@@ -1067,18 +1096,261 @@ await test('10.4 watermark on→off returns the exact baseline bytes (byte-neutr
   assert.ok(offBytes.equals(freshRender), 'byte-identical to the committed baseline');
 });
 
-await test('10.5 DEC-006/DEC-008 BOUNDARY: a header-grid patch leaves PocDocument output byte-identical', async () => {
+await test('10.5 DEC-008 ACTIVATED: grid patches change PocDocument output and render configured text', async () => {
   let doc = buildPocFixture();
   doc = setCell(doc, 'header', 0, 0, 'GRID-SENTINEL', T0);
-  doc = setBand(doc, 'header', { field: 'addRow' }, T0); // structural grid change, also deferred
   const bytes = Buffer.from(await renderDocPdfBytes(doc));
-  assert.equal(bytes.length, freshRender.length, 'grid patch changed no bytes');
-  assert.ok(bytes.equals(freshRender), 'byte-identical — bands are NOT activated in PocDocument yet');
-  const text = latin1(bytes);
-  assert.ok(!text.includes('GRID-SENTINEL'), 'configured grid text absent from the real path');
-  const p1 = pageText(pdfPages(bytes)[0]);
-  assert.ok(has(p1, 'DocStudio Renderer Proof of Concept'), 'legacy header furniture still rendered');
-  assert.ok(has(p1, 'Page 1 of 3'), 'legacy footer furniture still rendered');
+  assert.ok(!bytes.equals(freshRender), 'grid cell patch changed the bytes - bands are ACTIVE in PocDocument');
+  const texts = pdfPages(bytes).map((p) => pageText(p));
+  const [p1, p2] = texts;
+  assert.ok(has(p2, 'GRID-SENTINEL'), 'configured header cell text renders on body pages');
+  assert.ok(!has(p1, 'GRID-SENTINEL'), 'first body page still suppressed (page-1 rule unaffected)');
+  assert.ok(!has(p2, 'DocStudio Renderer Proof of Concept'),
+    'legacy hard-coded header is gone from the real path');
+  // Structural grid changes reach the output too.
+  const grew = Buffer.from(await renderDocPdfBytes(setBand(doc, 'header', { field: 'addRow' }, T0)));
+  assert.ok(!grew.equals(bytes), 'structural grid change (addRow) changed the bytes');
+  // The legacy fixed footer rendered "Page 1 of 3" on EVERY page including
+  // the first; the configured footer is suppressed there instead.
+  assert.ok(!has(p1, 'Page 1 of 3'), 'legacy page-1 footer is gone (first page suppressed instead)');
+});
+
+// ── DEC-008 real-path coverage (§9/§3.4-3.8 of the follow-up task) ──────────
+
+await test('10.6 per-band switches are independent (real path): a disabled band emits no content', async () => {
+  // Header OFF, footer kept.
+  let headerOff = buildPocFixture();
+  headerOff = setCell(headerOff, 'header', 0, 0, 'HDR-SENTINEL', T0);
+  headerOff = setCell(headerOff, 'footer', 0, 0, 'FTR-SENTINEL', T0);
+  headerOff = setBand(headerOff, 'header', { field: 'enabled', value: false }, T0);
+  const hPages = pdfPages(Buffer.from(await renderDocPdfBytes(headerOff))).map((p) => pageText(p));
+  assert.ok(hPages.length >= 3, `multipage (${hPages.length} pages)`);
+  hPages.forEach((t, i) => {
+    assert.ok(!has(t, 'HDR-SENTINEL'), `page ${i + 1}: disabled header emits no cell text`);
+    assert.ok(!has(t, 'SOP-POC-004'), `page ${i + 1}: default header cell absent too`);
+  });
+  assert.ok(has(hPages[1], 'FTR-SENTINEL') && has(hPages[2], 'FTR-SENTINEL'),
+    'footer band unaffected by the header switch');
+  assert.equal(countOf(hPages[1], 'Page 2 of 3'), 1,
+    'page 2 numbered only by the footer (header right cell gone)');
+
+  // Footer OFF, header kept.
+  let footerOff = buildPocFixture();
+  footerOff = setCell(footerOff, 'header', 0, 0, 'HDR-SENTINEL', T0);
+  footerOff = setCell(footerOff, 'footer', 0, 0, 'FTR-SENTINEL', T0);
+  footerOff = setBand(footerOff, 'footer', { field: 'enabled', value: false }, T0);
+  const fPages = pdfPages(Buffer.from(await renderDocPdfBytes(footerOff))).map((p) => pageText(p));
+  fPages.forEach((t, i) => {
+    assert.ok(!has(t, 'FTR-SENTINEL'), `page ${i + 1}: disabled footer emits no cell text`);
+    assert.ok(!has(t, 'DocStudio Proof-of-Concept Laboratory'), `page ${i + 1}: default footer cell absent too`);
+  });
+  assert.ok(has(fPages[1], 'HDR-SENTINEL') && has(fPages[2], 'HDR-SENTINEL'),
+    'header band unaffected by the footer switch');
+  assert.equal(countOf(fPages[1], 'Page 2 of 3'), 1,
+    'page 2 numbered only by the header (footer right cell gone)');
+});
+
+await test('10.7 all four 9 page-number modes render their exact literals (real path, multipage)', async () => {
+  const modes = [
+    { value: 'Page X of Y', page2: 'NUM Page 2 of 3', page3: 'NUM Page 3 of 3' },
+    { value: 'X/Y', page2: 'NUM 2/3', page3: 'NUM 3/3' },
+    { value: 'X', page2: 'NUM 2', page3: 'NUM 3' },
+    { value: 'none', page2: 'NUM', page3: 'NUM' },
+  ];
+  for (const mode of modes) {
+    let d = buildPocFixture();
+    d = setCell(d, 'footer', 0, 1, 'NUM{pageNumber}', T0);
+    d = setBand(d, 'footer', { field: 'pageNumberFormat', value: mode.value }, T0);
+    const pages = pdfPages(Buffer.from(await renderDocPdfBytes(d))).map((p) => pageText(p));
+    assert.ok(has(pages[1], mode.page2), `mode "${mode.value}": page 2 shows "${mode.page2}"`);
+    assert.ok(has(pages[2], mode.page3), `mode "${mode.value}": page 3 shows "${mode.page3}"`);
+    assert.ok(!has(pages[0], 'NUM'), `mode "${mode.value}": suppressed page 1 carries no band text`);
+    if (mode.value === 'none') {
+      assert.ok(!has(pages[1], 'NUM 2') && !has(pages[1], 'NUM Page'),
+        'mode "none": number suppressed, sentinel alone remains');
+    }
+  }
+});
+
+await test('10.8 token substitution resolves; unknown/empty values never render "undefined" (real path)', async () => {
+  let d = buildPocFixture();
+  d = setCell(d, 'header', 0, 0, '{documentId}|{organizationName}|{pageNumber}', T0);
+  d = setBand(d, 'header', { field: 'pageNumberFormat', value: 'X/Y' }, T0);
+  d = setCell(d, 'footer', 0, 0, 'TC-{pageCount}|{organizationName}', T0);
+  const pages = pdfPages(Buffer.from(await renderDocPdfBytes(d))).map((p) => pageText(p));
+  assert.ok(has(pages[1], 'SOP-POC-004|DocStudio Proof-of-Concept Laboratory|2/3'),
+    'documentId + organizationName + formatted pageNumber resolve on page 2');
+  assert.ok(has(pages[2], 'SOP-POC-004|DocStudio Proof-of-Concept Laboratory|3/3'),
+    'the same cell resolves per physical page on page 3');
+  // `{pageCount}` is NOT one of the existing contract's tokens
+  // (DOCUMENTED_TOKENS = documentId / organizationName / pageNumber):
+  // unknown tokens are preserved literally, and the total page count
+  // reaches cells through the §9 formats ("Page X of Y", "X/Y" above).
+  assert.ok(has(pages[1], 'TC-{pageCount}|DocStudio Proof-of-Concept Laboratory'),
+    'unknown {pageCount} preserved literally per the existing service contract; org still resolves');
+
+  // Empty metadata -> empty text, never "undefined".
+  let empty = buildPocFixture();
+  empty.metadata = { ...empty.metadata, documentId: '', organizationName: '' };
+  empty = setCell(empty, 'header', 0, 0, '[{documentId}][{organizationName}]', T0);
+  const ePages = pdfPages(Buffer.from(await renderDocPdfBytes(empty))).map((p) => pageText(p));
+  ePages.forEach((t, i) => {
+    assert.ok(!t.includes('undefined'), `page ${i + 1}: no "undefined" anywhere in the text`);
+  });
+  assert.ok(has(ePages[1], '[][]'), 'empty metadata resolves to empty strings');
+});
+
+await test('10.9 cover never carries bands; suppressOnFirstPage hides the first BODY page (real path)', async () => {
+  let d = buildPocFixture();
+  d = setCell(d, 'header', 0, 0, 'BAND-HDR', T0);
+  d = setCell(d, 'footer', 0, 0, 'BAND-FTR', T0);
+  d.frontPage = { ...d.frontPage, enabled: true };
+  const pages = pdfPages(Buffer.from(await renderDocPdfBytes(d))).map((p) => pageText(p));
+  assert.equal(pages.length, 4, `cover + 3 body pages (got ${pages.length})`);
+  // Physical page 1 = designed cover: NO body furniture whatsoever.
+  assert.ok(!has(pages[0], 'BAND-HDR') && !has(pages[0], 'BAND-FTR'), 'cover carries no bands');
+  assert.ok(!has(pages[0], 'Page 1 of 4'), 'cover carries no page numbering');
+  // Physical page 2 = first BODY page: default suppressOnFirstPage hides it.
+  assert.ok(!has(pages[1], 'BAND-HDR') && !has(pages[1], 'BAND-FTR'),
+    'first body page suppressed by its own rule');
+  // Later body pages carry both bands with document-global numbering.
+  assert.ok(has(pages[2], 'BAND-HDR') && has(pages[2], 'BAND-FTR'),
+    'second body page carries both bands');
+  assert.ok(has(pages[2], 'Page 3 of 4'), 'numbering uses PHYSICAL page numbers (cover counts)');
+  assert.ok(has(pages[3], 'Page 4 of 4'), 'last page numbered');
+});
+
+await test('10.10 8.4 displayHeader suppresses ONLY the header grid (real path; footer unaffected)', async () => {
+  let d = buildPocFixture();
+  d = setCell(d, 'header', 0, 0, 'DISPLAY-HDR', T0);
+  d = setCell(d, 'footer', 0, 0, 'DISPLAY-FTR', T0);
+  d.pageTypography = { ...d.pageTypography, displayHeader: false };
+  const pages = pdfPages(Buffer.from(await renderDocPdfBytes(d))).map((p) => pageText(p));
+  pages.forEach((t, i) => {
+    assert.ok(!has(t, 'DISPLAY-HDR'), `page ${i + 1}: header grid suppressed by displayHeader=false`);
+    assert.ok(!has(t, 'SOP-POC-004'), `page ${i + 1}: default header cell suppressed too`);
+  });
+  assert.ok(!has(pages[0], 'DISPLAY-FTR'),
+    'page 1 footer suppressed by its own first-page rule (not by displayHeader)');
+  assert.ok(has(pages[1], 'DISPLAY-FTR') && has(pages[2], 'DISPLAY-FTR'),
+    'footer unaffected by displayHeader');
+});
+
+await test('10.11 watermark drawn EXACTLY ONCE per body page; blank text renders nothing (real path)', async () => {
+  let d = buildPocFixture();
+  d = setWm(d, { field: 'enabled', value: true }, T0);
+  d = setWm(d, { field: 'text', value: 'WM-ONCE' }, T0);
+  const onPages = pdfPages(Buffer.from(await renderDocPdfBytes(d))).map((p) => pageText(p));
+  assert.ok(onPages.length >= 3, `multipage (${onPages.length} pages)`);
+  onPages.forEach((t, i) => {
+    assert.equal(countOf(t, 'WM-ONCE'), 1, `page ${i + 1}: watermark drawn exactly once`);
+  });
+  // Enabled + blank text: the layer is not mounted - byte-identical to
+  // the watermark-off baseline render (nothing rendered at all).
+  const blank = setWm(d, { field: 'text', value: '' }, T0);
+  const blankBytes = Buffer.from(await renderDocPdfBytes(blank));
+  assert.ok(blankBytes.equals(freshRender),
+    'enabled-but-blank watermark is byte-identical to the baseline (layer not mounted)');
+});
+
+await test('10.12 band LAYOUT: on-page, inside the margin bands, no body overlap (pdfjs positions)', async () => {
+  // Real glyph positions from pdfjs (not props, not raw stream guesses).
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const task = pdfjs.getDocument({
+    data: new Uint8Array(freshRender), // COPY: pdfjs detaches its input
+    useWorkerFetch: false,
+    isEvalSupported: false,
+    useSystemFonts: false,
+    standardFontDataUrl:
+      path.join(root, 'node_modules', 'pdfjs-dist', 'standard_fonts').replace(/\\/g, '/') + '/',
+    verbosity: 0,
+  });
+  const pdf = await task.promise;
+  try {
+    assert.equal(pdf.numPages, 3, 'multipage default fixture');
+    const A4 = { w: 595.28, h: 841.89 };
+    const margin = 25 * (72 / 25.4); // fixture margins: 25 mm = 70.87 pt
+    const HEADER_Y = 775; // above the content top (771.0) = top margin band
+    const FOOTER_Y = 65; // below the content bottom (70.87) = bottom margin band
+    for (let i = 1; i <= pdf.numPages; i += 1) {
+      const page = await pdf.getPage(i);
+      const items = (await page.getTextContent()).items
+        .filter((it) => it.str && it.str.trim() !== '')
+        .map((it) => ({ x: it.transform[4], y: it.transform[5], s: it.str }));
+      for (const it of items) {
+        assert.ok(it.y > -1 && it.y < A4.h + 1,
+          `page ${i}: every glyph ON the page (y=${it.y.toFixed(1)}: ${JSON.stringify(it.s.slice(0, 28))})`);
+        assert.ok(it.x > -1 && it.x < A4.w + 1,
+          `page ${i}: every glyph within the page width (x=${it.x.toFixed(1)})`);
+      }
+      const header = items.filter((it) => it.y > HEADER_Y);
+      const footer = items.filter((it) => it.y < FOOTER_Y);
+      const body = items.filter((it) => it.y >= FOOTER_Y && it.y <= HEADER_Y);
+      const textOf = (arr) => arr.map((it) => it.s).join(' ');
+      if (i === 1) {
+        assert.equal(header.length, 0, 'page 1: header band suppressed (nothing above the content area)');
+        assert.equal(footer.length, 0, 'page 1: footer band suppressed (nothing below the content area)');
+        continue;
+      }
+      assert.ok(has(textOf(header), 'SOP-POC-004'), `page ${i}: header cell inside the top margin band`);
+      assert.ok(has(textOf(header), `Page ${i} of 3`), `page ${i}: header numbering inside the top band`);
+      assert.ok(has(textOf(footer), 'DocStudio Proof-of-Concept Laboratory'),
+        `page ${i}: footer cell inside the bottom margin band`);
+      assert.ok(has(textOf(footer), `Page ${i} of 3`),
+        `page ${i}: footer numbering VISIBLE at the bottom (DEC-006 class fixed on this path)`);
+      // No overlap: body strictly between the two bands.
+      const bodyTop = Math.max(...body.map((it) => it.y));
+      const bodyBottom = Math.min(...body.map((it) => it.y));
+      assert.ok(bodyTop < Math.min(...header.map((it) => it.y)),
+        `page ${i}: body stays below the header band (bodyTop=${bodyTop.toFixed(1)} < header=${Math.min(...header.map((it) => it.y)).toFixed(1)})`);
+      assert.ok(bodyBottom > Math.max(...footer.map((it) => it.y)),
+        `page ${i}: body stays above the footer band (bodyBottom=${bodyBottom.toFixed(1)} > footer=${Math.max(...footer.map((it) => it.y)).toFixed(1)})`);
+      // Printable column confinement (horizontal margins respected).
+      for (const it of [...header, ...footer]) {
+        assert.ok(it.x > margin - 5 && it.x < A4.w - margin,
+          `page ${i}: band glyph inside the printable column (x=${it.x.toFixed(1)})`);
+      }
+      // Per-cell alignment from the settings: default grid = left cell
+      // left-aligned, right cell right-aligned within its half-column.
+      const leftCell = header.find((it) => it.s.includes('SOP-POC-004'));
+      const rightCell = header.find((it) => it.s.includes(`Page ${i} of 3`));
+      assert.ok(leftCell && rightCell, `page ${i}: both header cells located`);
+      assert.ok(leftCell.x < A4.w / 2 && rightCell.x > A4.w / 2,
+        `page ${i}: cell alignment honored (left x=${leftCell.x.toFixed(1)}, right x=${rightCell.x.toFixed(1)})`);
+    }
+  } finally {
+    await pdf.destroy();
+  }
+});
+
+await test('10.13 DEC-006 evidence: real path clean, legacy gallery surface still defective (stays OPEN)', () => {
+  const inflateAll = (buf) => {
+    const text = latin1(buf);
+    const out = [];
+    const re = /\bstream\r?\n/g;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      const start = m.index + m[0].length;
+      const end = text.indexOf('endstream', start);
+      if (end === -1) break;
+      try { out.push(zlib.inflateSync(buf.subarray(start, end)).toString('latin1')); } catch { /* skip */ }
+      re.lastIndex = end;
+    }
+    return out.join('\n');
+  };
+  // Real document path: configured grid - NO off-page footer transform.
+  const freshSig = inflateAll(freshRender).match(/1 0 0 1 0 -\d[\d.]* cm/g) || [];
+  assert.equal(freshSig.length, 0,
+    'real path carries no off-page footer transforms (DEC-006 class fixed here by DEC-008)');
+  // Legacy surface: the P04-M3 gallery still mounts `PocPageFurniture`,
+  // whose bottom-anchored `render` footer keeps the recorded defect - so
+  // DEC-006 REMAINS APPLICABLE and stays OPEN (disposition updated with
+  // this evidence in project_roadmap.md).
+  const gallery = fs.readFileSync(path.join(root, 'fixtures', 'p04-m3', 'theme-gallery.pdf'));
+  const legacySig = inflateAll(gallery).match(/1 0 0 1 0 -\d[\d.]* cm/g) || [];
+  console.log(`      (legacy gallery off-page transforms: ${legacySig.slice(0, 3).join(', ')}${legacySig.length > 3 ? ', ...' : ''})`);
+  assert.ok(legacySig.length > 0,
+    'legacy PocPageFurniture footer defect still present in the P04-M3 gallery - DEC-006 stays OPEN');
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
