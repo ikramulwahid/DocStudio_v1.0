@@ -4,12 +4,14 @@ import { DocumentInfoPanel } from './DocumentInfoPanel';
 import { LabProfilePanel } from './LabProfilePanel';
 import { PageTypographyPanel } from './PageTypographyPanel';
 import { FrontPagePanel } from './FrontPagePanel';
+import { HeaderFooterPanel } from './HeaderFooterPanel';
 import { SectionState } from '../../types';
 import type {
   AssetRecord,
   CustomMetadataField,
   DocumentMetadata,
   FrontPageSettings,
+  HeaderFooterSettings,
   PageSetup,
   PageTypographySettings,
 } from '../../types/document';
@@ -20,6 +22,12 @@ import type {
   SettingsUpdateResult,
   TypographyPatch,
 } from '../../services/page-typography';
+import type {
+  BandKind,
+  HeaderFooterPatch,
+  HeaderFooterUpdateResult,
+  WatermarkPatch,
+} from '../../services/header-footer-settings';
 import type { FrontPagePatch, FrontPageUpdateResult } from '../../services/front-page';
 import './LeftPanel.css';
 
@@ -64,6 +72,12 @@ interface LeftPanelProps {
   onCoverImageSelect?: (target: 'logo' | 'background') => Promise<FrontPageUpdateResult>;
   /** Clear a cover image reference and prune the orphan when safe. */
   onCoverImageRemove?: (target: 'logo' | 'background') => FrontPageUpdateResult;
+  /** Authoritative `document.headerFooter` (P06-M1, §9). */
+  headerFooter?: HeaderFooterSettings;
+  /** Commit a header/footer band patch (P06-M1). */
+  onHeaderFooterBandChange?: (band: BandKind, patch: HeaderFooterPatch) => HeaderFooterUpdateResult;
+  /** Commit a watermark patch (P06-M1). */
+  onWatermarkChange?: (patch: WatermarkPatch) => HeaderFooterUpdateResult;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -87,6 +101,9 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   onFrontPageChange,
   onCoverImageSelect,
   onCoverImageRemove,
+  headerFooter,
+  onHeaderFooterBandChange,
+  onWatermarkChange,
 }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
@@ -243,26 +260,34 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           )}
         </CollapsibleSection>
 
-        {/* 4. Header & Footer */}
+        {/* 4. Header & Footer (P06-M1, §9) */}
         <CollapsibleSection
           id="header-footer"
           title="Header & Footer"
           icon="header-footer"
           isOpen={sections.headerFooter}
           onToggle={() => toggleSection('headerFooter')}
-          badge="Phase 06"
+          badge="P06-M1"
         >
-          <div className="placeholder-box">
-            <span className="placeholder-tag">Page Furniture</span>
-            <p className="placeholder-text">
-              Grid-based header/footer cells, Page X of Y numbering, watermark controls, and front-page exclusions.
-            </p>
-            <div className="form-row-placeholder">
-              <span className="form-label-placeholder">Page Numbering Format</span>
-              <div className="form-input-placeholder">Page X of Y</div>
+          {headerFooter && pageTypography && onHeaderFooterBandChange && onWatermarkChange ? (
+            <HeaderFooterPanel
+              headerFooter={headerFooter}
+              displayHeaderEnabled={pageTypography.displayHeader}
+              onBandChange={onHeaderFooterBandChange}
+              onWatermarkChange={onWatermarkChange}
+            />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Page Furniture</span>
+              <p className="placeholder-text">
+                Grid-based header/footer cells, Page X of Y numbering, watermark controls, and
+                front-page exclusions.
+              </p>
+              <span className="placeholder-subtext">
+                Header and footer settings are unavailable because no active document was provided.
+              </span>
             </div>
-            <span className="placeholder-subtext">Header and footer grid editor will be introduced in Phase 06.</span>
-          </div>
+          )}
         </CollapsibleSection>
 
         {/* 5. Document Statistics */}

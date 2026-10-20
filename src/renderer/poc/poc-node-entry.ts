@@ -167,3 +167,41 @@ export {
   removeTableColumn,
   applyTableContentAction,
 } from '../../services/table-content';
+
+// ── P06-M1 (header/footer grid, numbering, watermark) — additive exports ────
+// The pure settings service, the settings-driven furniture layer and the
+// probe document.  Every export below is exercised by verify_p06_m1.mjs
+// through this entry so the suite compiles the same module graph the
+// renderer uses.  Nothing here changes what `PocDocument` renders for any
+// committed baseline (see poc-page-furniture's decision boundary).
+export {
+  HF_MAX_ROWS,
+  HF_MAX_COLUMNS,
+  HF_CELL_CONTENT_MAX_LENGTH,
+  WATERMARK_OPACITY_RANGE,
+  WATERMARK_POSITION_RANGE,
+  WATERMARK_ROTATION_DEG_RANGE,
+  WATERMARK_FONT_SIZE_PT_RANGE,
+  WATERMARK_TEXT_MAX_LENGTH,
+  PAGE_NUMBER_FORMATS,
+  H_ALIGNMENTS as HF_H_ALIGNMENTS,
+  V_ALIGNMENTS,
+  DOCUMENTED_TOKENS,
+  applyHeaderFooterPatch,
+  applyWatermarkPatch,
+  formatPageNumber,
+  resolveCellText,
+} from '../../services/header-footer-settings';
+export {
+  PocConfiguredFurniture,
+  WatermarkLayer,
+  shouldRenderHeader,
+  shouldRenderFooter,
+  bandRendersOnPage,
+  watermarkRendersOnPage,
+  coverOffsetPages,
+} from './poc-page-furniture';
+export {
+  FurnitureProbeDocument,
+  renderFurnitureProbePdfBytes,
+} from './poc-furniture-probe';

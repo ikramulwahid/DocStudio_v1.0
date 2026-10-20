@@ -85,6 +85,7 @@ import {
 import { computeListLabels } from '../../services/list-numbering';
 import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
 import { PocCoverPage } from './poc-cover-page';
+import { WatermarkLayer } from './poc-page-furniture';
 import { allocateTableColumnWidths, estimateRowHeightPt, tableColumnCount } from './table-layout';
 
 /** mm → pt conversion (1 mm = 72 / 25.4 pt). */
@@ -1019,9 +1020,10 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
     >
       {/* Designed cover (P04-M4): rendered as a separate first page when
           enabled. It carries NO body furniture — no display header, no
-          page numbering — so the pre-existing off-page footer defect
-          (DEC-006, body pages only) cannot reach the cover, and the
-          body-only path below is byte-identical when the cover is off. */}
+          page numbering, no watermark — so the pre-existing off-page
+          footer defect (DEC-006, body pages only) cannot reach the cover,
+          and the body-only path below is byte-identical when the cover
+          is off. */}
       {doc.frontPage.enabled && <PocCoverPage doc={doc} />}
       <Page
         size={PAGE_FORMATS[size]}
@@ -1030,6 +1032,15 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
         wrap
       >
         <PocPageFurniture doc={doc} tokens={tokens} />
+
+        {/* Watermark (P06-M1, §9): the document's stored watermark
+            settings rendered as REAL page furniture. The legacy
+            furniture above is unchanged (DEC-006/DEC-008); this layer
+            renders nothing — literally `null` — while the watermark is
+            disabled, so every committed baseline (watermarks off) keeps
+            its exact bytes, while an enabled watermark now reaches the
+            live preview and export through the normal document path. */}
+        <WatermarkLayer doc={doc} />
 
         {/* Blocks are rendered as DIRECT children of <Page> on purpose:
             react-pdf v4 only honors the `break` prop on direct Page

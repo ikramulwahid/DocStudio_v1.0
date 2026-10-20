@@ -47,6 +47,14 @@ import {
   type FrontPagePatch,
   type FrontPageUpdateResult,
 } from './services/front-page';
+import {
+  applyHeaderFooterPatch,
+  applyWatermarkPatch,
+  type BandKind,
+  type HeaderFooterPatch,
+  type HeaderFooterUpdateResult,
+  type WatermarkPatch,
+} from './services/header-footer-settings';
 import { importImageAsset } from './services/image-import';
 import { pickAndReadImage } from './services/image-io';
 import {
@@ -414,6 +422,25 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // Header/footer/watermark settings (9, P06-M1) - same conventions as the
+  // page/typography patches: no-op patches keep the same reference, real
+  // changes stamp modifiedAt, rejected patches leave the document
+  // untouched and the panel shows the service's message inline.
+  const handleHeaderFooterBandChange = (
+    band: BandKind,
+    patch: HeaderFooterPatch,
+  ): HeaderFooterUpdateResult => {
+    const result = applyHeaderFooterPatch(activeDocument, band, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  const handleWatermarkChange = (patch: WatermarkPatch): HeaderFooterUpdateResult => {
+    const result = applyWatermarkPatch(activeDocument, patch);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // Image selection opens the NATIVE picker; cancelling is a true no-op
   // and any failure (dialog, read, validation) leaves the document
   // untouched.  The picked file's BYTES are embedded into the document
@@ -659,6 +686,9 @@ export const App: React.FC = () => {
         onFrontPageChange={handleFrontPageChange}
         onCoverImageSelect={handleCoverImageSelect}
         onCoverImageRemove={handleCoverImageRemove}
+        headerFooter={activeDocument.headerFooter}
+        onHeaderFooterBandChange={handleHeaderFooterBandChange}
+        onWatermarkChange={handleWatermarkChange}
         activeDocument={activeDocument}
         blocks={activeDocument.blocks}
         selectedBlockId={selectedBlockId}

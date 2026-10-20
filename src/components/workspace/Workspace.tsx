@@ -10,6 +10,7 @@ import type {
   DocUUID,
   DocumentMetadata,
   FrontPageSettings,
+  HeaderFooterSettings,
   PageSetup,
   PageTypographySettings,
 } from '../../types/document';
@@ -42,6 +43,12 @@ import type {
   TypographyPatch,
 } from '../../services/page-typography';
 import type { FrontPagePatch, FrontPageUpdateResult } from '../../services/front-page';
+import type {
+  BandKind,
+  HeaderFooterPatch,
+  HeaderFooterUpdateResult,
+  WatermarkPatch,
+} from '../../services/header-footer-settings';
 import './Workspace.css';
 
 interface WorkspaceProps {
@@ -85,6 +92,12 @@ interface WorkspaceProps {
   onCoverImageSelect?: (target: 'logo' | 'background') => Promise<FrontPageUpdateResult>;
   /** Clear a cover image reference and prune the orphan when safe. */
   onCoverImageRemove?: (target: 'logo' | 'background') => FrontPageUpdateResult;
+  /** Authoritative `document.headerFooter` (P06-M1, §9). */
+  headerFooter?: HeaderFooterSettings;
+  /** Commit a header/footer band patch (P06-M1). */
+  onHeaderFooterBandChange?: (band: BandKind, patch: HeaderFooterPatch) => HeaderFooterUpdateResult;
+  /** Commit a watermark patch (P06-M1). */
+  onWatermarkChange?: (patch: WatermarkPatch) => HeaderFooterUpdateResult;
   /** Active document for the preview's "render active document" option (P04-M4). */
   activeDocument?: DocStudioDocument;
   /** Authoritative `document.blocks` (P05-M1 block framework). */
@@ -162,6 +175,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onFrontPageChange,
   onCoverImageSelect,
   onCoverImageRemove,
+  headerFooter,
+  onHeaderFooterBandChange,
+  onWatermarkChange,
   activeDocument,
   blocks,
   selectedBlockId,
@@ -201,6 +217,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onFrontPageChange={onFrontPageChange}
         onCoverImageSelect={onCoverImageSelect}
         onCoverImageRemove={onCoverImageRemove}
+        headerFooter={headerFooter}
+        onHeaderFooterBandChange={onHeaderFooterBandChange}
+        onWatermarkChange={onWatermarkChange}
       />
       <EditorPanel
         blocks={blocks}
