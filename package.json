@@ -27,13 +27,15 @@
     "verify:p05-m4": "node verify_p05_m4.mjs",
     "verify:p05-fix01": "node verify_p05_fix01.mjs",
     "verify:p06-m1": "node verify_p06_m1.mjs",
-    "verify:p06-m2": "node verify_p06_m2.mjs"
+    "verify:p06-m2": "node verify_p06_m2.mjs",
+    "verify:p06-m3": "node verify_p06_m3.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",
     "@tauri-apps/api": "^2.2.0",
     "@tauri-apps/plugin-dialog": "^2.8.3",
     "@tauri-apps/plugin-fs": "^2.7.1",
+    "mathjax-full": "^3.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-pdf": "^10.5.0"

@@ -41,6 +41,10 @@ import type {
   StructuralContentActionResult,
 } from '../../services/structural-block-content';
 import type {
+  FormulaContentAction,
+  FormulaContentActionResult,
+} from '../../services/formula-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -154,6 +158,11 @@ interface WorkspaceProps {
     blockId: DocUUID,
     action: StructuralContentAction,
   ) => StructuralContentActionResult;
+  /** Dispatch one validated formula action (P06-M3, §6.3). */
+  onFormulaAction: (
+    blockId: DocUUID,
+    action: FormulaContentAction,
+  ) => FormulaContentActionResult;
   /** Ask the App to confirm a content-losing action (table column removal). */
   onRequestConfirm: (
     title: string,
@@ -202,6 +211,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onCalloutContentChange,
   onTableContentAction,
   onStructuralAction,
+  onFormulaAction,
   onRequestConfirm,
 }) => {
   return (
@@ -246,6 +256,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onCalloutContentChange={onCalloutContentChange}
         onTableContentAction={onTableContentAction}
         onStructuralAction={onStructuralAction}
+        onFormulaAction={onFormulaAction}
         customFields={customFields}
         assets={assets ? Object.values(assets) : []}
         onRequestConfirm={onRequestConfirm}

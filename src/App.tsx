@@ -92,6 +92,11 @@ import {
   type StructuralContentAction,
   type StructuralContentActionResult,
 } from './services/structural-block-content';
+import {
+  applyFormulaAction,
+  type FormulaContentAction,
+  type FormulaContentActionResult,
+} from './services/formula-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -626,6 +631,22 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── Formula block content (P06-M3, §6.3 / §10.6) ──────────────────────────
+  // Same conventions as the structural dispatcher: the immutable
+  // `formula-content` service validates LaTeX (through the real MathJax
+  // engine), alignment, display mode, the optional equation number /
+  // "Where:" label and the variable-definition entries; no-op commits
+  // return the same reference, real changes stamp `modifiedAt`, and
+  // failures leave the document untouched with a field-specific message.
+  const handleFormulaAction = (
+    blockId: DocUUID,
+    action: FormulaContentAction,
+  ): FormulaContentActionResult => {
+    const result = applyFormulaAction(activeDocument, blockId, action);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -726,6 +747,7 @@ export const App: React.FC = () => {
         onCalloutContentChange={handleCalloutContentChange}
         onTableContentAction={handleTableContentAction}
         onStructuralAction={handleStructuralAction}
+        onFormulaAction={handleFormulaAction}
         onRequestConfirm={confirmAction}
       />
       {chooserOpen && (

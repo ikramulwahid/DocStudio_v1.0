@@ -521,6 +521,12 @@
   color: var(--panel-mid-text-muted);
 }
 
+/* Live LaTeX parse state of the formula editor (P06-M3) — same error ink
+ * as .editor-notice.is-error, without the box (it sits under the field). */
+.content-derived-hint.is-invalid {
+  color: #dc2626;
+}
+
 /* ── Structural block editors (P06-M2) ───────────────────────────────────── */
 
 /*

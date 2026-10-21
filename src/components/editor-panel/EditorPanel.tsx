@@ -41,6 +41,10 @@ import type {
   StructuralContentAction,
   StructuralContentActionResult,
 } from '../../services/structural-block-content';
+import type {
+  FormulaContentAction,
+  FormulaContentActionResult,
+} from '../../services/formula-content';
 import {
   HorizontalLineEditor,
   MetadataBlockEditor,
@@ -50,6 +54,7 @@ import {
   SectionBreakEditor,
   ExhibitEditor,
 } from './StructuralContentEditor';
+import { FormulaContentEditor } from './FormulaContentEditor';
 import type { AssetRecord, CustomMetadataField } from '../../types/document';
 import './EditorPanel.css';
 
@@ -104,6 +109,11 @@ interface EditorPanelProps {
     blockId: DocUUID,
     action: StructuralContentAction,
   ) => StructuralContentActionResult;
+  /** Dispatch one validated formula action (P06-M3, §6.3). */
+  onFormulaAction: (
+    blockId: DocUUID,
+    action: FormulaContentAction,
+  ) => FormulaContentActionResult;
   /** Document custom fields — labels/ids for the metadata block picker. */
   customFields?: readonly CustomMetadataField[];
   /** Embedded assets — the exhibit block may reference an image asset. */
@@ -134,10 +144,11 @@ interface EditorNotice {
  * (§10.1), paragraph (§10.2), list (§10.4), callout (§10.3) and table
  * (§10.5) blocks additionally show their content editors; the P06-M2
  * structural blocks (horizontal rule, section break, page break marker,
- * metadata, revision history, references, exhibit) show their own
- * content editors wired through `structural-block-content`; the
- * remaining lab-specific block types show truthful structural
- * summaries until their checkpoints.
+ * metadata, revision history, references, exhibit) and the P06-M3 formula
+ * block show their own content editors wired through
+ * `structural-block-content`/`formula-content`; the remaining
+ * lab-specific block types show truthful structural summaries until
+ * their checkpoints.
  */
 export const EditorPanel: React.FC<EditorPanelProps> = ({
   blocks,
@@ -154,6 +165,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onCalloutContentChange,
   onTableContentAction,
   onStructuralAction,
+  onFormulaAction,
   customFields = [],
   assets = [],
   onRequestConfirm,
@@ -205,6 +217,23 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
     action: StructuralContentAction,
   ): StructuralContentActionResult => {
     const result = onStructuralAction(blockId, action);
+    setNotice(
+      result.ok ? null : { severity: 'error', text: result.message },
+    );
+    return result;
+  };
+
+  /**
+   * Formula content dispatch (P06-M3): same contract as
+   * `handleStructural`, routed through the App's immutable
+   * `applyFormulaAction` service (LaTeX validation, alignment/number/
+   * Where-label rules and variable-definition entries).
+   */
+  const handleFormula = (
+    blockId: DocUUID,
+    action: FormulaContentAction,
+  ): FormulaContentActionResult => {
+    const result = onFormulaAction(blockId, action);
     setNotice(
       result.ok ? null : { severity: 'error', text: result.message },
     );
@@ -495,6 +524,14 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             data={block.data}
                             assets={assets}
                             onAction={handleStructural}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'formula' && (
+                          <FormulaContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleFormula}
                             onError={(text) => setNotice({ severity: 'error', text })}
                           />
                         )}

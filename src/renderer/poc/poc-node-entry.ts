@@ -234,3 +234,39 @@ export {
   createBlock,
   insertBlock,
 } from '../../services/block-actions';
+
+// ── P06-M3 (formula blocks) — additive exports only ─────────────────────────
+// The MathJax engine wrapper, the immutable formula content actions and the
+// pure layout planner.  Every export below is exercised by verify_p06_m3.mjs
+// through this entry so the suite compiles the same module graph the renderer
+// uses.  Nothing here changes what `PocDocument` renders for any committed
+// baseline (no committed fixture or gallery document carries a formula
+// block).
+export {
+  FORMULA_TEX_PACKAGES,
+  MATH_UNITS_PER_EM,
+  renderLatexToMathSvg,
+  validateLatex,
+  estimateTextWidthPt,
+} from '../../services/math-engine';
+export {
+  FORMULA_ALIGNMENTS,
+  MAX_FORMULA_LATEX_LENGTH,
+  MAX_FORMULA_NUMBER_LENGTH,
+  MAX_WHERE_LABEL_LENGTH,
+  MAX_VARIABLE_SYMBOL_LENGTH,
+  MAX_VARIABLE_DEFINITION_LENGTH,
+  MAX_VARIABLE_UNIT_LENGTH,
+  updateFormulaContent,
+  addVariableDefinition,
+  updateVariableDefinition,
+  removeVariableDefinition,
+  applyFormulaAction,
+} from '../../services/formula-content';
+export {
+  planFormulaLayout,
+  FORMULA_WHERE_GAP_PT,
+  FORMULA_NUMBER_GAP_PT,
+  FORMULA_SYMBOL_GAP_PT,
+} from './formula-layout';
+export { mathSvgToReact, parseMathSvgDocument, expandMathPathData } from './poc-math-svg';

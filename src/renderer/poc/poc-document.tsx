@@ -12,8 +12,12 @@
  * `metadata-block`, `revision-history`, `reference` and `exhibit`, the
  * block-authored rule style (`horizontal-line` with
  * `styleSource: 'block'`) and the reliable page-break position semantics.
- * The remaining lab-specific block types keep the visible fallback marker
- * until their checkpoints (P06-M3+/P06-M4).
+ * The P06-M3 formula renderer maps `formula` through MathJax SVG →
+ * react-pdf vector primitives (`poc-math-svg.tsx` converts the string,
+ * `formula-layout.ts` plans the fit-scale and "Where:" geometry).  The
+ * remaining lab-specific block types (image/signature at P06-M4 and the
+ * later-phase blocks) keep the visible fallback marker until their
+ * checkpoints (P06-M4/P06-M5+).
  *
  * Mapping decisions (see the roadmap decision record):
  * • Page geometry — `pageSetup` (all five schema sizes, orientation,
@@ -76,6 +80,7 @@ import type {
   BulletStyle,
   CalloutBlockData,
   ExhibitBlockData,
+  FormulaBlockData,
   HeadingBlockData,
   HorizontalLineBlockData,
   InlineSpan,
@@ -104,7 +109,10 @@ import {
 } from '../../services/heading-numbering';
 import { computeListLabels } from '../../services/list-numbering';
 import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
+import { estimateTextWidthPt, renderLatexToMathSvg } from '../../services/math-engine';
+import { FORMULA_SYMBOL_GAP_PT, planFormulaLayout } from './formula-layout';
 import { PocCoverPage } from './poc-cover-page';
+import { mathSvgToReact, parseMathSvgDocument } from './poc-math-svg';
 import { PocConfiguredFurniture } from './poc-page-furniture';
 import { allocateTableColumnWidths, estimateRowHeightPt, tableColumnCount } from './table-layout';
 
@@ -1176,6 +1184,206 @@ function ExhibitBlock({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Formula block (P06-M3, §10.6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Typeset formula (LaTeX → MathJax SVG → react-pdf vectors), spec §10.6:
+ *
+ * • Font size is ALWAYS the document's base size
+ *   (`tokens.typography.baseFontSizePt`) — there is no independent
+ *   formula-size setting; `displayMode` selects MathJax display styling
+ *   (limits above/below operators) plus a little vertical breathing room.
+ * • Alignment (`hAlign`) applies to the formula inside the band left of
+ *   the equation number; the number itself is pinned in its own
+ *   right-aligned cell at the right edge of the formula area.
+ * • Overflow: `planFormulaLayout` scales the box down uniformly to fit and
+ *   sets `scaledToFit`, which prints an honest visible note — a formula
+ *   never shrinks silently and never spills past the margins.
+ * • The "Where:" rule (§10.6): variable definitions render to the RIGHT
+ *   of the formula while everything fits, and BELOW it when it does not.
+ *   The default label is `Where:` (or `whereLabelOverride`).  A definition
+ *   renders as `symbol … definition (unit)` with the symbol typeset from
+ *   its own LaTeX when it parses, raw text otherwise (honest fallback —
+ *   the service rejects unparseable symbols at commit time, so that path
+ *   only exists for legacy/imported documents).
+ * • An unparseable formula (legacy/imported document only — the editor
+ *   service rejects such input) prints an honest marker naming the TeX
+ *   parser's message instead of vanishing or crashing the export.
+ */
+function FormulaBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: FormulaBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const fontSizePt = tokens.typography.baseFontSizePt;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const bodyColor = tokens.colors.text;
+
+  // 1. Convert the LaTeX and its SVG to elements — honest markers on failure.
+  //    (`=== false` rather than `!math.ok`: narrows under the legacy
+  //    non-strict suite compiles too — see math-engine.validateLatex.)
+  const math = renderLatexToMathSvg(block.latex, fontSizePt, block.displayMode);
+  if (math.ok === false) {
+    return (
+      <StructuralNote
+        tokens={tokens}
+        text={`[Formula could not be rendered: ${math.message} — edit the LaTeX source in the editor to fix it]`}
+      />
+    );
+  }
+  const parsed = parseMathSvgDocument(math.svg);
+  if (parsed === null) {
+    return (
+      <StructuralNote
+        tokens={tokens}
+        text="[Formula could not be converted to a PDF vector — the math engine returned an unsupported SVG layout]"
+      />
+    );
+  }
+
+  // 2. Where-row widths: symbols measured through the engine when they
+  //    parse, text estimated (see estimateTextWidthPt for the policy).
+  const whereLabel = block.whereLabelOverride ?? 'Where:';
+  const rows = block.variableDefinitions.map((variable) => {
+    const symbolMath = renderLatexToMathSvg(variable.symbol, fontSizePt, false);
+    const text =
+      variable.unit !== undefined && variable.unit !== ''
+        ? `${variable.definition} (${variable.unit})`
+        : variable.definition;
+    return {
+      variable,
+      symbolMath,
+      symbolWidthPt: symbolMath.ok
+        ? symbolMath.metrics.widthPt
+        : estimateTextWidthPt(variable.symbol, fontSizePt),
+      text,
+      textWidthPt: estimateTextWidthPt(text, fontSizePt),
+    };
+  });
+
+  const numberText =
+    block.formulaNumber !== undefined && block.formulaNumber.trim() !== ''
+      ? block.formulaNumber.trim()
+      : null;
+
+  // 3. One pure plan for every geometric decision (unit-tested directly).
+  const plan = planFormulaLayout({
+    contentWidthPt: contentWidth,
+    naturalWidthPt: math.metrics.widthPt,
+    naturalHeightPt: math.metrics.heightPt,
+    baselineOffsetPt: math.metrics.baselineOffsetPt,
+    fontSizePt,
+    hasNumber: numberText !== null,
+    numberWidthPt: numberText !== null ? estimateTextWidthPt(numberText, fontSizePt) : 0,
+    whereRows: rows.map((row) => ({
+      symbolWidthPt: row.symbolWidthPt,
+      textWidthPt: row.textWidthPt,
+    })),
+    whereLabelWidthPt: estimateTextWidthPt(whereLabel, fontSizePt),
+  });
+
+  const justify: 'flex-start' | 'center' | 'flex-end' =
+    block.hAlign === 'center' ? 'center' : block.hAlign === 'right' ? 'flex-end' : 'flex-start';
+  // Optical centering of the number against the (scaled) formula box.
+  const numberMarginTop = Math.max(0, (plan.formulaHeightPt - fontSizePt * 1.2) / 2);
+
+  const whereList = (
+    <React.Fragment>
+      <Text style={{ fontWeight: 'bold', ...textStyle }} wrap>
+        {whereLabel}
+      </Text>
+      {rows.map((row) => {
+        const symbolMath = row.symbolMath;
+        const symbolParsed = symbolMath.ok ? parseMathSvgDocument(symbolMath.svg) : null;
+        const symbolWidth = row.symbolWidthPt + FORMULA_SYMBOL_GAP_PT;
+        return (
+          <View
+            key={row.variable.id}
+            style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 2 }}
+          >
+            {symbolMath.ok && symbolParsed !== null ? (
+              <View style={{ width: symbolWidth, marginTop: 1 }}>
+                {mathSvgToReact(symbolParsed, {
+                  widthPt: symbolMath.metrics.widthPt,
+                  heightPt: symbolMath.metrics.heightPt,
+                  color: bodyColor,
+                })}
+              </View>
+            ) : (
+              <Text style={{ width: symbolWidth, ...textStyle }} wrap>
+                {row.variable.symbol}
+              </Text>
+            )}
+            <Text style={{ flex: 1, ...textStyle }} wrap>
+              {row.text}
+            </Text>
+          </View>
+        );
+      })}
+    </React.Fragment>
+  );
+
+  return (
+    <View
+      style={{
+        marginBottom: tokens.typography.paragraphSpacingPt,
+        // Display mode = block-style equation: a little breathing room.
+        marginTop: block.displayMode ? 3 : 0,
+      }}
+    >
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', width: contentWidth }}>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            width: plan.formulaAreaWidthPt,
+            marginRight: plan.whereGapPt,
+          }}
+        >
+          <View style={{ width: plan.formulaCellWidthPt, justifyContent: justify }}>
+            {mathSvgToReact(parsed, {
+              widthPt: plan.formulaWidthPt,
+              heightPt: plan.formulaHeightPt,
+              color: bodyColor,
+            })}
+          </View>
+          {numberText !== null ? (
+            <View
+              style={{
+                width: plan.numberCellWidthPt,
+                alignItems: 'flex-end',
+                marginTop: numberMarginTop,
+              }}
+            >
+              <Text style={textStyle} wrap={false}>
+                {numberText}
+              </Text>
+            </View>
+          ) : null}
+        </View>
+        {plan.whereMode === 'beside' ? (
+          <View style={{ width: plan.whereWidthPt }}>{whereList}</View>
+        ) : null}
+      </View>
+      {plan.whereMode === 'below' ? (
+        <View style={{ width: contentWidth, marginTop: 4 }}>{whereList}</View>
+      ) : null}
+      {plan.scaledToFit ? (
+        <Text style={{ marginTop: 2, fontStyle: 'italic', color: tokens.colors.mutedText }} wrap>
+          [Formula scaled to fit the page width]
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function BlockRenderer({
   block,
   doc,
@@ -1238,6 +1446,11 @@ export function BlockRenderer({
     case 'exhibit':
       // Exhibit label/title/notes + optional embedded image (P06-M2 §5.7).
       return <ExhibitBlock block={block} doc={doc} contentWidth={contentWidth} tokens={tokens} />;
+    case 'formula':
+      // Typeset LaTeX equation + optional number + "Where:" list
+      // (P06-M3 §10.6 — fit scaling and the beside/below rule live in
+      // planFormulaLayout; conversion lives in poc-math-svg).
+      return <FormulaBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
     default:
       // Unsupported block in the PoC: rendered as a visible marker so the
       // gap is obvious during evaluation rather than silently dropped.
