@@ -45,6 +45,10 @@ import type {
   FormulaContentActionResult,
 } from '../../services/formula-content';
 import type {
+  ImageSignatureContentAction,
+  ImageSignatureActionResult,
+} from '../../services/image-signature-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -163,6 +167,13 @@ interface WorkspaceProps {
     blockId: DocUUID,
     action: FormulaContentAction,
   ) => FormulaContentActionResult;
+  /** Dispatch one validated image/signature action (P06-M4, §6.4/§6.5). */
+  onImageSignatureAction: (
+    blockId: DocUUID,
+    action: ImageSignatureContentAction,
+  ) => ImageSignatureActionResult;
+  /** Pick a local image file (native dialog) and attach it to the slot. */
+  onPickImage: (blockId: DocUUID, imageId: DocUUID) => Promise<{ ok: boolean; message: string }>;
   /** Ask the App to confirm a content-losing action (table column removal). */
   onRequestConfirm: (
     title: string,
@@ -212,6 +223,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onTableContentAction,
   onStructuralAction,
   onFormulaAction,
+  onImageSignatureAction,
+  onPickImage,
   onRequestConfirm,
 }) => {
   return (
@@ -257,6 +270,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onTableContentAction={onTableContentAction}
         onStructuralAction={onStructuralAction}
         onFormulaAction={onFormulaAction}
+        onImageSignatureAction={onImageSignatureAction}
+        onPickImage={onPickImage}
         customFields={customFields}
         assets={assets ? Object.values(assets) : []}
         onRequestConfirm={onRequestConfirm}

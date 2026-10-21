@@ -74,7 +74,7 @@ import {
   Link,
   StyleSheet,
 } from '@react-pdf/renderer';
-import type { DocStudioDocument, PageSize } from '../../types/document';
+import type { DocStudioDocument, HAlignment, PageSize } from '../../types/document';
 import type {
   AnyBlockData,
   BulletStyle,
@@ -91,6 +91,7 @@ import type {
   ReferenceBlockData,
   RevisionHistoryBlockData,
   SectionBreakBlockData,
+  SignatureBlockData,
   TableBlockData,
   TableHeaderStyle,
 } from '../../types/blocks';
@@ -111,6 +112,15 @@ import { computeListLabels } from '../../services/list-numbering';
 import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
 import { estimateTextWidthPt, renderLatexToMathSvg } from '../../services/math-engine';
 import { FORMULA_SYMBOL_GAP_PT, planFormulaLayout } from './formula-layout';
+import {
+  IMAGE_SLOT_GAP_PT,
+  planImageCropBoxPt,
+  planImageSlotWidthsPt,
+  planSignatureLayout,
+  SIGNATURE_LINE_PT,
+  SIGNATURE_SPACE_PT,
+} from './image-signature-layout';
+import { assetPixelSize } from '../../services/image-dimensions';
 import { PocCoverPage } from './poc-cover-page';
 import { mathSvgToReact, parseMathSvgDocument } from './poc-math-svg';
 import { PocConfiguredFurniture } from './poc-page-furniture';
@@ -527,17 +537,67 @@ function Table({
   );
 }
 
+/** Image alignment → react-pdf cross-axis placement (`alignSelf`). */
+const imageAlignSelf = (align: HAlignment): 'flex-start' | 'center' | 'flex-end' =>
+  align === 'center' ? 'center' : align === 'right' ? 'flex-end' : 'flex-start';
+
+/**
+ * `image` block (P06-M4 upgrade, §10.7) — one image or two side by side:
+ *
+ * • Per-slot `widthFraction`/`hAlign` as before; in `side-by-side`
+ *   layout the planned slot widths (`planImageSlotWidthsPt`) scale down
+ *   proportionally when the row would overflow, and the ROW takes the
+ *   first slot's alignment (each caption follows its own image).
+ * • Captions keep the theme's caption tokens but their ALIGNMENT
+ *   follows the image (§10.7 "configure image/caption alignment where
+ *   practical"); an optional `figureLabel` prefixes the caption text.
+ * • `captionPlacement` prints the caption above (`top`) or below
+ *   (absent/`bottom`) the image.
+ * • A `crop` renders as an overflow-hidden box at the display size
+ *   with the full source image scaled up behind it, undistorted
+ *   (`planImageCropBoxPt`); an unreadable header fails loudly rather
+ *   than silently dropping the crop.
+ * • The uncropped single-slot path emits EXACTLY the P02-era node
+ *   tree and styles, so the committed P02-M4 baseline stays
+ *   byte-identical.
+ */
 function ImageBlock({ block, doc, tokens }: { block: ImageBlockData; doc: DocStudioDocument; tokens: BodyThemeTokens }) {
   const [pageWidthMm] = effectivePageDimensionsMm(doc.pageSetup.size, doc.pageSetup.orientation);
   const contentWidth = mmToPt(pageWidthMm) - mmToPt(doc.pageSetup.margins.leftMm + doc.pageSetup.margins.rightMm);
   const caption = tokens.captions;
-  const captionStyles = captionStyle(caption, 'figureAlign');
+  // Caption STYLE from the resolved caption tokens (single token site,
+  // same as table captions) with only `textAlign` replaced by the
+  // image's own alignment — every other token passes through.
+  const captionStylesFor = (align: HAlignment): ReturnType<typeof captionStyle> => {
+    const base = captionStyle(caption, 'figureAlign');
+    const tail = base[base.length - 1] as Record<string, unknown>;
+    return [...base.slice(0, base.length - 1), { ...tail, textAlign: align }] as ReturnType<
+      typeof captionStyle
+    >;
+  };
+  const isRow = block.layout === 'side-by-side';
+  const slotWidths = isRow
+    ? planImageSlotWidthsPt(
+        contentWidth,
+        block.images.map((image) => image.widthFraction),
+      )
+    : [];
   return (
-    <View style={{ marginBottom: 8 }}>
-      {block.images.map((image) => {
+    <View
+      style={
+        isRow
+          ? {
+              marginBottom: 8,
+              flexDirection: 'row',
+              justifyContent: imageAlignSelf(block.images[0].hAlign),
+            }
+          : { marginBottom: 8 }
+      }
+    >
+      {block.images.map((image, index) => {
         if (!image.assetId) {
           return (
-            <Text key={image.id} style={captionStyles}>
+            <Text key={image.id} style={captionStylesFor(image.hAlign)}>
               [Empty image slot]
             </Text>
           );
@@ -549,24 +609,168 @@ function ImageBlock({ block, doc, tokens }: { block: ImageBlockData; doc: DocStu
             `Image asset ${image.assetId} not found in document.assets — cannot render figure.`,
           );
         }
-        return (
-          <View key={image.id}>
+        const displayWidth = isRow ? slotWidths[index] : contentWidth * image.widthFraction;
+        let imageEl: React.ReactElement;
+        if (image.crop !== undefined) {
+          const size = assetPixelSize(asset);
+          if (size === null) {
+            throw new Error(
+              `Image asset ${image.assetId} has an unreadable header — its crop cannot be applied.`,
+            );
+          }
+          const box = planImageCropBoxPt(image.crop, displayWidth, size.widthPx, size.heightPx);
+          imageEl = (
+            <View
+              style={{
+                width: box.boxWidthPt,
+                height: box.boxHeightPt,
+                overflow: 'hidden',
+                alignSelf: imageAlignSelf(image.hAlign),
+              }}
+            >
+              <Image
+                src={`data:${asset.mimeType};base64,${asset.base64Data}`}
+                style={{
+                  position: 'absolute',
+                  left: box.offsetXPt,
+                  top: box.offsetYPt,
+                  width: box.innerWidthPt,
+                  height: box.innerHeightPt,
+                }}
+              />
+            </View>
+          );
+        } else {
+          imageEl = (
             <Image
               src={`data:${asset.mimeType};base64,${asset.base64Data}`}
               style={{
-                width: contentWidth * image.widthFraction,
-                alignSelf:
-                  image.hAlign === 'center'
-                    ? 'center'
-                    : image.hAlign === 'right'
-                      ? 'flex-end'
-                      : 'flex-start',
+                width: displayWidth,
+                alignSelf: imageAlignSelf(image.hAlign),
               }}
             />
-            {image.caption && <Text style={captionStyles}>{image.caption}</Text>}
+          );
+        }
+        const captionText = [image.figureLabel, image.caption]
+          .filter((part): part is string => typeof part === 'string' && part.trim() !== '')
+          .join(' — ');
+        const captionEl =
+          captionText !== '' ? <Text style={captionStylesFor(image.hAlign)}>{captionText}</Text> : null;
+        // The single-slot path deliberately passes NO style prop (empty
+        // object or not) so its node tree stays byte-identical to the
+        // committed P02-M4 baseline render.
+        const slotProps = isRow
+          ? {
+              style: {
+                width: slotWidths[index],
+                ...(index > 0 ? { marginLeft: IMAGE_SLOT_GAP_PT } : {}),
+              },
+            }
+          : {};
+        return (
+          <View key={image.id} {...slotProps}>
+            {image.captionPlacement === 'top' ? captionEl : null}
+            {imageEl}
+            {image.captionPlacement === 'top' ? null : captionEl}
           </View>
         );
       })}
+    </View>
+  );
+}
+
+/**
+ * `signature` block (P06-M4, §10.8): one to three signer columns,
+ * positioned as a row by the block's overall `hAlign`.  Each column
+ * shows the optional role label, a vertical signing SPACE, the signing
+ * LINE, then the printed identity (name in bold, designation,
+ * department, `Date: …` — each only when present) and the block carries
+ * the explicit note that a printed name/designation is NOT a verified
+ * electronic signature (§10.8 requires the distinction to be clear).
+ */
+function SignatureBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: SignatureBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const textStyle = tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const mutedStyle =
+    tokens.colors.mutedText !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.mutedText } : {};
+  const baseSize = tokens.typography.baseFontSizePt;
+  const signers = block.signers;
+  if (signers.length === 0) {
+    // Defensive: the service and the schema keep at least one signer.
+    return (
+      <StructuralNote
+        tokens={tokens}
+        text="[Signature block has no signers — add one in the editor]"
+      />
+    );
+  }
+  const { slotWidthPt, gapPt } = planSignatureLayout(contentWidth, signers.length);
+  const justify: 'flex-start' | 'center' | 'flex-end' =
+    block.hAlign === 'center' ? 'center' : block.hAlign === 'right' ? 'flex-end' : 'flex-start';
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      <View style={{ flexDirection: 'row', justifyContent: justify }}>
+        {signers.map((signer, index) => (
+          <View
+            key={signer.id}
+            style={{
+              width: slotWidthPt,
+              ...(index > 0 ? { marginLeft: gapPt } : {}),
+            }}
+          >
+            {signer.role.trim() !== '' ? (
+              <Text style={{ fontSize: baseSize - 1, textAlign: 'center', ...mutedStyle }} wrap>
+                {signer.role}
+              </Text>
+            ) : null}
+            <View style={{ height: SIGNATURE_SPACE_PT }} />
+            <View style={{ height: SIGNATURE_LINE_PT, backgroundColor: tokens.colors.text }} />
+            {signer.name !== undefined && signer.name.trim() !== '' ? (
+              <Text
+                style={{ marginTop: 3, textAlign: 'center', fontWeight: 'bold', ...textStyle }}
+                wrap
+              >
+                {signer.name}
+              </Text>
+            ) : null}
+            {signer.designation !== undefined && signer.designation.trim() !== '' ? (
+              <Text style={{ marginTop: 1, textAlign: 'center', ...textStyle }} wrap>
+                {signer.designation}
+              </Text>
+            ) : null}
+            {signer.department !== undefined && signer.department.trim() !== '' ? (
+              <Text style={{ marginTop: 1, textAlign: 'center', ...mutedStyle }} wrap>
+                {signer.department}
+              </Text>
+            ) : null}
+            {signer.date !== undefined && signer.date.trim() !== '' ? (
+              <Text style={{ marginTop: 1, textAlign: 'center', ...mutedStyle }} wrap>
+                {`Date: ${signer.date}`}
+              </Text>
+            ) : null}
+          </View>
+        ))}
+      </View>
+      <Text
+        style={{
+          marginTop: 6,
+          fontSize: baseSize - 2,
+          fontStyle: 'italic',
+          textAlign: 'center',
+          ...mutedStyle,
+        }}
+        wrap
+      >
+        Printed names and designations identify the signatory; this block does not contain a
+        verified electronic signature.
+      </Text>
     </View>
   );
 }
@@ -1453,6 +1657,10 @@ export function BlockRenderer({
     case 'exhibit':
       // Exhibit label/title/notes + optional embedded image (P06-M2 §5.7).
       return <ExhibitBlock block={block} doc={doc} contentWidth={contentWidth} tokens={tokens} />;
+    case 'signature':
+      // Signer columns with signing lines + the honest non-signature
+      // note (P06-M4 §10.8 — 1–3 signers, overall alignment).
+      return <SignatureBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
     case 'formula':
       // Typeset LaTeX equation + optional number + "Where:" list
       // (P06-M3 §10.6 — fit scaling and the beside/below rule live in

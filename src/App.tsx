@@ -97,6 +97,11 @@ import {
   type FormulaContentAction,
   type FormulaContentActionResult,
 } from './services/formula-content';
+import {
+  applyImageSignatureAction,
+  type ImageSignatureContentAction,
+  type ImageSignatureActionResult,
+} from './services/image-signature-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -647,6 +652,59 @@ export const App: React.FC = () => {
     return result;
   };
 
+  // ── Image & signature block content (P06-M4, §6.4/§6.5) ───────────────────
+  // Same conventions as the formula dispatcher: the immutable
+  // `image-signature-content` service validates layout/crop/size/caption
+  // edits and the signer rules; no-op commits return the same reference,
+  // real changes stamp `modifiedAt`, and failures leave the document
+  // untouched with a field-specific message.
+  const handleImageSignatureAction = (
+    blockId: DocUUID,
+    action: ImageSignatureContentAction,
+  ): ImageSignatureActionResult => {
+    const result = applyImageSignatureAction(activeDocument, blockId, action);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
+  /**
+   * Image pick for an image BLOCK slot (P06-M4): the NATIVE picker,
+   * cancel as a true no-op, import validation through the shared
+   * `image-import` service, then the atomic attach
+   * (`attach-slot-asset` embeds the fresh asset and points the slot at
+   * it in one immutable edit).  Any failure leaves the document
+   * untouched and returns the service's message for inline display.
+   */
+  const handleBlockImagePick = async (
+    blockId: DocUUID,
+    imageId: DocUUID,
+  ): Promise<{ ok: boolean; message: string }> => {
+    let picked: Awaited<ReturnType<typeof pickAndReadImage>>;
+    try {
+      picked = await pickAndReadImage();
+    } catch (e) {
+      return {
+        ok: false,
+        message: e instanceof DocumentFileError ? e.message : 'The image could not be selected.',
+      };
+    }
+    if (picked === null) {
+      // Cancelled: the document is never touched.
+      return { ok: true, message: '' };
+    }
+    const imported = importImageAsset(picked.bytes, picked.fileName);
+    if (!imported.ok) {
+      return { ok: false, message: imported.message };
+    }
+    const result = applyImageSignatureAction(activeDocument, blockId, {
+      action: 'attach-slot-asset',
+      imageId,
+      asset: imported.asset,
+    });
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result.ok ? { ok: true, message: '' } : { ok: false, message: result.message };
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -748,6 +806,8 @@ export const App: React.FC = () => {
         onTableContentAction={handleTableContentAction}
         onStructuralAction={handleStructuralAction}
         onFormulaAction={handleFormulaAction}
+        onImageSignatureAction={handleImageSignatureAction}
+        onPickImage={handleBlockImagePick}
         onRequestConfirm={confirmAction}
       />
       {chooserOpen && (

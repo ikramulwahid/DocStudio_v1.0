@@ -45,6 +45,10 @@ import type {
   FormulaContentAction,
   FormulaContentActionResult,
 } from '../../services/formula-content';
+import type {
+  ImageSignatureContentAction,
+  ImageSignatureActionResult,
+} from '../../services/image-signature-content';
 import {
   HorizontalLineEditor,
   MetadataBlockEditor,
@@ -55,6 +59,11 @@ import {
   ExhibitEditor,
 } from './StructuralContentEditor';
 import { FormulaContentEditor } from './FormulaContentEditor';
+import {
+  ImageContentEditor,
+  SignatureContentEditor,
+  type ImagePickHandler,
+} from './ImageSignatureContentEditor';
 import type { AssetRecord, CustomMetadataField } from '../../types/document';
 import './EditorPanel.css';
 
@@ -114,9 +123,16 @@ interface EditorPanelProps {
     blockId: DocUUID,
     action: FormulaContentAction,
   ) => FormulaContentActionResult;
+  /** Dispatch one validated image/signature action (P06-M4, §6.4/§6.5). */
+  onImageSignatureAction: (
+    blockId: DocUUID,
+    action: ImageSignatureContentAction,
+  ) => ImageSignatureActionResult;
+  /** Pick a local image file (native dialog) and attach it to the slot. */
+  onPickImage: ImagePickHandler;
   /** Document custom fields — labels/ids for the metadata block picker. */
   customFields?: readonly CustomMetadataField[];
-  /** Embedded assets — the exhibit block may reference an image asset. */
+  /** Embedded assets — the exhibit and image blocks reference image assets. */
   assets?: readonly AssetRecord[];
   /** Ask the App to confirm a content-losing action (table column removal). */
   onRequestConfirm: (
@@ -144,9 +160,10 @@ interface EditorNotice {
  * (§10.1), paragraph (§10.2), list (§10.4), callout (§10.3) and table
  * (§10.5) blocks additionally show their content editors; the P06-M2
  * structural blocks (horizontal rule, section break, page break marker,
- * metadata, revision history, references, exhibit) and the P06-M3 formula
- * block show their own content editors wired through
- * `structural-block-content`/`formula-content`; the remaining
+ * metadata, revision history, references, exhibit), the P06-M3 formula
+ * block and the P06-M4 image/signature blocks show their own content
+ * editors wired through `structural-block-content`/`formula-content`/
+ * `image-signature-content`; the remaining
  * lab-specific block types show truthful structural summaries until
  * their checkpoints.
  */
@@ -166,6 +183,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onTableContentAction,
   onStructuralAction,
   onFormulaAction,
+  onImageSignatureAction,
+  onPickImage,
   customFields = [],
   assets = [],
   onRequestConfirm,
@@ -237,6 +256,37 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
     setNotice(
       result.ok ? null : { severity: 'error', text: result.message },
     );
+    return result;
+  };
+
+  /**
+   * Image/signature content dispatch (P06-M4): same contract as
+   * `handleStructural`, routed through the App's immutable
+   * `applyImageSignatureAction` service (asset attachment, crop/size/
+   * caption rules, signer limits and the name-or-designation rule).
+   */
+  const handleImageSignature = (
+    blockId: DocUUID,
+    action: ImageSignatureContentAction,
+  ): ImageSignatureActionResult => {
+    const result = onImageSignatureAction(blockId, action);
+    setNotice(
+      result.ok ? null : { severity: 'error', text: result.message },
+    );
+    return result;
+  };
+
+  /**
+   * Image pick for an image slot: the App runs the native dialog and
+   * the import validation; cancel is a true no-op, failures surface
+   * the App's understandable message inline.
+   */
+  const handleImagePick = async (
+    blockId: DocUUID,
+    imageId: DocUUID,
+  ): Promise<{ ok: boolean; message: string }> => {
+    const result = await onPickImage(blockId, imageId);
+    setNotice(result.ok ? null : { severity: 'error', text: result.message });
     return result;
   };
 
@@ -533,6 +583,26 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             data={block.data}
                             onAction={handleFormula}
                             onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'image' && (
+                          <ImageContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            assets={assets}
+                            onAction={handleImageSignature}
+                            onPickImage={handleImagePick}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                            onRequestConfirm={onRequestConfirm}
+                          />
+                        )}
+                        {block.data.type === 'signature' && (
+                          <SignatureContentEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleImageSignature}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                            onRequestConfirm={onRequestConfirm}
                           />
                         )}
                         <div className="block-spacing-panel" aria-label={`Spacing for block ${position}`}>

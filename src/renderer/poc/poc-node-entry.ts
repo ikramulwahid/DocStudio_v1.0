@@ -270,3 +270,56 @@ export {
   FORMULA_SYMBOL_GAP_PT,
 } from './formula-layout';
 export { mathSvgToReact, parseMathSvgDocument, expandMathPathData } from './poc-math-svg';
+
+// ── P06-M4 (image + signature blocks) — additive exports only ───────────────
+// The pure content service, the layout planners and the asset-header
+// decoder.  Every export below is exercised by verify_p06_m4.mjs through
+// this entry so the suite compiles the same module graph the renderer
+// uses.  The image renderer upgrade preserves the committed baseline
+// bytes for the uncropped single-slot path (the only image shape any
+// committed fixture carries); no committed fixture or gallery document
+// carries a signature block.
+export {
+  IMAGE_ALIGNMENTS,
+  IMAGE_LAYOUTS,
+  CAPTION_PLACEMENTS,
+  IMAGE_WIDTH_FRACTION_MIN,
+  IMAGE_WIDTH_FRACTION_MAX,
+  MAX_IMAGE_CAPTION_LENGTH,
+  MAX_IMAGE_SLOTS,
+  IMAGE_CROP_MIN_FRACTION,
+  MIN_SIGNERS,
+  MAX_SIGNERS,
+  MAX_SIGNER_FIELD_LENGTH,
+  SIGNER_DATE_PATTERN,
+  SIGNER_SEED_DESIGNATION,
+  setImageLayout,
+  attachImageAsset,
+  clearImageAsset,
+  setImageCaption,
+  setImageCaptionPlacement,
+  setImageCrop,
+  setImageWidthFraction,
+  setImageAlign,
+  setSignatureAlign,
+  addSigner,
+  removeSigner,
+  setSignerField,
+  applyImageSignatureAction,
+} from '../../services/image-signature-content';
+export {
+  decodeImageDimensions,
+  assetPixelSize,
+  base64ToBytes,
+} from '../../services/image-dimensions';
+export {
+  planImageSlotWidthsPt,
+  planImageCropBoxPt,
+  planSignatureLayout,
+  signatureRowStartXPt,
+  IMAGE_SLOT_GAP_PT,
+  SIGNATURE_SLOT_GAP_PT,
+  SIGNATURE_SLOT_MAX_WIDTH_PT,
+  SIGNATURE_SPACE_PT,
+  SIGNATURE_LINE_PT,
+} from './image-signature-layout';

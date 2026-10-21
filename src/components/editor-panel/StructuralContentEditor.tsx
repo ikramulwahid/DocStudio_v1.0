@@ -618,7 +618,8 @@ export function ExhibitEditor({
         {imageAssets.length === 0 ? (
           <p className="content-derived-hint">
             This document has no embedded image assets yet, so there is nothing to attach.  Image
-            import arrives with P06-M4; the exhibit still stores its label, title and notes.
+            blocks (P06-M4) import images from local files, which also makes them available here;
+            the exhibit still stores its label, title and notes.
           </p>
         ) : null}
       </div>
