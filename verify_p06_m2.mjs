@@ -79,6 +79,11 @@ group('compile');
 const COMPILE_ROOTS = [
   'src/renderer/poc/poc-node-entry.ts',
   'src/services/block-registry.ts',
+  // P06-M2 corrective: the structural EDITORS are rendered with
+  // react-dom/server below so layout-structure regressions (the owner-reported
+  // horizontal overflow that hid the metadata add-list and the Add reference
+  // button) are caught from real component output, not from source text.
+  'src/components/editor-panel/StructuralContentEditor.tsx',
 ];
 try {
   execSync(
@@ -118,6 +123,13 @@ const documentFile = pick(
   path.join(CACHE, 'services', 'document-file.js'),
   path.join(CACHE, 'src', 'services', 'document-file.js'),
 );
+const structuralEditors = pick(
+  path.join(CACHE, 'components', 'editor-panel', 'StructuralContentEditor.js'),
+  path.join(CACHE, 'src', 'components', 'editor-panel', 'StructuralContentEditor.js'),
+);
+// Real component markup (not source grep) for the layout-structure checks.
+const { renderToStaticMarkup } = require('react-dom/server');
+const React = require('react');
 
 const {
   buildPocFixture,
@@ -996,7 +1008,10 @@ await test('9.3 metadataFieldChoices exposes every scalar field plus document cu
   };
   const choices = metadataFieldChoices(withCustom.metadata.customFields);
   const keys = choices.map((c) => c.field);
-  for (const expected of ['title', 'documentId', 'status', 'createdAt', 'modifiedAt', `custom:${customId}`]) {
+  for (const expected of [
+    'title', 'documentId', 'status', 'subtitle', 'organizationName', 'issueNumber', 'issueDate',
+    'documentHolder', 'createdAt', 'modifiedAt', `custom:${customId}`,
+  ]) {
     assert.ok(keys.includes(expected), `picker offers ${expected}`);
   }
   assert.equal(keys.filter((k) => k === `custom:${customId}`).length, 1, 'no duplicate custom entries');
@@ -1009,6 +1024,164 @@ await test('9.4 MAX_STRUCTURAL_TEXT_LENGTH guards free-text fields', () => {
   const huge = 'x'.repeat(MAX_STRUCTURAL_TEXT_LENGTH + 1);
   rejected(act(doc, id, { action: 'update-exhibit', patch: { notes: huge } }), 'invalid-text', 'over-long notes');
   assert.ok(MAX_STRUCTURAL_TEXT_LENGTH >= 1000, 'limit is a sane document-scale value');
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 10. Structural editor layout & field availability (owner corrective)
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Owner-reported defects in the shipped P06-M2 editors: the metadata block
+// appeared to offer only its three default fields and removed fields could
+// not be re-added; the references "Add reference" button was obscured by the
+// first citation; the exhibit form extended horizontally outside the card.
+// Root cause (measured live at a 1296 px viewport): every structural editor
+// rooted its JSX in `.content-field`, a HORIZONTAL flex row, so title field,
+// hint, entry list and Add button sat side-by-side — the metadata card was
+// 396 px wide with 706 px of content (the whole "Add a field" list started
+// 58 px PAST the card edge and was clipped), the references card was 396 px
+// with 717 px of content (Add reference pushed out of the card), and the
+// exhibit card was 396 px with 1144 px of content (Notes squeezed to 22 px).
+// These checks render the REAL compiled components with react-dom/server so
+// the vertical-stack structure cannot regress unnoticed.
+group('10 · editor layout & availability (owner corrective)');
+
+const noopResult = { ok: true, changed: false, doc: null };
+const noopAction = () => noopResult;
+const noopError = () => {};
+const renderEditor = (Component, props) =>
+  renderToStaticMarkup(React.createElement(Component, { onAction: noopAction, onError: noopError, ...props }));
+const rootClassOf = (markup) => (markup.match(/^<div class="([^"]*)"/) || [])[1] ?? '';
+
+await test('10.1 the metadata editor offers every supported field as a visible add option', () => {
+  const markup = renderEditor(structuralEditors.MetadataBlockEditor, {
+    blockId: '06200000-0000-4000-8000-0000000000ff',
+    data: { type: 'metadata-block', visibleFields: ['title', 'documentId', 'status'] },
+    customFields: [{ id: '06200000-0000-4000-8000-0000000000ee', label: 'Project code', value: 'P-42' }],
+  });
+  assert.equal(
+    rootClassOf(markup),
+    'structural-editor',
+    'metadata editor roots in the vertical stack (the horizontal content-field root clipped the add-list off-card)',
+  );
+  for (const label of [
+    'Subtitle',
+    'Organization / Laboratory Name',
+    'Issue Number',
+    'Issue Date',
+    'Document Holder',
+    'Created (date)',
+    'Last modified (date)',
+  ]) {
+    assert.ok(markup.includes(`aria-label="Add ${label}"`), `add option offered: ${label}`);
+  }
+  assert.ok(markup.includes('aria-label="Add Project code"'), 'document custom fields are offered too');
+  assert.equal(markup.includes('aria-label="Add Title"'), false, 'already-selected fields are not re-offered');
+  assert.ok(markup.includes('aria-label="Remove Document Status"'), 'selected fields remain removable');
+  assert.ok(markup.includes('omitted from the rendered output'), 'the empty-value hint is present');
+});
+
+await test('10.2 a removed metadata field can be added again (service round trip, order kept)', () => {
+  let doc = newDoc('meta-roundtrip');
+  doc = { ...doc, metadata: { ...doc.metadata, documentId: 'SOP-RT-1', status: 'Draft', subtitle: 'Sub' } };
+  doc = insertBlock(doc, 'metadata-block').doc;
+  const id = only(doc, 'metadata-block').id;
+  const fields = () => doc.blocks.find((b) => b.id === id).data.visibleFields;
+
+  doc = applied(
+    act(doc, id, { action: 'set-metadata-fields', fields: ['title', 'documentId', 'status', 'subtitle'] }),
+    'select four fields',
+  );
+  doc = applied(
+    act(doc, id, { action: 'set-metadata-fields', fields: fields().filter((f) => f !== 'documentId') }),
+    'remove documentId',
+  );
+  assert.deepEqual(fields(), ['title', 'status', 'subtitle'], 'removal preserves the remaining order');
+  doc = applied(
+    act(doc, id, {
+      action: 'set-metadata-fields',
+      fields: [...fields().slice(0, 1), 'documentId', ...fields().slice(1)],
+    }),
+    're-add documentId',
+  );
+  assert.deepEqual(fields(), ['title', 'documentId', 'status', 'subtitle'], 'the removed field is re-added at the chosen position');
+  noOp(act(doc, id, { action: 'set-metadata-fields', fields: [...fields()] }), doc, 're-committing the identical selection is a no-op');
+});
+
+await test('10.3 the references editor keeps Add reference inside the vertical stack', () => {
+  const markup = renderEditor(structuralEditors.ReferenceEditor, {
+    blockId: '06200000-0000-4000-8000-0000000000fd',
+    data: {
+      type: 'reference',
+      entries: [{
+        id: '06200000-0000-4000-8000-0000000000fc',
+        key: '[1]',
+        citation: 'ISO/IEC 17025:2017',
+        url: 'https://www.iso.org/standard/66912.html',
+      }],
+    },
+  });
+  assert.equal(rootClassOf(markup), 'structural-editor', 'references editor roots in the vertical stack');
+  const addAt = markup.indexOf('>Add reference<');
+  const listAt = markup.indexOf('structural-entry-list');
+  assert.ok(listAt > 0, 'the citation list is rendered');
+  assert.ok(addAt > listAt, 'Add reference sits BELOW the citation list in vertical order');
+  assert.ok(markup.includes('content-field content-field--stack'), 'citation fields stack label-above-control');
+  assert.ok(markup.includes('ISO/IEC 17025:2017'), 'the existing citation is preserved');
+  assert.ok(markup.includes('>Remove reference<'), 'citation removal stays available');
+});
+
+await test('10.4 the exhibit editor stacks label, title, notes and asset (honest no-asset state kept)', () => {
+  const markup = renderEditor(structuralEditors.ExhibitEditor, {
+    blockId: '06200000-0000-4000-8000-0000000000fa',
+    data: { type: 'exhibit', label: 'Exhibit A', title: 'Calibration chart', notes: 'See annex.', assetId: undefined },
+    assets: [],
+  });
+  assert.equal(rootClassOf(markup), 'structural-editor', 'exhibit editor roots in the vertical stack');
+  assert.equal((markup.match(/content-field--stack/g) || []).length >= 4, true, 'label, title, notes and asset each stack label-above-control');
+  assert.ok(markup.includes('(no asset attached)'), 'the honest no-asset option is preserved');
+  assert.ok(markup.includes('See annex.'), 'notes are preserved');
+});
+
+await test('10.5 the revision editor roots in the vertical stack (add button stays reachable)', () => {
+  const markup = renderEditor(structuralEditors.RevisionHistoryEditor, {
+    blockId: '06200000-0000-4000-8000-0000000000f8',
+    data: {
+      type: 'revision-history',
+      entries: [{
+        id: '06200000-0000-4000-8000-0000000000f7',
+        revision: '1',
+        date: '2026-10-20',
+        author: 'IKRAM',
+        description: 'Initial issue',
+      }],
+    },
+  });
+  assert.equal(rootClassOf(markup), 'structural-editor', 'revision editor roots in the vertical stack');
+  const addAt = markup.indexOf('>Add revision entry<');
+  const listAt = markup.indexOf('structural-entry-list');
+  assert.ok(listAt > 0 && addAt > listAt, 'Add revision entry sits below the entry list');
+  assert.ok(markup.includes('Initial issue'), 'the existing entry is preserved');
+});
+
+await test('10.6 the layout CSS defines the vertical stack and no editor reintroduces the horizontal root', () => {
+  const css = fs.readFileSync(path.join(root, 'src', 'components', 'editor-panel', 'EditorPanel.css'), 'utf8');
+  const start = css.indexOf('.structural-editor');
+  const end = css.indexOf('/* ── Rich-text toolbar');
+  assert.ok(start > 0 && end > start, 'the structural layout rules exist in EditorPanel.css');
+  const structural = css.slice(start, end);
+  assert.ok(/\.structural-editor\s*\{[^}]*flex-direction:\s*column/s.test(structural), '.structural-editor is a column layout');
+  assert.ok(/\.content-field--stack\s*\{[^}]*flex-direction:\s*column/s.test(structural), '.content-field--stack stacks label above control');
+  assert.ok(/\.content-field--stack\s+\.rt-textarea[^}]*min-width:\s*0/s.test(structural), 'textareas can shrink to the card width');
+  const editors = fs.readFileSync(
+    path.join(root, 'src', 'components', 'editor-panel', 'StructuralContentEditor.tsx'),
+    'utf8',
+  );
+  const horizontalRoots = editors.match(/return \(\s*<div className="content-field">/g) ?? [];
+  assert.equal(
+    horizontalRoots.length,
+    0,
+    'no structural editor may root in the horizontal .content-field class (the owner-reported clipping defect)',
+  );
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────

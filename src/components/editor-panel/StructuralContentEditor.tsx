@@ -234,7 +234,7 @@ export function MetadataBlockEditor({
   };
 
   return (
-    <div className="content-field">
+    <div className="structural-editor">
       <div className="content-field-label">Visible metadata fields (in order)</div>
       {selected.length === 0 ? (
         <p className="content-derived-hint">
@@ -279,6 +279,11 @@ export function MetadataBlockEditor({
         </ul>
       )}
       <div className="content-field-label">Add a field</div>
+      <p className="content-derived-hint">
+        Every field listed here exists in the document model and can be added, removed and added
+        again.  A selected field whose value is empty in Document Information is omitted from the
+        rendered output until you fill that value in.
+      </p>
       {available.length === 0 ? (
         <p className="content-derived-hint">Every supported field is already selected.</p>
       ) : (
@@ -323,7 +328,7 @@ export function RevisionHistoryEditor({
     commit({ action: 'update-revision-entry', entryId, patch: { [field]: value } });
 
   return (
-    <div className="content-field">
+    <div className="structural-editor">
       <p className="content-derived-hint">
         A manually edited revision table for this document.  It is not automatic Track Changes and
         not a tamper-proof audit trail — it stores exactly what you type here.
@@ -335,7 +340,7 @@ export function RevisionHistoryEditor({
           {data.entries.map((entry) => (
             <li key={entry.id} className="structural-entry-card">
               <div className="content-row">
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`rev-num-${entry.id}`}>
                     Revision
                   </label>
@@ -348,7 +353,7 @@ export function RevisionHistoryEditor({
                     placeholder="e.g. 1 or Rev A"
                   />
                 </div>
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`rev-date-${entry.id}`}>
                     Date
                   </label>
@@ -362,7 +367,7 @@ export function RevisionHistoryEditor({
                 </div>
               </div>
               <div className="content-row">
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`rev-author-${entry.id}`}>
                     Author
                   </label>
@@ -376,7 +381,7 @@ export function RevisionHistoryEditor({
                 </div>
               </div>
               <div className="content-row">
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`rev-desc-${entry.id}`}>
                     Change description
                   </label>
@@ -426,8 +431,8 @@ export function ReferenceEditor({
     commit({ action: 'update-reference-entry', entryId, patch: { [field]: value } });
 
   return (
-    <div className="content-field">
-      <div className="content-field">
+    <div className="structural-editor">
+      <div className="content-field content-field--stack">
         <label className="content-field-label" htmlFor={`ref-title-${blockId}`}>
           Reference list title (optional)
         </label>
@@ -453,7 +458,7 @@ export function ReferenceEditor({
           {data.entries.map((entry) => (
             <li key={entry.id} className="structural-entry-card">
               <div className="content-row">
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`ref-key-${entry.id}`}>
                     Key / number
                   </label>
@@ -468,7 +473,7 @@ export function ReferenceEditor({
                 </div>
               </div>
               <div className="content-row">
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`ref-cite-${entry.id}`}>
                     Citation
                   </label>
@@ -482,7 +487,7 @@ export function ReferenceEditor({
                 </div>
               </div>
               <div className="content-row">
-                <div className="content-field">
+                <div className="content-field content-field--stack">
                   <label className="content-field-label" htmlFor={`ref-url-${entry.id}`}>
                     URL (optional)
                   </label>
@@ -537,9 +542,9 @@ export function ExhibitEditor({
     data.assetId !== undefined && (referenced === undefined || !referenced.mimeType.startsWith('image/'));
 
   return (
-    <div className="content-field">
+    <div className="structural-editor">
       <div className="content-row">
-        <div className="content-field">
+        <div className="content-field content-field--stack">
           <label className="content-field-label" htmlFor={`exh-label-${blockId}`}>
             Exhibit label (required)
           </label>
@@ -554,7 +559,7 @@ export function ExhibitEditor({
         </div>
       </div>
       <div className="content-row">
-        <div className="content-field">
+        <div className="content-field content-field--stack">
           <label className="content-field-label" htmlFor={`exh-title-${blockId}`}>
             Title (optional)
           </label>
@@ -568,7 +573,7 @@ export function ExhibitEditor({
         </div>
       </div>
       <div className="content-row">
-        <div className="content-field">
+        <div className="content-field content-field--stack">
           <label className="content-field-label" htmlFor={`exh-notes-${blockId}`}>
             Notes (optional)
           </label>
@@ -581,7 +586,7 @@ export function ExhibitEditor({
           />
         </div>
       </div>
-      <div className="content-field">
+      <div className="content-field content-field--stack">
         <label className="content-field-label" htmlFor={`exh-asset-${blockId}`}>
           Attached image asset (optional)
         </label>

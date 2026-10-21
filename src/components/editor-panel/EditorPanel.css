@@ -243,6 +243,7 @@
 .block-card-main {
   display: flex;
   align-items: stretch;
+  flex-wrap: wrap; /* narrow panels: actions wrap below instead of overflowing the card */
   gap: 4px;
 }
 
@@ -337,6 +338,7 @@
 .block-card-actions {
   display: flex;
   align-items: flex-start;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 12px 12px 0 0;
 }
@@ -520,6 +522,49 @@
 }
 
 /* ── Structural block editors (P06-M2) ───────────────────────────────────── */
+
+/*
+ * Structural editors stack VERTICALLY inside the (narrow) editor card.  The
+ * previous pattern — rooting each editor in `.content-field`, a HORIZONTAL
+ * flex row — laid the title field, hint, entry list and Add button
+ * side-by-side, stretching the content to hundreds of pixels past the card
+ * box; the overflow was clipped by `.editor-scroll-area` (overflow-x: hidden),
+ * which hid the metadata "Add a field" list entirely and pushed the
+ * references "Add reference" button out of reach (owner-reported, P06-M2
+ * corrective follow-up).
+ */
+.structural-editor {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 0;
+}
+
+/*
+ * Label ABOVE the control for every field pair inside a structural editor:
+ * textareas and selects get the card's full width instead of fighting the
+ * label for horizontal space, so nothing overflows at any panel width.
+ */
+.content-field--stack {
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.content-field--stack .content-field-label {
+  white-space: normal;
+}
+
+.content-field--stack .content-text-input,
+.content-field--stack .rt-textarea,
+.content-field--stack .content-select {
+  flex: none;
+  width: 100%;
+  min-width: 0;
+}
 
 .structural-field-list {
   display: flex;
