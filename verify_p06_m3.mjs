@@ -29,8 +29,11 @@
  *     byte-determinism, vector glyph proof (curve counts + no text
  *     fallback), planner↔PDF geometry agreement for the BESIDE and BELOW
  *     placements (pdfjs glyph positions), the honest overflow note, the
- *     honest unrenderable marker for legacy data, and the bold "Where:"
- *     label;
+ *     honest unrenderable marker for legacy data, the bold "Where:"
+ *     label, and — after the owner-confirmed P06-M3-R1 alignment
+ *     defect — left/centre/right formula-box placement measured through
+ *     the pdfjs operator-list CTM, alone and combined with the
+ *     right-pinned number and the Where list;
  *  9. regression — the P06-M2 structural blocks still render, the formula
  *     registry entry is sane, fixtures/baselines are untouched.
  *
@@ -286,6 +289,52 @@ function sigmaDoc(id, mutate = (d) => d) {
   return doc;
 }
 
+/**
+ * A SHORT formula document at a given alignment (P06-M3-R1 defect fixture).
+ * `E = mc^2` is ~42 pt wide, so left/centre/right placements differ by
+ * hundreds of points and can never be confused with scale-to-fit
+ * convergence (a wide formula would fill the band at every alignment).
+ */
+const SHORT_LATEX = 'E = mc^2';
+function alignDoc(hAlign, { number = false, withWhere = false, narrow = false } = {}) {
+  const id = `fx-align-${hAlign}${number ? '-num' : ''}${withWhere ? '-where' : ''}${narrow ? '-narrow' : ''}`;
+  let doc = newDoc(id);
+  if (narrow) {
+    doc = {
+      ...doc,
+      pageSetup: {
+        ...doc.pageSetup,
+        margins: { ...doc.pageSetup.margins, preset: 'custom', leftMm: 90, rightMm: 90 },
+      },
+    };
+  }
+  doc = insertBlock(doc, 'formula').doc;
+  const f = only(doc, 'formula');
+  doc = applied(
+    act(doc, f.id, {
+      action: 'update-formula',
+      latex: SHORT_LATEX,
+      hAlign,
+      displayMode: false,
+      ...(number ? { formulaNumber: '(1)' } : {}),
+    }),
+    `${id}: formula committed`,
+  );
+  if (withWhere) {
+    doc = applied(act(doc, f.id, { action: 'add-variable-definition' }), `${id}: variable added`);
+    const entry = only(doc, 'formula').data.variableDefinitions[0];
+    doc = applied(
+      act(doc, f.id, {
+        action: 'update-variable-definition',
+        entryId: entry.id,
+        patch: { symbol: 'E', definition: 'kinetic energy', unit: 'J' },
+      }),
+      `${id}: variable filled`,
+    );
+  }
+  return doc;
+}
+
 /** The engine+planner geometry exactly as FormulaBlock computes it. */
 function planOf(doc) {
   const { tokens } = resolveBodyTheme(
@@ -317,6 +366,55 @@ function planOf(doc) {
     whereLabelWidthPt: estimateTextWidthPt('Where:', fontSizePt),
   });
   return { layout, plan, fontSizePt, math };
+}
+
+/**
+ * Expected formula-box page origins (x) for the three alignments of an
+ * `alignDoc` fixture — computed through the SAME engine + planner +
+ * width-estimation policy as `FormulaBlock` (P06-M3-R1).
+ */
+function expectedAlignXs(doc, { number = false, withWhere = false } = {}) {
+  const { tokens } = resolveBodyTheme(
+    doc.pageTypography.bodyThemeId,
+    doc.pageTypography.typography,
+    doc.pageTypography.monochrome,
+  );
+  const fontSizePt = tokens.typography.baseFontSizePt;
+  const data = only(doc, 'formula').data;
+  const math = renderLatexToMathSvg(data.latex, fontSizePt, data.displayMode);
+  assert.equal(math.ok, true, 'align fixture: the formula must parse');
+  const layout = computePocLayout(doc);
+  const symbolMath = renderLatexToMathSvg('E', fontSizePt, false);
+  assert.equal(symbolMath.ok, true, 'align fixture: the \\E symbol must parse');
+  const plan = planFormulaLayout({
+    contentWidthPt: layout.contentWidth,
+    naturalWidthPt: math.metrics.widthPt,
+    naturalHeightPt: math.metrics.heightPt,
+    baselineOffsetPt: math.metrics.baselineOffsetPt,
+    fontSizePt,
+    hasNumber: number,
+    numberWidthPt: number ? estimateTextWidthPt('(1)', fontSizePt) : 0,
+    whereRows: withWhere
+      ? [
+          {
+            symbolWidthPt: symbolMath.metrics.widthPt,
+            textWidthPt: estimateTextWidthPt('kinetic energy (J)', fontSizePt),
+          },
+        ]
+      : [],
+    whereLabelWidthPt: withWhere ? estimateTextWidthPt('Where:', fontSizePt) : 0,
+  });
+  // The formula cell starts at the left margin in every where-mode (the
+  // area is the first row child; the beside column sits AFTER it).
+  return {
+    layout,
+    plan,
+    xs: {
+      left: layout.marginLeft,
+      center: layout.marginLeft + (plan.formulaCellWidthPt - plan.formulaWidthPt) / 2,
+      right: layout.marginLeft + (plan.formulaCellWidthPt - plan.formulaWidthPt),
+    },
+  };
 }
 
 // ── PDF helpers (inflated-stream text + pdfjs positions) ────────────────────
@@ -448,6 +546,47 @@ function locate(stream, needle) {
   const itemLen = compact(item.s).length;
   const frac = itemLen > 0 ? (idx - entry.start) / itemLen : 0;
   return { x: item.x + frac * item.width, y: item.y, item };
+}
+/**
+ * Vector-path paint origins of one page (P06-M3-R1): walk the pdfjs
+ * operator list with a save/restore CTM stack and record the current
+ * translation at every `constructPath`.  Every glyph path of one MathJax
+ * `<Svg>` shares the SVG box origin (viewBox coords are painted under the
+ * box transform), so the DOMINANT cluster is the formula box position —
+ * returned as `{x, y, count}` sorted by count (descending).
+ */
+async function pathOrigins(pdf, pageNo = 1) {
+  const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const page = await pdf.getPage(pageNo);
+  const ops = await page.getOperatorList();
+  const mul = (m1, m2) => [
+    m1[0] * m2[0] + m1[2] * m2[1],
+    m1[1] * m2[0] + m1[3] * m2[1],
+    m1[0] * m2[2] + m1[2] * m2[3],
+    m1[1] * m2[2] + m1[3] * m2[3],
+    m1[0] * m2[4] + m1[2] * m2[5] + m1[4],
+    m1[1] * m2[4] + m1[3] * m2[5] + m1[5],
+  ];
+  let ctm = [1, 0, 0, 1, 0, 0];
+  const stack = [];
+  const hits = new Map();
+  for (let i = 0; i < ops.fnArray.length; i += 1) {
+    const fn = ops.fnArray[i];
+    const args = ops.argsArray[i];
+    if (fn === pdfjs.OPS.save) stack.push(ctm.slice());
+    else if (fn === pdfjs.OPS.restore) ctm = stack.pop() || ctm;
+    else if (fn === pdfjs.OPS.transform) ctm = mul(ctm, args);
+    else if (fn === pdfjs.OPS.constructPath) {
+      const key = `${ctm[4].toFixed(2)},${ctm[5].toFixed(2)}`;
+      hits.set(key, (hits.get(key) || 0) + 1);
+    }
+  }
+  return [...hits.entries()]
+    .map(([key, count]) => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y, count };
+    })
+    .sort((a, b) => b.count - a.count);
 }
 const rootClassOf = (markup) => {
   const m = /class="([^"]*)"/.exec(markup);
@@ -1592,6 +1731,136 @@ await test('8.4 the "Where:" label is printed in bold', async () => {
     false,
     'the control page (no formula) has no bold text — the label is the only bold',
   );
+});
+
+await test('8.5 alignment moves the real formula box: left, centre, right (P06-M3-R1)', async () => {
+  // Regression for the owner-confirmed defect: everything rendered
+  // left-aligned because the formula cell applied `justifyContent`
+  // (main/vertical axis of a content-height column) instead of
+  // `alignItems`.  These checks measure the ACTUAL vector-box origin
+  // through the pdfjs operator-list CTM and fail when the three
+  // placements coincide (the defective behaviour).
+  const measured = {};
+  for (const align of ['left', 'center', 'right']) {
+    const doc = alignDoc(align);
+    const { xs, plan } = expectedAlignXs(doc);
+    assert.equal(plan.scaledToFit, false, `${align}: the short formula never scales`);
+    assert.equal(plan.whereMode, 'none', `${align}: no Where list in this fixture`);
+    const bytes = await render(doc);
+    await withPdf(bytes, async (pdf) => {
+      const origins = await pathOrigins(pdf, 1);
+      const formulaPaths = origins.filter((o) => o.count >= 2);
+      assert.ok(
+        formulaPaths.length > 0 && origins[0].count >= 3,
+        `${align}: the formula glyph cluster is painted`,
+      );
+      const minX = Math.min(...formulaPaths.map((o) => o.x));
+      assert.ok(
+        Math.abs(minX - xs[align]) < 1.5,
+        `${align}: box origin matches the planner (${minX.toFixed(1)} vs ${xs[align].toFixed(1)})`,
+      );
+      measured[align] = minX;
+    });
+  }
+  assert.ok(
+    measured.left < measured.center && measured.center < measured.right,
+    `the three placements are strictly distinct and ordered ` +
+      `(${measured.left.toFixed(1)} < ${measured.center.toFixed(1)} < ${measured.right.toFixed(1)})`,
+  );
+});
+
+await test('8.6 alignment coexists with the right-pinned equation number (P06-M3-R1)', async () => {
+  const numberRights = [];
+  for (const align of ['left', 'center', 'right']) {
+    const doc = alignDoc(align, { number: true });
+    const { xs, plan, layout } = expectedAlignXs(doc, { number: true });
+    assert.ok(plan.numberCellWidthPt > 0, `${align}: the number reserves its cell`);
+    const bytes = await render(doc);
+    await withPdf(bytes, async (pdf) => {
+      // The formula aligns inside the REDUCED band (area minus number cell).
+      const origins = await pathOrigins(pdf, 1);
+      const minX = Math.min(...origins.filter((o) => o.count >= 2).map((o) => o.x));
+      assert.ok(
+        Math.abs(minX - xs[align]) < 1.5,
+        `${align}: formula inside the reduced band (${minX.toFixed(1)} vs ${xs[align].toFixed(1)})`,
+      );
+      // The number keeps its own right-aligned cell at the content edge.
+      const items = await pageItems(pdf, 1);
+      const stream = compactStream(items);
+      const num = locate(stream, '(1)');
+      assert.ok(num !== null, `${align}: the equation number prints`);
+      const right = num.x + num.item.width;
+      assert.ok(num.item.width > 0, `${align}: pdfjs reports the number width`);
+      numberRights.push(right);
+      const expectedRight = layout.marginLeft + plan.formulaAreaWidthPt;
+      assert.ok(
+        Math.abs(right - expectedRight) < 8,
+        `${align}: number still right-pinned at the area edge (${right.toFixed(1)} vs ${expectedRight.toFixed(1)})`,
+      );
+    });
+  }
+  assert.ok(
+    Math.max(...numberRights) - Math.min(...numberRights) < 0.5,
+    'the number position is alignment-invariant (the cell never moves)',
+  );
+});
+
+await test('8.7 alignment coexists with the Where list: beside column fixed, below full-width (P06-M3-R1)', async () => {
+  // Beside mode (default A4): the formula aligns inside its band while the
+  // Where column stays put at the area edge for every alignment.
+  const whereXs = [];
+  for (const align of ['left', 'center', 'right']) {
+    const doc = alignDoc(align, { withWhere: true });
+    const { xs, plan } = expectedAlignXs(doc, { withWhere: true });
+    assert.equal(plan.whereMode, 'beside', `${align}: room beside the short formula`);
+    const bytes = await render(doc);
+    await withPdf(bytes, async (pdf) => {
+      // Dominant cluster = the formula (many glyph paths); the Where
+      // column's \E symbol is also vector, so leftmost-ink alone would
+      // conflate the two in below mode.
+      const origins = await pathOrigins(pdf, 1);
+      assert.ok(origins[0].count >= 3, `${align}: the formula cluster dominates`);
+      const boxX = origins[0].x;
+      assert.ok(
+        Math.abs(boxX - xs[align]) < 1.5,
+        `${align}: formula aligned inside the beside band (${boxX.toFixed(1)} vs ${xs[align].toFixed(1)})`,
+      );
+      const items = await pageItems(pdf, 1);
+      const stream = compactStream(items);
+      const where = locate(stream, 'Where:');
+      assert.ok(where !== null, `${align}: the Where label prints`);
+      whereXs.push(where.x);
+    });
+  }
+  assert.ok(
+    Math.max(...whereXs) - Math.min(...whereXs) < 0.5,
+    'the beside Where column is alignment-invariant',
+  );
+
+  // Below mode (90 mm margins): the full-width list sits under the formula
+  // at the left margin while the formula itself still right-aligns.
+  const narrowDoc = alignDoc('right', { withWhere: true, narrow: true });
+  const { xs, plan, layout } = expectedAlignXs(narrowDoc, { withWhere: true });
+  assert.equal(plan.whereMode, 'below', 'narrow margins move the list below');
+  assert.equal(plan.scaledToFit, false, 'the short formula still fits at natural width');
+  const bytes = await render(narrowDoc);
+  await withPdf(bytes, async (pdf) => {
+    const origins = await pathOrigins(pdf, 1);
+    assert.ok(origins[0].count >= 3, 'below mode: the formula cluster dominates the \\E symbol');
+    const boxX = origins[0].x;
+    assert.ok(
+      Math.abs(boxX - xs.right) < 1.5,
+      `right-aligned above a below-mode list (${boxX.toFixed(1)} vs ${xs.right.toFixed(1)})`,
+    );
+    const items = await pageItems(pdf, 1);
+    const stream = compactStream(items);
+    const where = locate(stream, 'Where:');
+    assert.ok(where !== null, 'the below-mode Where label prints');
+    assert.ok(
+      Math.abs(where.x - layout.marginLeft) < 6,
+      `the below list starts at the left margin (${where.x.toFixed(1)} vs ${layout.marginLeft.toFixed(1)})`,
+    );
+  });
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

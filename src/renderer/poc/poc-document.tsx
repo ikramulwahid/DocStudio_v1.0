@@ -1289,7 +1289,14 @@ function FormulaBlock({
     whereLabelWidthPt: estimateTextWidthPt(whereLabel, fontSizePt),
   });
 
-  const justify: 'flex-start' | 'center' | 'flex-end' =
+  // P06-M3-R1 root cause: the formula cell is a COLUMN-direction flex
+  // container whose height equals its content, so `justifyContent` (the
+  // main/vertical axis) had no effect and the SVG always sat at the
+  // horizontal cross-axis start — everything rendered left-aligned
+  // (owner-confirmed defect).  Horizontal placement inside a column
+  // container is `alignItems` (cross axis): flex-start / center /
+  // flex-end against the planner's `formulaCellWidthPt` band.
+  const align: 'flex-start' | 'center' | 'flex-end' =
     block.hAlign === 'center' ? 'center' : block.hAlign === 'right' ? 'flex-end' : 'flex-start';
   // Optical centering of the number against the (scaled) formula box.
   const numberMarginTop = Math.max(0, (plan.formulaHeightPt - fontSizePt * 1.2) / 2);
@@ -1347,7 +1354,7 @@ function FormulaBlock({
             marginRight: plan.whereGapPt,
           }}
         >
-          <View style={{ width: plan.formulaCellWidthPt, justifyContent: justify }}>
+          <View style={{ width: plan.formulaCellWidthPt, alignItems: align }}>
             {mathSvgToReact(parsed, {
               widthPt: plan.formulaWidthPt,
               heightPt: plan.formulaHeightPt,
