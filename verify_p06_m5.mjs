@@ -10,8 +10,10 @@
  *  3. the lab content service — every action family of the six types:
  *     add/edit/remove/reorder of steps, items, rows, columns and
  *     criteria, required-field and boundary validation (empty required
- *     fields, over-limit titles/text, invalid enums, invalid dates,
- *     the 12-column worksheet cap), LaTeX validation THROUGH the real
+ *     fields, over-limit titles/step numbers/units, the 4,000-char text
+ *     and LaTeX limits tested at the exact boundary, invalid enums,
+ *     invalid dates, the 12-column worksheet cap), LaTeX validation
+ *     THROUGH the real
  *     MathJax engine, measurement cell keys, author-entered verdict
  *     rules, every rejection code, no-op identity, `modifiedAt`
  *     stamping, source immutability and dispatcher safety;
@@ -1673,6 +1675,90 @@ await test('14.3 earlier verify suites are still registered and untouched', () =
   for (const script of ['verify:p06-m1', 'verify:p06-m2', 'verify:p06-m3', 'verify:p06-m4']) {
     assert.ok(pkg.scripts[script], `${script} still registered`);
   }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+group('15 · 4,000-character boundary limits (P06-M5 audit follow-up)');
+// ═══════════════════════════════════════════════════════════════════════════
+
+// The P06-M5 limitations audit found the 4,000-character caps enforced in
+// code but without an explicit boundary test. These two checks exercise
+// the REAL service paths at the exact boundary and one character over.
+// They are service-level: no PDF is rendered here.
+
+await test('15.1 general text: 4,000 characters accepted, 4,001 rejected, document unchanged', () => {
+  let doc = newDoc('limit-text-1');
+  doc = insertBlock(doc, 'observation').doc;
+  const block = only(doc, 'observation');
+  const rowId = block.data.rows[0].id;
+  const at4000 = 'v'.repeat(MAX_LAB_TEXT_LENGTH);
+
+  doc = applied(
+    act(doc, block.id, { action: 'update-observation-row', rowId, patch: { observedValue: at4000 } }),
+    'exactly 4,000 characters is within the contract',
+  );
+  assert.equal(
+    entryOf(only(doc, 'observation').data.rows, rowId, 'observation row').observedValue,
+    at4000,
+    'the accepted value is stored verbatim',
+  );
+
+  const snapshot = JSON.stringify(doc);
+  const over = act(doc, block.id, {
+    action: 'update-observation-row', rowId, patch: { observedValue: `${at4000}v` },
+  });
+  rejected(over, 'invalid-text', '4,001 characters is over the cap');
+  assert.ok(over.message.includes('must be text'), `the rejection explains itself (${over.message})`);
+  assert.equal(JSON.stringify(doc), snapshot, 'the rejected edit leaves the document byte-identical');
+
+  // The REQUIRED-text path shares the same cap with its own error code.
+  const overParameter = act(doc, block.id, {
+    action: 'update-observation-row', rowId,
+    patch: { parameter: 'p'.repeat(MAX_LAB_TEXT_LENGTH + 1) },
+  });
+  rejected(overParameter, 'invalid-parameter', 'over-cap required parameter rejected');
+  assert.equal(JSON.stringify(doc), snapshot, 'still byte-identical after the second rejection');
+});
+
+await test('15.2 calculation LaTeX: the independent 4,000-character limit, distinct from syntax', () => {
+  let doc = newDoc('limit-latex-1');
+  doc = insertBlock(doc, 'calculation').doc;
+  const block = only(doc, 'calculation');
+  const stepId = block.data.steps[0].id;
+  // 4,000 juxtaposed symbols parse under the REAL MathJax engine (probed
+  // separately), so the acceptance below proves LENGTH validation rather
+  // than a syntax artifact.
+  const at4000 = 'a'.repeat(4000);
+
+  doc = applied(
+    act(doc, block.id, { action: 'update-calculation-step', stepId, patch: { latex: at4000 } }),
+    'exactly 4,000 characters of valid TeX is accepted',
+  );
+  assert.equal(
+    entryOf(only(doc, 'calculation').data.steps, stepId, 'calculation step').latex,
+    at4000,
+    'the accepted formula is stored verbatim',
+  );
+
+  const snapshot = JSON.stringify(doc);
+  const over = act(doc, block.id, {
+    action: 'update-calculation-step', stepId, patch: { latex: `${at4000}a` },
+  });
+  rejected(over, 'invalid-latex', '4,001 characters rejected for LENGTH');
+  assert.ok(
+    over.message.includes('at most 4000 characters'),
+    `the rejection names the length limit (${over.message})`,
+  );
+  assert.equal(JSON.stringify(doc), snapshot, 'the stored formula is not replaced or corrupted');
+
+  // Same error code, different cause: a short unparseable formula fails
+  // the PARSER, and its message must not claim a length problem.
+  const syntax = act(doc, block.id, {
+    action: 'update-calculation-step', stepId, patch: { latex: '\\frac{1}{' },
+  });
+  rejected(syntax, 'invalid-latex', 'short unparseable LaTeX rejected as a syntax failure');
+  assert.ok(syntax.message.includes('could not be parsed'), `the parse message surfaces (${syntax.message})`);
+  assert.equal(JSON.stringify(doc), snapshot, 'a syntax rejection also leaves the document unchanged');
 });
 
 // ── Summary ─────────────────────────────────────────────────────────────────
