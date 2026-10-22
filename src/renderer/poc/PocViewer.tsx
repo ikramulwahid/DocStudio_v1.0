@@ -23,6 +23,8 @@ import { Document as PdfJsDocument, Page as PdfJsPage, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { renderDocPdfBytes, renderPocFixturePdfBytes } from './poc-render';
+import type { DocumentChangeView } from '../../services/track-changes';
+import { hasPendingChanges } from '../../services/track-changes';
 import { savePdfViaDialog } from '../../services/pdf-export-io';
 import type { DocStudioDocument } from '../../types/document';
 import './PocViewer.css';
@@ -38,7 +40,20 @@ const ACTIVE_EXPORT_FILE_NAME = 'docstudio-active-document.pdf';
 /** Preview render width in CSS px (fixed for deterministic comparison). */
 const PREVIEW_PAGE_WIDTH = 480;
 
-export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document: activeDoc }) => {
+/**
+ * The P02-M4 PoC viewer (preview == export by construction).  P07-M2
+ * adds the §12.1 export-view choice: when the active document has PENDING
+ * tracked changes, an explicit Markup/Clean control selects which
+ * variant is rendered — the previewed bytes and the exported file are
+ * always the SAME bytes, so the exported result matches the selected
+ * mode by construction.  Documents without pending changes render
+ * identically in both modes (no decoration), so the control is hidden.
+ */
+export const PocViewer: React.FC<{
+  document?: DocStudioDocument;
+  /** Initial markup/clean choice (follows the editor's view mode). */
+  defaultChangeView?: DocumentChangeView;
+}> = ({ document: activeDoc, defaultChangeView = 'clean' }) => {
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [numPages, setNumPages] = useState<number | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -47,6 +62,13 @@ export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document
   const [exportedTo, setExportedTo] = useState<string | null>(null);
   // Which source produced the current bytes (drives the export filename).
   const [source, setSource] = useState<'fixture' | 'active'>('fixture');
+  // §12.1: the user's markup-vs-clean choice for the rendered/exported PDF.
+  const [changeView, setChangeView] = useState<DocumentChangeView>(defaultChangeView);
+  useEffect(() => {
+    setChangeView(defaultChangeView);
+  }, [defaultChangeView]);
+  /** True when the active document has reviewable pending changes. */
+  const trackingPending = activeDoc !== undefined && hasPendingChanges(activeDoc);
 
   // Preview source strategy (P02-M4 manual-test findings):
   // 1. pdf.js TRANSFERS the ArrayBuffer of raw bytes it is given to its
@@ -99,7 +121,8 @@ export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document
   // Render the ACTIVE document (P04-M4): the real editable document —
   // including its designed cover when `frontPage.enabled` — through the
   // same single render path the fixture uses.  The document is never
-  // mutated by rendering (pure React render → pdf bytes).
+  // mutated by rendering (pure React render → pdf bytes).  P07-M2: the
+  // selected markup/clean view is applied to the ACTUAL bytes.
   const handleRenderActive = useCallback(async () => {
     if (!activeDoc) return;
     setBusy(true);
@@ -108,12 +131,12 @@ export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document
     setExportedTo(null);
     try {
       const started = performance.now();
-      const bytes = await renderDocPdfBytes(activeDoc);
+      const bytes = await renderDocPdfBytes(activeDoc, { changeView });
       const ms = Math.round(performance.now() - started);
       setSource('active');
       setPdfBytes(bytes);
       setStatus(
-        `Rendered the active document (${bytes.length.toLocaleString()} bytes in ${ms} ms) — ` +
+        `Rendered the active document (${bytes.length.toLocaleString()} bytes in ${ms} ms, ${changeView} view) — ` +
           (activeDoc.frontPage.enabled
             ? 'the cover renders as page 1.'
             : 'the front page is off, so page 1 is the body.'),
@@ -124,7 +147,7 @@ export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document
     } finally {
       setBusy(false);
     }
-  }, [activeDoc]);
+  }, [activeDoc, changeView]);
 
   const handleExport = useCallback(async () => {
     if (!pdfBytes) return;
@@ -167,6 +190,35 @@ export const PocViewer: React.FC<{ document?: DocStudioDocument }> = ({ document
           >
             {busy ? 'Rendering…' : pdfBytes && source === 'active' ? 'Re-render Document' : 'Render Active Document'}
           </button>
+        )}
+        {activeDoc && trackingPending && (
+          <div
+            className="poc-change-view"
+            role="radiogroup"
+            aria-label="Tracked-change markup in the rendered and exported PDF"
+          >
+            <span className="poc-change-view-label">PDF view:</span>
+            <label className="poc-change-view-option" title="Show pending tracked-change markup in the PDF">
+              <input
+                type="radio"
+                name="poc-change-view"
+                value="markup"
+                checked={changeView === 'markup'}
+                onChange={() => setChangeView('markup')}
+              />
+              <span>Markup</span>
+            </label>
+            <label className="poc-change-view-option" title="Render the current content without review markup">
+              <input
+                type="radio"
+                name="poc-change-view"
+                value="clean"
+                checked={changeView === 'clean'}
+                onChange={() => setChangeView('clean')}
+              />
+              <span>Clean</span>
+            </label>
+          </div>
         )}
         <button type="button" className="poc-btn" onClick={handleExport} disabled={!pdfBytes || busy} title="Export the exact bytes shown in the preview (native save dialog)">
           Export PDF…

@@ -77,6 +77,13 @@ import {
   type ImagePickHandler,
 } from './ImageSignatureContentEditor';
 import type { AssetRecord, CustomMetadataField } from '../../types/document';
+import type { ChangeEvent } from '../../types/change-events';
+import type { DocumentChangeView } from '../../services/track-changes';
+import {
+  buildChangeViewContext,
+  describeBlockMarkupCues,
+  type GhostPlacement,
+} from '../../services/track-changes';
 import './EditorPanel.css';
 
 interface EditorPanelProps {
@@ -158,6 +165,10 @@ interface EditorPanelProps {
     confirmLabel: string,
     onConfirm: () => void,
   ) => void;
+  /** P07-M2 markup mode: the document's change-event log (absent = none). */
+  changeEvents?: readonly ChangeEvent[];
+  /** P07-M2 §12.1: markup shows pending changes; clean shows content only. */
+  changeView?: DocumentChangeView;
 }
 
 interface EditorNotice {
@@ -207,6 +218,8 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   customFields = [],
   assets = [],
   onRequestConfirm,
+  changeEvents,
+  changeView = 'clean',
 }) => {
   const [insertType, setInsertType] = useState<BlockType>('paragraph');
   const [notice, setNotice] = useState<EditorNotice | null>(null);
@@ -221,6 +234,33 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   // §10.1 consistency: the editor shows the SAME derived numbering prefix
   // the renderer will print (never stored in the document).
   const headingPrefixes = useMemo(() => computeHeadingNumbering(blocks), [blocks]);
+
+  // P07-M2 markup mode (§12.1): NULL in clean mode or with nothing pending
+  // — the single guard that keeps the clean editor markup identical to the
+  // pre-Track-Changes output.
+  const changeCtx = useMemo(
+    () => (changeView === 'markup' ? buildChangeViewContext(blocks, changeEvents ?? []) : null),
+    [changeView, blocks, changeEvents],
+  );
+  const ghostCards = changeCtx !== null ? changeCtx.ghosts : [];
+
+  /** One ghost card for a pending deleted block (markup view only). */
+  const renderGhostCard = (ghost: GhostPlacement): React.ReactElement => (
+    <li
+      key={`tc-ghost-${ghost.event.id}`}
+      className="block-card block-card--ghost"
+      aria-label="Deleted block shown for a pending tracked change"
+    >
+      <span className="tc-badge tc-badge--deleted">Deleted</span>
+      <span className="block-card-summary">
+        {summarizeBlockData(ghost.event.payload.block.data)}
+      </span>
+      <span className="tc-ghost-hint">
+        Pending change — accept the deletion in Track Changes to keep it removed, or reject it to
+        restore the block.
+      </span>
+    </li>
+  );
 
   // Sync spacing drafts to the selection: runs only when the selected block
   // CHANGES (spacing commits update the document, not the selection, so
@@ -427,7 +467,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
           )}
 
           {/* ── Block list / empty state ───────────────────────────────── */}
-          {blocks.length === 0 ? (
+          {blocks.length === 0 && ghostCards.length === 0 ? (
             <section className="editor-empty-card" aria-label="Empty document">
               <h2 className="empty-card-title">No content blocks yet</h2>
               <p className="empty-card-desc">
@@ -437,11 +477,21 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             </section>
           ) : (
             <ul className="block-list" aria-label="Document blocks">
+              {/* P07-M2 markup: pending deleted blocks ghost-render at their
+                  recorded position (leading ghosts first). */}
+              {ghostCards.filter((ghost) => ghost.afterIndex < 0).map(renderGhostCard)}
               {blocks.map((block, index) => {
                 const entry = BLOCK_REGISTRY[block.data.type];
                 const isSelected = block.id === selectedBlockId;
                 const position = index + 1;
+                const blockEvents = changeCtx?.byBlock.get(block.id);
+                const cues = describeBlockMarkupCues(blockEvents);
+                const pendingTexts =
+                  blockEvents?.filter(
+                    (event) => event.status === 'pending' && event.type === 'text',
+                  ) ?? [];
                 return (
+                  <React.Fragment key={block.id}>
                   <li
                     key={block.id}
                     className={`block-card${isSelected ? ' is-selected' : ''}`}
@@ -466,6 +516,12 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             <span className="block-type-tag">{entry.displayName}</span>
                             <span className="block-index-tag">#{position}</span>
                             {isSelected && <span className="block-selected-tag">Selected</span>}
+                            {/* P07-M2 markup cues: textual, readable without color. */}
+                            {cues.map((cue) => (
+                              <span key={cue} className="tc-badge" data-tc-cue={cue}>
+                                {cue}
+                              </span>
+                            ))}
                           </span>
                           <span className="block-card-summary">{summarizeBlockData(block.data)}</span>
                           <span className="block-card-spacing">
@@ -515,6 +571,32 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                         </button>
                       </div>
                     </div>
+
+                    {/* P07-M2 markup strip: field-level pending text changes
+                        shown inline in the document surface (struck original
+                        → underlined replacement), not as a substitute list. */}
+                    {pendingTexts.length > 0 && (
+                      <div className="tc-block-strip" aria-label="Pending text change markup">
+                        {pendingTexts.map((event) =>
+                          event.type === 'text' ? (
+                            <p key={event.id} className="tc-strip-line">
+                              <span className="tc-strip-label">Text</span>
+                              <span className="tc-strip-del">
+                                {event.payload.original === '' ? '(empty)' : event.payload.original}
+                              </span>
+                              <span className="tc-strip-arrow" aria-hidden="true">
+                                →
+                              </span>
+                              <span className="tc-strip-ins">
+                                {event.payload.replacement === ''
+                                  ? '(empty)'
+                                  : event.payload.replacement}
+                              </span>
+                            </p>
+                          ) : null,
+                        )}
+                      </div>
+                    )}
 
                     {isSelected && (
                       <>
@@ -727,6 +809,10 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                       </>
                     )}
                   </li>
+                  {ghostCards
+                    .filter((ghost) => ghost.afterIndex === index)
+                    .map(renderGhostCard)}
+                  </React.Fragment>
                 );
               })}
             </ul>

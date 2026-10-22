@@ -24,7 +24,12 @@
  *   copy (identity is document-scoped per the current schema).
  * • Clear: removes content blocks only. Identity, metadata, lab profile,
  *   page/typography/front-page/header-footer/watermark settings,
- *   `savedRevisions` and `trackChangesEnabled` are preserved. Asset
+ *   `savedRevisions` and `trackChangesEnabled` are preserved. The
+ *   tracked-change event log (`changeEvents`, P07-M2) is CLEARED with the
+ *   contents: every recorded event targets blocks or content that this
+ *   confirmed destructive action just removed, so keeping the log would
+ *   leave only unresolvable review entries. This is distinct from
+ *   disabling tracking, which never deletes pending events. Asset
  *   records no longer referenced by any RETAINED structure are dropped;
  *   assets referenced by front-page or lab-profile settings are kept.
  * • Reset: restores page setup, page typography, front-page and
@@ -112,8 +117,11 @@ function retainedAssetIds(doc: DocStudioDocument): Set<string> {
 
 /**
  * Remove all content blocks while preserving identity, metadata, the lab
- * profile, every settings section, saved revisions and change-tracking
- * state.  Asset records still referenced by retained structures are kept;
+ * profile, every settings section and saved revisions.  The tracked-change
+ * event log is cleared together with the contents (documented policy in
+ * the module header: the events describe blocks this confirmed action
+ * just removed; disabling tracking is the operation that preserves them).
+ * Asset records still referenced by retained structures are kept;
  * assets referenced only by the removed blocks are dropped.
  */
 export function clearDocumentContents(source: DocStudioDocument, now: string = nowISO()): DocStudioDocument {
@@ -122,8 +130,11 @@ export function clearDocumentContents(source: DocStudioDocument, now: string = n
   for (const [id, record] of Object.entries(source.assets)) {
     if (keep.has(id)) assets[id] = record;
   }
+  // Omit `changeEvents` entirely (stays absent when it was absent, so
+  // documents that never tracked still round-trip byte-identically).
+  const { changeEvents: _clearedEvents, ...rest } = source;
   return {
-    ...source,
+    ...rest,
     metadata: { ...source.metadata, modifiedAt: now },
     blocks: [],
     assets,

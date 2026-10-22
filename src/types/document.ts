@@ -563,6 +563,9 @@ export interface AssetRecord {
 // Only the envelope is defined here so documents can be typed without
 // importing every block-specific shape.
 import type { AnyBlockData } from './blocks';
+// Type-only import (no runtime edge): the change-event model also imports
+// this module's types, and TypeScript resolves the cycle for `import type`.
+import type { ChangeEvent } from './change-events';
 
 /** Space above/below a block in points. */
 export interface BlockSpacing {
@@ -686,7 +689,29 @@ export interface DocStudioDocument {
 
   /**
    * Whether change-tracking is currently active for this document.
-   * The tracked-change records themselves will be stored per-block in Phase 07.
+   *
+   * P07-M2 (Track Changes): this is the RECORDING toggle only — turning it
+   * off never deletes, accepts or rejects already-pending change events
+   * (`changeEvents` below); they are preserved for review.  The toggle is
+   * not itself recorded as a change event (it controls recording, it is
+   * not document authorship).
    */
   trackChangesEnabled: boolean;
+
+  /**
+   * Ordered, append-only Track Changes event log (P07-M2, schema-v1
+   * ADDITIVE-OPTIONAL extension — same pattern as `frontPage.placement`).
+   *
+   * Absent in files created before P07-M2: the field is OPTIONAL, the
+   * validator only checks it when present (every event is validated with
+   * the P07-M1 `validateChangeEvent` service), and readers treat absence as
+   * an empty log (`?? []`).  `serializeDocument` writes the key only when
+   * it is set, so untouched documents round-trip byte-identically.
+   * `DOCSTUDIO_SCHEMA_VERSION` stays 1; no migration is involved.
+   *
+   * Semantics of each element are recorded authoritatively in
+   * `types/change-events.ts` (P07-M1).  The log is local, editable
+   * authoring history — NOT a tamper-proof audit trail (§12.1/§12.4).
+   */
+  changeEvents?: ChangeEvent[];
 }

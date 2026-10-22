@@ -18,11 +18,15 @@
 import React from 'react';
 import { pdf, Document, Page, Text } from '@react-pdf/renderer';
 import type { DocStudioDocument } from '../../types/document';
+import type { DocumentChangeView } from '../../services/track-changes';
 import { buildPocFixture } from './poc-fixture';
 import { PocDocument } from './poc-document';
 
 /**
  * Render any supported document to PDF bytes.
+ * `options.changeView` selects clean vs tracked-change markup output
+ * (P07-M2, §12.1 — the user's export choice); it defaults to `clean`,
+ * which is byte-identical to the pre-Track-Changes output.
  * Throws on layout/render errors (e.g. a missing image asset), leaving the
  * caller's state untouched.
  */
@@ -49,8 +53,22 @@ async function instanceToBytes(instance: ReturnType<typeof pdf>): Promise<Uint8A
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-export async function renderDocPdfBytes(doc: DocStudioDocument): Promise<Uint8Array> {
-  const instance = pdf(PocDocument({ doc }) as React.ReactElement);
+/**
+ * Which visual variant of the document a render produces (§12.1: users
+ * control whether tracked-change markup appears in the exported PDF).
+ * `clean` (default) renders the current content with NO review markup —
+ * byte-identical to the pre-Track-Changes output; `markup` additionally
+ * marks pending tracked changes, and is a no-op decoration when the
+ * document has none.  (`DocumentChangeView` is re-exported from the
+ * track-changes service so every surface shares one definition.)
+ */
+export type { DocumentChangeView };
+
+export async function renderDocPdfBytes(
+  doc: DocStudioDocument,
+  options: { changeView?: DocumentChangeView } = {},
+): Promise<Uint8Array> {
+  const instance = pdf(PocDocument({ doc, changeView: options.changeView ?? 'clean' }) as React.ReactElement);
   return instanceToBytes(instance);
 }
 

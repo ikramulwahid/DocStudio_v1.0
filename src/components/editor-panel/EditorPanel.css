@@ -948,3 +948,85 @@
   opacity: 0.35;
   cursor: not-allowed;
 }
+
+/* ── P07-M2 Track Changes markup (§12.1) ─────────────────────────────────── */
+/* Textual badges + struck/underlined cues — readable without relying on
+   color; only rendered in markup view with pending changes. */
+
+.tc-badge {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 5px;
+  border-radius: 8px;
+  border: 1px solid #d97706;
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.tc-badge--deleted {
+  border-color: #b91c1c;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.tc-block-strip {
+  margin: 6px 0 0;
+  padding: 6px 8px;
+  border: 1px dashed #d97706;
+  border-radius: var(--radius-sm, 4px);
+  background: #fffbeb;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tc-strip-line {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  display: flex;
+  gap: 6px;
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.tc-strip-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #92400e;
+}
+
+.tc-strip-del {
+  text-decoration: line-through;
+  color: #b91c1c;
+}
+
+.tc-strip-arrow {
+  color: var(--text-muted, #64748b);
+}
+
+.tc-strip-ins {
+  text-decoration: underline;
+  color: #15803d;
+}
+
+.block-card--ghost {
+  border: 1px dashed #b91c1c;
+  background: #fef2f2;
+  opacity: 0.75;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tc-ghost-hint {
+  flex-basis: 100%;
+  font-size: 10.5px;
+  color: var(--text-muted, #64748b);
+  font-style: italic;
+}

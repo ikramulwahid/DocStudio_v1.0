@@ -108,6 +108,7 @@ import type {
 import { coverFieldLabel } from '../../services/front-page';
 import { effectivePageDimensionsMm } from '../../services/page-typography';
 import { CRITERIA_RESULT_LABELS } from '../../services/lab-block-content';
+import { BLOCK_REGISTRY } from '../../services/block-registry';
 import {
   DEFAULT_TEXT_COLOR,
   resolveBodyTheme,
@@ -120,7 +121,25 @@ import {
   HEADING_PREFIX_SEPARATOR,
 } from '../../services/heading-numbering';
 import { computeListLabels } from '../../services/list-numbering';
-import { sanitizeHref, normalizeHexColor } from '../../services/rich-text';
+import {
+  sanitizeHref,
+  normalizeHexColor,
+  spansToPlainText,
+  plainTextToSpans,
+} from '../../services/rich-text';
+import {
+  buildDocumentChangeViewContext,
+  deriveTextSegments,
+  describeBlockMarkupCues,
+  markupRuns,
+  pendingTextEventFor,
+  type ChangeViewContext,
+  type DocumentChangeView,
+  type GhostPlacement,
+  type MarkupRun,
+  type TextSegment,
+} from '../../services/track-changes';
+import type { ChangeEvent } from '../../types/change-events';
 import { estimateTextWidthPt, renderLatexToMathSvg } from '../../services/math-engine';
 import { FORMULA_SYMBOL_GAP_PT, planFormulaLayout } from './formula-layout';
 import {
@@ -303,21 +322,48 @@ function renderSpans(spans: InlineSpan[]): React.ReactNode {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Tracked-change markup cue (P07-M2, §12.1): a short bracketed TEXT label
+ * such as "[Inserted]", "[Moved]" or "[Formatting: level 2 → 3]".  The
+ * cue is textual on purpose — the exported PDF stays understandable when
+ * printed without relying on color.  Only mounted in markup mode with
+ * pending events (see `PocDocument`); the clean path emits nothing.
+ */
+function MarkupCue({ label, tokens }: { label: string; tokens: BodyThemeTokens }) {
+  return (
+    <Text
+      style={{
+        fontSize: Math.max(7, tokens.typography.baseFontSizePt - 2),
+        fontStyle: 'italic',
+        color: tokens.colors.mutedText,
+        marginBottom: 1,
+      }}
+      wrap
+    >
+      {`[${label}]`}
+    </Text>
+  );
+}
+
+/**
  * Heading block (§10.1).  Outline numbering (P05-M2) is DERIVED at
  * render time by `computeHeadingNumbering` over the authoritative block
  * order — never stored in `text` — and passed in as `prefix`; when no
  * prefix is supplied the emitted node is exactly the pre-numbering one
  * (byte-identity guard: the P02-M4 baseline and the P04 galleries use
- * `numbered: false` headings throughout).
+ * `numbered: false` headings throughout).  `textMarkup` (P07-M2) renders
+ * derived deleted/inserted fragments inline; without it the emitted
+ * children are exactly the pre-markup string.
  */
 function Heading({
   block,
   tokens,
   prefix,
+  textMarkup,
 }: {
   block: HeadingBlockData;
   tokens: BodyThemeTokens;
   prefix?: string;
+  textMarkup?: TextSegment[];
 }) {
   const heading = tokens.headings;
   return (
@@ -343,12 +389,51 @@ function Heading({
       ]}
       wrap
     >
-      {prefix !== undefined ? `${prefix}${HEADING_PREFIX_SEPARATOR}${block.text}` : block.text}
+      {textMarkup !== undefined ? (
+        <>
+          {prefix !== undefined ? `${prefix}${HEADING_PREFIX_SEPARATOR}` : ''}
+          {textMarkup.map((segment, i) =>
+            segment.kind === 'equal' ? (
+              <Text key={i}>{segment.text}</Text>
+            ) : (
+              <Text
+                key={i}
+                style={
+                  segment.kind === 'delete'
+                    ? { textDecoration: 'line-through' }
+                    : { textDecoration: 'underline' }
+                }
+              >
+                {segment.text}
+              </Text>
+            ),
+          )}
+        </>
+      ) : prefix !== undefined ? (
+        `${prefix}${HEADING_PREFIX_SEPARATOR}${block.text}`
+      ) : (
+        block.text
+      )}
     </Text>
   );
 }
 
-function Paragraph({ block, tokens }: { block: ParagraphBlockData; tokens: BodyThemeTokens }) {
+/**
+ * Paragraph block (§10.2).  `textMarkup` (P07-M2) renders derived
+ * deleted/inserted runs — already carrying the field's span styling and
+ * forced strikethrough/underline marks (`markupRuns`); without it the
+ * emitted children are exactly `renderSpans(block.spans)` (byte-identity
+ * guard for the clean path).
+ */
+function Paragraph({
+  block,
+  tokens,
+  textMarkup,
+}: {
+  block: ParagraphBlockData;
+  tokens: BodyThemeTokens;
+  textMarkup?: MarkupRun[];
+}) {
   const indent = block.indentLevel > 0 ? block.indentLevel * tokens.paragraphs.indentStepPt : 0;
   return (
     <Text
@@ -364,7 +449,9 @@ function Paragraph({ block, tokens }: { block: ParagraphBlockData; tokens: BodyT
       ]}
       wrap
     >
-      {renderSpans(block.spans)}
+      {textMarkup !== undefined
+        ? textMarkup.map((run, i) => <React.Fragment key={i}>{renderSpans(run.spans)}</React.Fragment>)
+        : renderSpans(block.spans)}
     </Text>
   );
 }
@@ -2122,6 +2209,7 @@ export function BlockRenderer({
   tokens,
   headingPrefix,
   monochrome = false,
+  markupEvents,
 }: {
   block: AnyBlockData;
   doc: DocStudioDocument;
@@ -2133,12 +2221,97 @@ export function BlockRenderer({
   /** Document monochrome mode (P05-M3 callout accents); defaults to
    *  false so callers without the flag render unchanged. */
   monochrome?: boolean;
+  /** P07-M2 markup mode: this block's PENDING change events.  Absent (the
+   *  clean path and every pre-Track-Changes caller) renders exactly as
+   *  before — the markup below is decoration added ONLY around/inside the
+   *  unchanged body. */
+  markupEvents?: readonly ChangeEvent[];
+}) {
+  const body = renderBlockBody({
+    block,
+    doc,
+    contentWidth,
+    tokens,
+    headingPrefix,
+    monochrome,
+    markupEvents,
+  });
+  const cues = describeBlockMarkupCues(markupEvents);
+  if (cues.length === 0) return body;
+  return (
+    <View wrap={false}>
+      {cues.map((cue) => (
+        <MarkupCue key={cue} label={cue} tokens={tokens} />
+      ))}
+      {body}
+    </View>
+  );
+}
+
+/** Text markup for one block's pending text event, typed per block kind. */
+function headingTextMarkupFor(
+  block: AnyBlockData,
+  markupEvents: readonly ChangeEvent[] | undefined,
+): TextSegment[] | undefined {
+  if (block.type !== 'heading') return undefined;
+  const textEvent = pendingTextEventFor(markupEvents);
+  if (textEvent === undefined) return undefined;
+  return deriveTextSegments(textEvent.payload.original, block.text);
+}
+
+function paragraphTextMarkupFor(
+  block: AnyBlockData,
+  markupEvents: readonly ChangeEvent[] | undefined,
+): MarkupRun[] | undefined {
+  if (block.type !== 'paragraph') return undefined;
+  const textEvent = pendingTextEventFor(markupEvents);
+  if (textEvent === undefined) return undefined;
+  return markupRuns(
+    textEvent.payload.original,
+    spansToPlainText(block.spans),
+    // A text event stores field-level strings only (P07-M1 model): the
+    // deleted fragment's original inline styling is not recoverable, so
+    // it renders as plain struck text — an honest, documented limit.
+    plainTextToSpans(textEvent.payload.original),
+    block.spans,
+  );
+}
+
+function renderBlockBody({
+  block,
+  doc,
+  contentWidth,
+  tokens,
+  headingPrefix,
+  monochrome = false,
+  markupEvents,
+}: {
+  block: AnyBlockData;
+  doc: DocStudioDocument;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+  headingPrefix?: string;
+  monochrome?: boolean;
+  markupEvents?: readonly ChangeEvent[];
 }) {
   switch (block.type) {
     case 'heading':
-      return <Heading block={block} tokens={tokens} prefix={headingPrefix} />;
+      return (
+        <Heading
+          block={block}
+          tokens={tokens}
+          prefix={headingPrefix}
+          textMarkup={headingTextMarkupFor(block, markupEvents)}
+        />
+      );
     case 'paragraph':
-      return <Paragraph block={block} tokens={tokens} />;
+      return (
+        <Paragraph
+          block={block}
+          tokens={tokens}
+          textMarkup={paragraphTextMarkupFor(block, markupEvents)}
+        />
+      );
     case 'callout':
       // Semantic callout (P05-M3, §10.3) — label + optional title + body.
       return <CalloutBlock block={block} tokens={tokens} monochrome={monochrome} />;
@@ -2319,7 +2492,22 @@ export function PocPageFurniture({
   );
 }
 
-export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactElement {
+/**
+ * The real paginated document.  `changeView` (P07-M2, §12.1) selects the
+ * CLEAN rendering (default — byte-identical to the pre-Track-Changes
+ * output) or the MARKUP rendering that additionally marks pending
+ * tracked changes: inline deleted/inserted text fragments, textual
+ * `[Inserted]`/`[Moved]`/`[Formatting: …]` cue lines, and ghost-rendered
+ * deleted blocks at their recorded position.  A document without pending
+ * changes decorates nothing in either mode.
+ */
+export function PocDocument({
+  doc,
+  changeView = 'clean',
+}: {
+  doc: DocStudioDocument;
+  changeView?: DocumentChangeView;
+}): React.ReactElement {
   const { size, orientation } = doc.pageSetup;
   // Single theme-resolution call site (P04-M2): the document's existing
   // settings resolve into the one token set consumed by every block and by
@@ -2336,6 +2524,30 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
   // engine the editor uses, so preview/export can never disagree with
   // the editing surface.  Prefixes are derived, never stored.
   const headingPrefixes = computeHeadingNumbering(doc.blocks);
+  // Track Changes markup (P07-M2): NULL in clean mode and whenever the
+  // document has no pending change — the single guard that keeps the
+  // clean/no-tracking output byte-identical to the previous release.
+  const changeCtx: ChangeViewContext | null =
+    changeView === 'markup' ? buildDocumentChangeViewContext(doc) : null;
+
+  /** Ghost-render one pending deleted block at its recorded position. */
+  const ghostRenderer = (ghost: GhostPlacement): React.ReactElement => (
+    <View key={`tc-ghost-${ghost.event.id}`} wrap={false} style={{ opacity: 0.6 }}>
+      <MarkupCue
+        label={`Deleted — ${
+          BLOCK_REGISTRY[ghost.event.payload.block.data.type]?.displayName ?? 'Block'
+        }`}
+        tokens={tokens}
+      />
+      <BlockRenderer
+        block={ghost.event.payload.block.data}
+        doc={doc}
+        contentWidth={contentWidth}
+        tokens={tokens}
+        monochrome={monochrome}
+      />
+    </View>
+  );
 
   return (
     <Document
@@ -2368,6 +2580,13 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
             component itself is untouched and still mounts in the P04-M3
             theme gallery. */}
         <PocConfiguredFurniture doc={doc} tokens={tokens} />
+
+        {/* P07-M2 markup mode: deleted-block ghosts whose recorded
+            position resolves BEFORE the first current block. */}
+        {changeCtx !== null &&
+          changeCtx.ghosts
+            .filter((ghost) => ghost.afterIndex < 0)
+            .map(ghostRenderer)}
 
         {/* Blocks are rendered as DIRECT children of <Page> on purpose:
             react-pdf v4 only honors the `break` prop on direct Page
@@ -2404,14 +2623,27 @@ export function PocDocument({ doc }: { doc: DocStudioDocument }): React.ReactEle
               tokens={tokens}
               headingPrefix={headingPrefixes.get(block.id)}
               monochrome={monochrome}
+              markupEvents={changeCtx?.byBlock.get(block.id)}
             />
           );
-          return forceBreak ? (
-            <View key={block.id} break wrap={false}>
-              {renderer}
-            </View>
-          ) : (
-            <React.Fragment key={block.id}>{renderer}</React.Fragment>
+          // P07-M2 markup mode: ghosts recorded after this block render
+          // directly behind it (Fragments flatten, so the break View
+          // above stays a direct <Page> child).
+          const trailingGhosts =
+            changeCtx !== null
+              ? changeCtx.ghosts.filter((ghost) => ghost.afterIndex === index)
+              : [];
+          return (
+            <React.Fragment key={block.id}>
+              {forceBreak ? (
+                <View break wrap={false}>
+                  {renderer}
+                </View>
+              ) : (
+                renderer
+              )}
+              {trailingGhosts.map(ghostRenderer)}
+            </React.Fragment>
           );
         })}
       </Page>

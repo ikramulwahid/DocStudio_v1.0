@@ -16,6 +16,8 @@ import type {
 } from '../../types/document';
 import type { BlockType } from '../../types/blocks';
 import type { LabProfile } from '../../types/lab-profile';
+import type { ChangeEvent } from '../../types/change-events';
+import type { DocumentChangeView } from '../../services/track-changes';
 import type {
   BlockActionResult,
   BlockPlacement,
@@ -190,6 +192,27 @@ interface WorkspaceProps {
     confirmLabel: string,
     onConfirm: () => void,
   ) => void;
+  // ── P07-M2 Track Changes (§12.1) ─────────────────────────────────────────
+  /** Authoritative `document.trackChangesEnabled`. */
+  trackChangesEnabled?: boolean;
+  /** Toggle the Track Changes recording state. */
+  onTrackChangesToggle?: (enabled: boolean) => void;
+  /** Authoritative `document.changeEvents` (append-only log). */
+  changeEvents?: readonly ChangeEvent[];
+  /** Accept one pending tracked change. */
+  onAcceptChange?: (eventId: DocUUID) => void;
+  /** Reject one pending tracked change (reverses the edit). */
+  onRejectChange?: (eventId: DocUUID) => void;
+  /** Accept every pending tracked change. */
+  onAcceptAllChanges?: () => void;
+  /** Reject every pending tracked change (reverse order). */
+  onRejectAllChanges?: () => void;
+  /** Markup/clean view mode (editor + preview + default PDF choice). */
+  changeView?: DocumentChangeView;
+  onViewModeChange?: (mode: DocumentChangeView) => void;
+  /** Locally configured editor name stamped on new events. */
+  editorLabel?: string;
+  onEditorLabelChange?: (label: string) => void;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -236,6 +259,17 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onLabAction,
   onPickImage,
   onRequestConfirm,
+  trackChangesEnabled,
+  onTrackChangesToggle,
+  changeEvents,
+  onAcceptChange,
+  onRejectChange,
+  onAcceptAllChanges,
+  onRejectAllChanges,
+  changeView,
+  onViewModeChange,
+  editorLabel,
+  onEditorLabelChange,
 }) => {
   return (
     <div className="workspace">
@@ -263,6 +297,18 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         headerFooter={headerFooter}
         onHeaderFooterBandChange={onHeaderFooterBandChange}
         onWatermarkChange={onWatermarkChange}
+        trackChangesEnabled={trackChangesEnabled}
+        onTrackChangesToggle={onTrackChangesToggle}
+        changeEvents={changeEvents}
+        changeBlocks={blocks}
+        onAcceptChange={onAcceptChange}
+        onRejectChange={onRejectChange}
+        onAcceptAllChanges={onAcceptAllChanges}
+        onRejectAllChanges={onRejectAllChanges}
+        changeViewMode={changeView}
+        onViewModeChange={onViewModeChange}
+        editorLabel={editorLabel}
+        onEditorLabelChange={onEditorLabelChange}
       />
       <EditorPanel
         blocks={blocks}
@@ -286,8 +332,10 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         customFields={customFields}
         assets={assets ? Object.values(assets) : []}
         onRequestConfirm={onRequestConfirm}
+        changeEvents={changeEvents}
+        changeView={changeView ?? 'clean'}
       />
-      <PreviewPanel document={activeDocument} />
+      <PreviewPanel document={activeDocument} changeView={changeView ?? 'clean'} />
     </div>
   );
 };

@@ -95,3 +95,34 @@
   word-break: break-all;
   color: #0369a1;
 }
+
+/* P07-M2: the explicit markup/clean choice for the rendered/exported PDF. */
+.poc-change-view {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+  padding: 3px 8px;
+  border: 1px solid var(--preview-border, #cbd5e1);
+  border-radius: var(--radius-sm, 4px);
+  background: var(--preview-toolbar-bg, #ffffff);
+  font-size: 11px;
+}
+
+.poc-change-view-label {
+  font-weight: 600;
+  color: var(--preview-text, #334155);
+}
+
+.poc-change-view-option {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  color: var(--preview-text, #0f172a);
+}
+
+.poc-change-view-option input {
+  margin: 0;
+  cursor: pointer;
+}

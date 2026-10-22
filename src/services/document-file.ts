@@ -27,8 +27,10 @@
  * metadata, the laboratory-profile snapshot, page setup and typography,
  * front-page settings, header/footer/watermark configuration, ordered
  * content blocks (with stable IDs and spacing), embedded asset records
- * (base64 payloads), saved revisions and change-tracking state all survive
- * a save → open round-trip byte-for-byte.
+ * (base64 payloads), saved revisions, change-tracking state and the
+ * tracked-change event log (`changeEvents`, P07-M2 additive-optional
+ * field — absent in pre-P07-M2 files, treated as an empty log) all
+ * survive a save → open round-trip byte-for-byte.
  *
  * Validation
  * ──────────
@@ -49,6 +51,9 @@ import {
   type DocStudioDocument,
 } from '../types/document';
 import { BLOCK_TYPES } from '../types/blocks';
+// P07-M2: persisted tracked-change events are validated with the AUTHORITATIVE
+// P07-M1 model validator — loaded history is never blindly trusted.
+import { validateChangeEvent } from './change-events';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Errors
@@ -170,6 +175,23 @@ function collectValidationErrors(data: Record<string, unknown>): ErrList {
   requireString(data, 'id', 'document', errs);
   requireBoolean(data, 'trackChangesEnabled', 'document', errs);
   requireArray(data, 'savedRevisions', 'document', errs);
+
+  // ── Tracked-change event log (P07-M2, additive-optional) ──────────────────
+  // An ABSENT key is the pre-P07-M2 state and means an empty log (old files
+  // open unchanged).  When present, every element is validated with the
+  // authoritative P07-M1 model validator; one invalid event rejects the
+  // whole file — loaded history is never blindly trusted.
+  if (data['changeEvents'] !== undefined) {
+    const changeEvents = requireArray(data, 'changeEvents', 'document', errs);
+    if (changeEvents) {
+      changeEvents.forEach((candidate, i) => {
+        const result = validateChangeEvent(candidate);
+        if (!result.ok) {
+          errs.push(`document.changeEvents[${i}]: ${result.message}`);
+        }
+      });
+    }
+  }
 
   // ── Metadata ──────────────────────────────────────────────────────────────
   const metadata = requireRecord(data, 'metadata', 'document', errs);

@@ -115,6 +115,18 @@ import {
 } from './services/template-chooser';
 import { createBlankDocument } from './services/template-instantiation';
 import { loadLabProfile, saveLabProfile } from './services/lab-profile-store';
+import {
+  acceptAllChanges,
+  acceptChange,
+  commitTrackedChange,
+  documentChangeEvents,
+  loadEditorLabel,
+  rejectAllChanges,
+  rejectChange,
+  writeEditorLabel,
+  type ChangeCaptureHint,
+  type DocumentChangeView,
+} from './services/track-changes';
 import { nowISO } from './types/defaults';
 import './styles/theme.css';
 import './styles/globals.css';
@@ -181,6 +193,22 @@ export const App: React.FC = () => {
   const [fileError, setFileError] = useState<string | null>(null);
   /** Active confirmation modal, when one is showing. */
   const [dialog, setDialog] = useState<DialogRequest | null>(null);
+
+  // ── Track Changes session state (P07-M2, §12.1) ──────────────────────────
+  /**
+   * Markup/clean view mode for the editor surface, the preview and the
+   * DEFAULT PDF-render choice (§12.1 visibility control).  Session state,
+   * not document schema: when pending changes exist the PDF viewer always
+   * shows the explicit Markup/Clean control, so the exported variant is
+   * an unambiguous user choice rather than a hidden default.
+   */
+  const [changeView, setChangeView] = useState<DocumentChangeView>('markup');
+  /**
+   * Locally configured editor name — optional per-event metadata (§12.1).
+   * Session preference persisted in localStorage; user-supplied text,
+   * never authenticated identity (no account system exists).
+   */
+  const [editorLabel, setEditorLabel] = useState<string>(() => loadEditorLabel());
 
   // ── Block selection (P05-M1) ─────────────────────────────────────────────
   /**
@@ -257,6 +285,34 @@ export const App: React.FC = () => {
         ],
       });
     });
+
+  // ── Track Changes capture seam (P07-M2, §12.1) ────────────────────────────
+  /**
+   * Commit one completed mutation through the TRACKING seam.  The content
+   * edit ALWAYS stands (`after` is committed even when tracking fails);
+   * when `before.trackChangesEnabled` is on, pending change events are
+   * derived from the real before/after pair and appended atomically via
+   * the P07-M1 validator.  A tracking failure surfaces in the dialog — the
+   * edit is never silently lost and the failure is never silent either.
+   * Disabling tracking records nothing and preserves existing events.
+   */
+  const trackCommit = (
+    before: DocStudioDocument,
+    after: DocStudioDocument,
+    hint: ChangeCaptureHint,
+  ): DocStudioDocument => {
+    const outcome = commitTrackedChange(before, after, hint, { editorLabel });
+    if (outcome.error !== null) {
+      setDialog({
+        title: 'Track Changes',
+        message:
+          `${outcome.error}\n\nYour edit was applied and is kept, but it could not ` +
+          'be recorded as a tracked change.',
+        actions: [{ label: 'OK', variant: 'primary', onClick: closeDialog }],
+      });
+    }
+    return outcome.doc;
+  };
 
   // ── Save (P02-M2, extended P02-M3) ───────────────────────────────────────
   /** Save the active document. Returns true only after a successful write. */
@@ -396,7 +452,9 @@ export const App: React.FC = () => {
    * itself, so the controlled inputs always reflect the active document.
    */
   const handleMetadataChange = (patch: Partial<DocumentMetadata>): void => {
-    setActiveDocument(updateDocumentMetadata(activeDocument, patch));
+    const before = activeDocument;
+    const after = updateDocumentMetadata(before, patch);
+    setActiveDocument(trackCommit(before, after, { kind: 'metadata' }));
   };
 
   // ── Page setup & typography editing (P04-M1) ─────────────────────────────
@@ -410,13 +468,17 @@ export const App: React.FC = () => {
    */
   const handlePageSetupChange = (patch: PageSetupPatch): SettingsUpdateResult => {
     const result = updatePageSetup(activeDocument, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 
   const handleTypographyChange = (patch: TypographyPatch): SettingsUpdateResult => {
     const result = updateTypography(activeDocument, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 
@@ -425,17 +487,26 @@ export const App: React.FC = () => {
   // re-selecting the current theme is a no-op and never dirties state.
   const handleBodyThemeChange = (patch: BodyThemePatch): SettingsUpdateResult => {
     const result = updateBodyTheme(activeDocument, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 
   const handleDisplayHeaderChange = (value: boolean): SettingsUpdateResult => {
     const result = updateDisplayHeader(activeDocument, value);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 
   // ── Front page / cover designer (§7, P04-M4) ─────────────────────────
+  // P07-M2 limitation (documented): the front-page designer, the
+  // header/footer grid and the watermark editor are NOT tracked — their
+  // rich composite structures are outside this checkpoint's capture
+  // scope.  They keep their ordinary editing behavior; the limitation is
+  // recorded in project_roadmap.md P07-M2.
   const handleFrontPageChange = (patch: FrontPagePatch): FrontPageUpdateResult => {
     const result = updateFrontPage(activeDocument, patch);
     if (result.ok && result.changed) setActiveDocument(result.doc);
@@ -511,7 +582,11 @@ export const App: React.FC = () => {
   const handleInsertBlock = (type: BlockType, placement: BlockPlacement): BlockActionResult => {
     const result = insertBlock(activeDocument, type, placement);
     if (result.ok) {
-      if (result.changed) setActiveDocument(result.doc);
+      if (result.changed) {
+        setActiveDocument(
+          trackCommit(activeDocument, result.doc, { kind: 'block-create', blockId: result.blockId }),
+        );
+      }
       setSelectedBlockId(result.blockId);
     }
     return result;
@@ -520,7 +595,11 @@ export const App: React.FC = () => {
   const handleDuplicateBlock = (blockId: DocUUID): BlockActionResult => {
     const result = duplicateBlock(activeDocument, blockId);
     if (result.ok) {
-      if (result.changed) setActiveDocument(result.doc);
+      if (result.changed) {
+        setActiveDocument(
+          trackCommit(activeDocument, result.doc, { kind: 'block-create', blockId: result.blockId }),
+        );
+      }
       setSelectedBlockId(result.blockId);
     }
     return result;
@@ -528,7 +607,9 @@ export const App: React.FC = () => {
 
   const handleMoveBlock = (blockId: DocUUID, direction: 'up' | 'down'): BlockActionResult => {
     const result = reorderBlock(activeDocument, blockId, direction);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-reorder', blockId }));
+    }
     return result;
   };
 
@@ -549,7 +630,11 @@ export const App: React.FC = () => {
           setFileError(result.message);
           return;
         }
-        if (result.changed) setActiveDocument(result.doc);
+        if (result.changed) {
+          setActiveDocument(
+            trackCommit(activeDocument, result.doc, { kind: 'block-delete', blockId }),
+          );
+        }
         setSelectedBlockId((prev) => (prev === blockId ? null : prev));
       },
     );
@@ -561,7 +646,9 @@ export const App: React.FC = () => {
     value: number,
   ): BlockActionResult => {
     const result = updateBlockSpacing(activeDocument, blockId, field, value);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -575,7 +662,9 @@ export const App: React.FC = () => {
     patch: HeadingContentPatch,
   ): ContentActionResult => {
     const result = updateHeadingContent(activeDocument, blockId, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -584,7 +673,9 @@ export const App: React.FC = () => {
     patch: ParagraphContentPatch,
   ): ContentActionResult => {
     const result = updateParagraphContent(activeDocument, blockId, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -600,7 +691,9 @@ export const App: React.FC = () => {
     action: ListContentAction,
   ): ListContentActionResult => {
     const result = applyListContentAction(activeDocument, blockId, action);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -609,7 +702,9 @@ export const App: React.FC = () => {
     patch: CalloutContentPatch,
   ): CalloutContentActionResult => {
     const result = updateCalloutContent(activeDocument, blockId, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -620,7 +715,9 @@ export const App: React.FC = () => {
     action: TableContentAction,
   ): TableContentActionResult => {
     const result = applyTableContentAction(activeDocument, blockId, action);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -637,7 +734,9 @@ export const App: React.FC = () => {
     action: StructuralContentAction,
   ): StructuralContentActionResult => {
     const result = applyStructuralAction(activeDocument, blockId, action);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -653,7 +752,9 @@ export const App: React.FC = () => {
     action: FormulaContentAction,
   ): FormulaContentActionResult => {
     const result = applyFormulaAction(activeDocument, blockId, action);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -668,7 +769,9 @@ export const App: React.FC = () => {
     action: ImageSignatureContentAction,
   ): ImageSignatureActionResult => {
     const result = applyImageSignatureAction(activeDocument, blockId, action);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
   };
 
@@ -706,7 +809,9 @@ export const App: React.FC = () => {
       imageId,
       asset: imported.asset,
     });
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result.ok ? { ok: true, message: '' } : { ok: false, message: result.message };
   };
 
@@ -723,8 +828,72 @@ export const App: React.FC = () => {
     action: LabContentAction,
   ): LabContentActionResult => {
     const result = applyLabAction(activeDocument, blockId, action);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'block-content', blockId }));
+    }
     return result;
+  };
+
+  // ── Track Changes review operations (P07-M2, §12.1) ──────────────────────
+  // The recording toggle (never deletes/accepts/rejects pending events),
+  // per-event accept/reject and the bulk operations.  Every failure goes
+  // through the established dialog surface — a rejected tracking action is
+  // never silently dropped.  `acceptChange` keeps current content;
+  // `rejectChange` reverses the edit through the same services.
+
+  const handleTrackChangesToggle = (enabled: boolean): void => {
+    setActiveDocument(stampModifiedAt({ ...activeDocument, trackChangesEnabled: enabled }));
+  };
+
+  const handleAcceptChange = (eventId: DocUUID): void => {
+    const result = acceptChange(activeDocument, eventId);
+    if (result.ok) {
+      setActiveDocument(result.doc);
+      return;
+    }
+    setDialog({
+      title: 'Accept change',
+      message: result.message,
+      actions: [{ label: 'OK', variant: 'primary', onClick: closeDialog }],
+    });
+  };
+
+  const handleRejectChange = (eventId: DocUUID): void => {
+    const result = rejectChange(activeDocument, eventId);
+    if (result.ok) {
+      setActiveDocument(result.doc);
+      return;
+    }
+    setDialog({
+      title: 'Reject change',
+      message: result.message,
+      actions: [{ label: 'OK', variant: 'primary', onClick: closeDialog }],
+    });
+  };
+
+  const handleAcceptAllChanges = (): void => {
+    const result = acceptAllChanges(activeDocument);
+    if (result.resolved > 0) setActiveDocument(result.doc);
+  };
+
+  const handleRejectAllChanges = (): void => {
+    const result = rejectAllChanges(activeDocument);
+    if (result.resolved > 0) setActiveDocument(result.doc);
+    if (result.failures.length > 0) {
+      setDialog({
+        title: 'Reject all: some changes were not reversed',
+        message:
+          `${result.resolved} change(s) were rejected. ` +
+          `${result.failures.length} could not be reversed and remain pending:\n\n` +
+          result.failures.map((failure, index) => `${index + 1}. ${failure.message}`).join('\n'),
+        actions: [{ label: 'OK', variant: 'primary', onClick: closeDialog }],
+      });
+    }
+  };
+
+  const handleEditorLabelChange = (label: string): void => {
+    setEditorLabel(label);
+    writeEditorLabel(label); // session preference; survives restarts
   };
 
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
@@ -832,6 +1001,17 @@ export const App: React.FC = () => {
         onLabAction={handleLabAction}
         onPickImage={handleBlockImagePick}
         onRequestConfirm={confirmAction}
+        trackChangesEnabled={activeDocument.trackChangesEnabled}
+        onTrackChangesToggle={handleTrackChangesToggle}
+        changeEvents={documentChangeEvents(activeDocument)}
+        onAcceptChange={handleAcceptChange}
+        onRejectChange={handleRejectChange}
+        onAcceptAllChanges={handleAcceptAllChanges}
+        onRejectAllChanges={handleRejectAllChanges}
+        changeView={changeView}
+        onViewModeChange={setChangeView}
+        editorLabel={editorLabel}
+        onEditorLabelChange={handleEditorLabelChange}
       />
       {chooserOpen && (
         <TemplateChooser

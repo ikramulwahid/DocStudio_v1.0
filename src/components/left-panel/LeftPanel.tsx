@@ -5,9 +5,11 @@ import { LabProfilePanel } from './LabProfilePanel';
 import { PageTypographyPanel } from './PageTypographyPanel';
 import { FrontPagePanel } from './FrontPagePanel';
 import { HeaderFooterPanel } from './HeaderFooterPanel';
+import { TrackChangesPanel } from './TrackChangesPanel';
 import { SectionState } from '../../types';
 import type {
   AssetRecord,
+  ContentBlock,
   CustomMetadataField,
   DocumentMetadata,
   FrontPageSettings,
@@ -15,6 +17,9 @@ import type {
   PageSetup,
   PageTypographySettings,
 } from '../../types/document';
+import type { DocUUID } from '../../types/document';
+import type { ChangeEvent } from '../../types/change-events';
+import type { DocumentChangeView } from '../../services/track-changes';
 import type { LabProfile } from '../../types/lab-profile';
 import type {
   BodyThemePatch,
@@ -78,6 +83,28 @@ interface LeftPanelProps {
   onHeaderFooterBandChange?: (band: BandKind, patch: HeaderFooterPatch) => HeaderFooterUpdateResult;
   /** Commit a watermark patch (P06-M1). */
   onWatermarkChange?: (patch: WatermarkPatch) => HeaderFooterUpdateResult;
+  /** Authoritative `document.trackChangesEnabled` (P07-M2, §12.1). */
+  trackChangesEnabled?: boolean;
+  /** Toggle the Track Changes recording state (persists with the document). */
+  onTrackChangesToggle?: (enabled: boolean) => void;
+  /** Authoritative `document.changeEvents` (P07-M2 append-only log). */
+  changeEvents?: readonly ChangeEvent[];
+  /** Current blocks, for human-readable change target descriptions. */
+  changeBlocks?: readonly ContentBlock[];
+  /** Accept one pending tracked change. */
+  onAcceptChange?: (eventId: DocUUID) => void;
+  /** Reject one pending tracked change (reverses the edit). */
+  onRejectChange?: (eventId: DocUUID) => void;
+  /** Accept every pending tracked change. */
+  onAcceptAllChanges?: () => void;
+  /** Reject every pending tracked change (reverse order). */
+  onRejectAllChanges?: () => void;
+  /** Markup/clean view mode (P07-M2 §12.1 visibility control). */
+  changeViewMode?: DocumentChangeView;
+  onViewModeChange?: (mode: DocumentChangeView) => void;
+  /** Locally configured editor name stamped on new events (P07-M2). */
+  editorLabel?: string;
+  onEditorLabelChange?: (label: string) => void;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -104,6 +131,18 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   headerFooter,
   onHeaderFooterBandChange,
   onWatermarkChange,
+  trackChangesEnabled,
+  onTrackChangesToggle,
+  changeEvents,
+  changeBlocks,
+  onAcceptChange,
+  onRejectChange,
+  onAcceptAllChanges,
+  onRejectAllChanges,
+  changeViewMode,
+  onViewModeChange,
+  editorLabel,
+  onEditorLabelChange,
 }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
@@ -111,6 +150,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
     frontPage: true,
     pageTypography: false,
     headerFooter: false,
+    trackChanges: false,
     documentStatistics: true,
     documentActions: false,
   });
@@ -129,6 +169,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
       frontPage: true,
       pageTypography: true,
       headerFooter: true,
+      trackChanges: true,
       documentStatistics: true,
       documentActions: true,
     });
@@ -141,6 +182,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
       frontPage: false,
       pageTypography: false,
       headerFooter: false,
+      trackChanges: false,
       documentStatistics: false,
       documentActions: false,
     });
@@ -285,6 +327,48 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
               </p>
               <span className="placeholder-subtext">
                 Header and footer settings are unavailable because no active document was provided.
+              </span>
+            </div>
+          )}
+        </CollapsibleSection>
+
+        {/* 4b. Track Changes (P07-M2, §12.1) */}
+        <CollapsibleSection
+          id="track-changes"
+          title="Track Changes"
+          icon="actions"
+          isOpen={sections.trackChanges}
+          onToggle={() => toggleSection('trackChanges')}
+          badge="P07-M2"
+        >
+          {onTrackChangesToggle &&
+          changeEvents !== undefined &&
+          changeBlocks !== undefined &&
+          onAcceptChange &&
+          onRejectChange &&
+          onAcceptAllChanges &&
+          onRejectAllChanges &&
+          onViewModeChange &&
+          onEditorLabelChange ? (
+            <TrackChangesPanel
+              trackChangesEnabled={trackChangesEnabled ?? false}
+              onTrackChangesToggle={onTrackChangesToggle}
+              changeEvents={changeEvents}
+              blocks={changeBlocks}
+              onAccept={onAcceptChange}
+              onReject={onRejectChange}
+              onAcceptAll={onAcceptAllChanges}
+              onRejectAll={onRejectAllChanges}
+              viewMode={changeViewMode ?? 'markup'}
+              onViewModeChange={onViewModeChange}
+              editorLabel={editorLabel ?? ''}
+              onEditorLabelChange={onEditorLabelChange}
+            />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Review &amp; Markup</span>
+              <span className="placeholder-subtext">
+                Track Changes is unavailable because no active document was provided.
               </span>
             </div>
           )}

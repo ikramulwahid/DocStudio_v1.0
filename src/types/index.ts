@@ -9,6 +9,7 @@ export interface SectionState {
   frontPage: boolean;
   pageTypography: boolean;
   headerFooter: boolean;
+  trackChanges: boolean;
   documentStatistics: boolean;
   documentActions: boolean;
 }

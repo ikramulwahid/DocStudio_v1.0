@@ -2,9 +2,14 @@ import React, { useState } from 'react';
 import { Icon } from '../common/Icon';
 import { PocViewer } from '../../renderer/poc/PocViewer';
 import type { DocStudioDocument } from '../../types/document';
+import type { DocumentChangeView } from '../../services/track-changes';
 import './PreviewPanel.css';
 
-export const PreviewPanel: React.FC<{ document?: DocStudioDocument }> = ({ document: activeDoc }) => {
+export const PreviewPanel: React.FC<{
+  document?: DocStudioDocument;
+  /** P07-M2: initial markup/clean choice for the rendered/exported PDF. */
+  changeView?: DocumentChangeView;
+}> = ({ document: activeDoc, changeView = 'clean' }) => {
   const [showMarginGuides, setShowMarginGuides] = useState<boolean>(true);
   const [fitMode, setFitMode] = useState<'width' | 'page'>('width');
   const [zoomLevel] = useState<number>(100);
@@ -91,7 +96,7 @@ export const PreviewPanel: React.FC<{ document?: DocStudioDocument }> = ({ docum
 
       <div className="preview-viewport">
         {showRendererPoc ? (
-          <PocViewer document={activeDoc} />
+          <PocViewer document={activeDoc} defaultChangeView={changeView} />
         ) : (
           <div
             className="preview-paper"
