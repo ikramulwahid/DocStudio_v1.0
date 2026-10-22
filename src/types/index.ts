@@ -22,3 +22,6 @@ export * from './defaults';
 export * from './template';
 export * from './template-defaults';
 export * from './lab-profile';
+
+// ── Phase 07 change-tracking model (typed foundation, P07-M1) ─────────────────
+export * from './change-events';
