@@ -15,9 +15,13 @@
  * The P06-M3 formula renderer maps `formula` through MathJax SVG →
  * react-pdf vector primitives (`poc-math-svg.tsx` converts the string,
  * `formula-layout.ts` plans the fit-scale and "Where:" geometry).  The
- * remaining lab-specific block types (image/signature at P06-M4 and the
- * later-phase blocks) keep the visible fallback marker until their
- * checkpoints (P06-M4/P06-M5+).
+ * P06-M4 checkpoint upgraded `image` and `signature` to full editors and
+ * renderers, and the P06-M5 checkpoint maps the six laboratory-specific
+ * types (`procedure-step`, `equipment-list`, `observation`,
+ * `measurement`, `calculation`, `acceptance-criteria`) — every member of
+ * `BLOCK_TYPES` now renders real content; the visible fallback marker in
+ * `BlockRenderer` remains only as the defensive default for genuinely
+ * unmapped data.
  *
  * Mapping decisions (see the roadmap decision record):
  * • Page geometry — `pageSetup` (all five schema sizes, orientation,
@@ -76,18 +80,24 @@ import {
 } from '@react-pdf/renderer';
 import type { DocStudioDocument, HAlignment, PageSize } from '../../types/document';
 import type {
+  AcceptanceCriteriaBlockData,
   AnyBlockData,
   BulletStyle,
+  CalculationBlockData,
   CalloutBlockData,
   ExhibitBlockData,
+  EquipmentListBlockData,
   FormulaBlockData,
   HeadingBlockData,
   HorizontalLineBlockData,
   InlineSpan,
   ImageBlockData,
   ListBlockData,
+  MeasurementBlockData,
   MetadataBlockData,
+  ObservationBlockData,
   ParagraphBlockData,
+  ProcedureStepBlockData,
   ReferenceBlockData,
   RevisionHistoryBlockData,
   SectionBreakBlockData,
@@ -97,6 +107,7 @@ import type {
 } from '../../types/blocks';
 import { coverFieldLabel } from '../../services/front-page';
 import { effectivePageDimensionsMm } from '../../services/page-typography';
+import { CRITERIA_RESULT_LABELS } from '../../services/lab-block-content';
 import {
   DEFAULT_TEXT_COLOR,
   resolveBodyTheme,
@@ -1595,6 +1606,515 @@ function FormulaBlock({
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Laboratory-specific blocks (P06-M5, roadmap §6.6 / project_details §10.9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Shared title line for the six laboratory blocks: bold base-size text
+ * when a title is stored, nothing otherwise (an absent title never emits
+ * an empty node).
+ */
+function LabBlockTitle({
+  title,
+  tokens,
+}: {
+  title: string | undefined;
+  tokens: BodyThemeTokens;
+}): React.ReactElement | null {
+  if (title === undefined || title === '') return null;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  return (
+    <Text
+      style={{
+        fontWeight: 'bold',
+        fontSize: tokens.typography.baseFontSizePt,
+        marginBottom: 3,
+        ...textStyle,
+      }}
+      wrap
+    >
+      {title}
+    </Text>
+  );
+}
+
+/**
+ * One grid row shared by the laboratory tables (equipment, observation,
+ * measurement, acceptance criteria): bottom-border row semantics exactly
+ * like the P06-M2 revision-history grid, optional header emphasis from
+ * the table tokens, and an optional `minHeight` so printed worksheets
+ * keep handwriting space even when cells are blank.
+ */
+function LabGridRow({
+  widths,
+  cells,
+  isHeader,
+  tokens,
+  minHeightPt,
+}: {
+  widths: number[];
+  cells: React.ReactNode[];
+  isHeader: boolean;
+  tokens: BodyThemeTokens;
+  minHeightPt?: number;
+}): React.ReactElement {
+  const t = tokens.tables;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        borderBottomWidth: isHeader ? t.headerBorderWidthPt : t.borderWidthPt,
+        borderBottomColor: isHeader ? t.headerBorderColor : t.borderColor,
+        ...(minHeightPt !== undefined ? { minHeight: minHeightPt } : {}),
+      }}
+      wrap={false}
+    >
+      {cells.map((cell, i) => (
+        <Text
+          key={i}
+          style={{
+            width: widths[i],
+            paddingVertical: t.cellPaddingVpt,
+            paddingHorizontal: t.cellPaddingHpt,
+            borderRightWidth: t.cellDividerWidthPt,
+            borderRightColor: t.cellDividerColor,
+            ...(isHeader
+              ? {
+                  fontWeight: t.headerWeight,
+                  ...(t.headerTextColor !== DEFAULT_TEXT_COLOR
+                    ? { color: t.headerTextColor }
+                    : {}),
+                }
+              : {}),
+          }}
+          wrap
+        >
+          {cell}
+        </Text>
+      ))}
+    </View>
+  );
+}
+
+/**
+ * `procedure-step` block (§10.9) — optional section title plus a
+ * numbered sequence of steps:
+ *
+ * • MAIN steps auto-number `1.`, `2.`, … in document order; SUB steps
+ *   auto-number `a.`, `b.`, … per parent.  A STORED `stepNumber` (e.g.
+ *   "4.1") always wins over the auto-number, so templates can pre-author
+ *   explicit numbering.
+ * • NOTE / WARNING / CAUTION steps render a bold uppercase label inline
+ *   (text carries the semantics, so monochrome mode loses nothing) and
+ *   never take a number.
+ * • Step text renders through the shared inline-span pipeline, so
+ *   formatted spans stored by templates survive to the PDF.
+ */
+function ProcedureStepBlock({
+  block,
+  tokens,
+}: {
+  block: ProcedureStepBlockData;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const MARKER_WIDTH_PT = 36;
+  let mainCounter = 0;
+  let subCounter = 0;
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      <LabBlockTitle title={block.sectionTitle} tokens={tokens} />
+      {block.steps.length === 0 ? (
+        <StructuralNote tokens={tokens} text="[No procedure steps yet]" />
+      ) : (
+        block.steps.map((step) => {
+          let marker = '';
+          let prefix: string | null = null;
+          if (step.level === 'main') {
+            mainCounter += 1;
+            subCounter = 0;
+            marker = step.stepNumber ?? `${mainCounter}.`;
+          } else if (step.level === 'sub') {
+            subCounter += 1;
+            marker = step.stepNumber ?? `${String.fromCharCode(96 + ((subCounter - 1) % 26) + 1)}.`;
+          } else {
+            prefix = step.level === 'note' ? 'NOTE' : step.level === 'warning' ? 'WARNING' : 'CAUTION';
+          }
+          return (
+            <View
+              key={step.id}
+              style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 2 }}
+            >
+              <Text
+                style={{
+                  width: MARKER_WIDTH_PT,
+                  textAlign: 'right',
+                  paddingRight: 4,
+                  fontWeight: 'bold',
+                  ...textStyle,
+                }}
+                wrap={false}
+              >
+                {marker}
+              </Text>
+              <Text style={{ flex: 1, ...textStyle }} wrap>
+                {prefix !== null ? (
+                  <Text style={{ fontWeight: 'bold' }}>{`[${prefix}] `}</Text>
+                ) : null}
+                {renderSpans(step.spans)}
+              </Text>
+            </View>
+          );
+        })
+      )}
+    </View>
+  );
+}
+
+/**
+ * `equipment-list` block (§10.9) — an equipment / materials / reagents
+ * table.  Fixed five-column layout (equipment name, asset ID,
+ * manufacturer·model, calibration due, requirement) keeps the printed
+ * page predictable; unused cells render blank rather than being guessed
+ * at.  "Mandatory"/"Optional" is exactly the stored boolean.
+ */
+function EquipmentListBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: EquipmentListBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const widths = [0.3, 0.13, 0.25, 0.16, 0.16].map((fraction) => contentWidth * fraction);
+  return (
+    <View style={{ marginBottom: tokens.tables.marginBottomPt }}>
+      <LabBlockTitle title={block.title} tokens={tokens} />
+      {block.items.length === 0 ? (
+        <StructuralNote tokens={tokens} text="[No equipment or materials listed]" />
+      ) : (
+        <React.Fragment>
+          <LabGridRow
+            key="header"
+            widths={widths}
+            isHeader
+            tokens={tokens}
+            cells={['Equipment / material', 'Asset ID', 'Manufacturer / model', 'Calibration due', 'Requirement']}
+          />
+          {block.items.map((item) => {
+            const manufModel = `${item.manufacturer ?? ''}${
+              item.manufacturer !== undefined && item.modelNumber !== undefined ? ' ' : ''
+            }${item.modelNumber ?? ''}`;
+            return (
+              <LabGridRow
+                key={item.id}
+                widths={widths}
+                isHeader={false}
+                tokens={tokens}
+                cells={[item.name, item.assetTag ?? '', manufModel, item.calibrationDue ?? '', item.mandatory ? 'Mandatory' : 'Optional']}
+              />
+            );
+          })}
+        </React.Fragment>
+      )}
+    </View>
+  );
+}
+
+/**
+ * `observation` block (§10.9) — technical / sample observation rows
+ * (parameter, observed value, remarks).  The value cell may be blank so
+ * observations can be recorded by hand on a printed page.
+ */
+function ObservationBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: ObservationBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const widths = [0.34, 0.33, 0.33].map((fraction) => contentWidth * fraction);
+  return (
+    <View style={{ marginBottom: tokens.tables.marginBottomPt }}>
+      <LabBlockTitle title={block.title} tokens={tokens} />
+      {block.rows.length === 0 ? (
+        <StructuralNote tokens={tokens} text="[No observations recorded]" />
+      ) : (
+        <React.Fragment>
+          <LabGridRow
+            key="header"
+            widths={widths}
+            isHeader
+            tokens={tokens}
+            cells={['Parameter', 'Observed value', 'Remarks']}
+          />
+          {block.rows.map((row) => (
+            <LabGridRow
+              key={row.id}
+              widths={widths}
+              isHeader={false}
+              tokens={tokens}
+              cells={[row.parameter, row.observedValue, row.remarks ?? '']}
+            />
+          ))}
+        </React.Fragment>
+      )}
+    </View>
+  );
+}
+
+/**
+ * Handwriting space granted to every blank worksheet row so printed
+ * pages leave room for manual recording (project_details §10.9
+ * "Measurement/worksheet table" — "appropriate manual-entry space").
+ */
+const MEASUREMENT_ROW_MIN_HEIGHT_PT = 18;
+
+/**
+ * `measurement` block (§10.9) — the worksheet / rough-datasheet table:
+ * configurable columns (header + optional unit), rows of keyed cell
+ * values (blank cells stay blank — that IS the recording space), and an
+ * optional uncertainty note below the grid.  Column widths come from the
+ * shared table layout policy so wide sheets stay inside the margins.
+ */
+function MeasurementBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: MeasurementBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const t = tokens.tables;
+  const columnCount = block.columns.length;
+  const widths = allocateTableColumnWidths(columnCount, contentWidth);
+  return (
+    <View style={{ marginBottom: t.marginBottomPt }}>
+      <LabBlockTitle title={block.title} tokens={tokens} />
+      {columnCount === 0 ? (
+        <StructuralNote tokens={tokens} text="[No measurement columns defined]" />
+      ) : (
+        <React.Fragment>
+          <LabGridRow
+            key="header"
+            widths={widths}
+            isHeader
+            tokens={tokens}
+            cells={block.columns.map((column) => (
+              <Text key={column.id}>
+                <Text>{column.header}</Text>
+                {column.unit !== undefined && column.unit !== '' ? (
+                  <Text>{`\n(${column.unit})`}</Text>
+                ) : null}
+              </Text>
+            ))}
+          />
+          {block.rows.map((row) => (
+            <LabGridRow
+              key={row.id}
+              widths={widths}
+              isHeader={false}
+              tokens={tokens}
+              minHeightPt={MEASUREMENT_ROW_MIN_HEIGHT_PT}
+              cells={block.columns.map(
+                (column) => row.values[column.id] ?? '',
+              )}
+            />
+          ))}
+        </React.Fragment>
+      )}
+      {block.uncertaintyNote !== undefined && block.uncertaintyNote !== '' ? (
+        <Text
+          style={{
+            marginTop: 3,
+            fontSize: Math.max(7, tokens.typography.baseFontSizePt - 1),
+            fontStyle: 'italic',
+            color: tokens.colors.mutedText,
+          }}
+          wrap
+        >
+          {block.uncertaintyNote}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * `calculation` block (§10.9) — structured calculation presentation:
+ * optional bold title, then per step an optional bold label, the LaTeX
+ * formula rendered through the SAME MathJax→vector pipeline as the
+ * `formula` block (scaled down to fit the page width when wide, with an
+ * honest note), an optional substitution line, an optional result and an
+ * optional note.  An optional conclusion statement closes the block.
+ * Every value is author-entered — DocStudio performs no calculation.
+ */
+function CalculationBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: CalculationBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const fontSizePt = tokens.typography.baseFontSizePt;
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const bodyColor = tokens.colors.text;
+  const mutedColor = tokens.colors.mutedText;
+
+  const renderStepFormula = (latex: string): React.ReactNode => {
+    const math = renderLatexToMathSvg(latex, fontSizePt, false);
+    if (math.ok === false) {
+      return (
+        <Text style={{ fontStyle: 'italic', color: mutedColor }} wrap>
+          {`[Formula could not be rendered: ${math.message}]`}
+        </Text>
+      );
+    }
+    const parsed = parseMathSvgDocument(math.svg);
+    if (parsed === null) {
+      return (
+        <Text style={{ fontStyle: 'italic', color: mutedColor }} wrap>
+          [Formula could not be converted to a PDF vector — the math engine returned an
+          unsupported SVG layout]
+        </Text>
+      );
+    }
+    const naturalWidthPt = math.metrics.widthPt;
+    const scale = naturalWidthPt > contentWidth ? contentWidth / naturalWidthPt : 1;
+    return (
+      <View>
+        {mathSvgToReact(parsed, {
+          widthPt: naturalWidthPt * scale,
+          heightPt: math.metrics.heightPt * scale,
+          color: bodyColor,
+        })}
+        {scale < 1 ? (
+          <Text style={{ marginTop: 2, fontStyle: 'italic', color: mutedColor }} wrap>
+            [Formula scaled to fit the page width]
+          </Text>
+        ) : null}
+      </View>
+    );
+  };
+
+  return (
+    <View style={{ marginBottom: tokens.typography.paragraphSpacingPt }}>
+      <LabBlockTitle title={block.title} tokens={tokens} />
+      {block.steps.length === 0 ? (
+        <StructuralNote tokens={tokens} text="[No calculation steps yet]" />
+      ) : (
+        block.steps.map((step) => (
+          <View key={step.id} style={{ marginBottom: 4 }}>
+            {step.label !== undefined && step.label !== '' ? (
+              <Text style={{ fontWeight: 'bold', ...textStyle }} wrap>
+                {step.label}
+              </Text>
+            ) : null}
+            {step.latex !== '' ? (
+              renderStepFormula(step.latex)
+            ) : (
+              <Text style={{ fontStyle: 'italic', color: mutedColor }} wrap>
+                [Formula not entered yet]
+              </Text>
+            )}
+            {step.substitution !== undefined && step.substitution !== '' ? (
+              <Text style={{ marginLeft: 24, ...textStyle }} wrap>
+                {step.substitution}
+              </Text>
+            ) : null}
+            {step.result !== undefined && step.result !== '' ? (
+              <Text style={{ fontWeight: 'bold', ...textStyle }} wrap>
+                {step.result}
+              </Text>
+            ) : null}
+            {step.note !== undefined && step.note !== '' ? (
+              <Text style={{ fontStyle: 'italic', color: mutedColor }} wrap>
+                {step.note}
+              </Text>
+            ) : null}
+          </View>
+        ))
+      )}
+      {block.conclusionText !== undefined && block.conclusionText !== '' ? (
+        <Text style={{ fontWeight: 'bold', marginTop: 2, ...textStyle }} wrap>
+          {block.conclusionText}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * `acceptance-criteria` block (§10.9) — a criteria table (criterion,
+ * specification, measured value, result, remarks) plus an optional
+ * overall verdict.  EVERY verdict is exactly what the author entered
+ * (Pass/Fail/Inconclusive/N-A/Pending) — DocStudio never evaluates
+ * conformity against any limit.
+ */
+function AcceptanceCriteriaBlock({
+  block,
+  contentWidth,
+  tokens,
+}: {
+  block: AcceptanceCriteriaBlockData;
+  contentWidth: number;
+  tokens: BodyThemeTokens;
+}): React.ReactElement {
+  const textStyle =
+    tokens.colors.text !== DEFAULT_TEXT_COLOR ? { color: tokens.colors.text } : {};
+  const widths = [0.3, 0.18, 0.16, 0.14, 0.22].map(
+    (fraction) => contentWidth * fraction,
+  );
+  return (
+    <View style={{ marginBottom: tokens.tables.marginBottomPt }}>
+      <LabBlockTitle title={block.title} tokens={tokens} />
+      {block.criteria.length === 0 ? (
+        <StructuralNote tokens={tokens} text="[No acceptance criteria yet]" />
+      ) : (
+        <React.Fragment>
+          <LabGridRow
+            key="header"
+            widths={widths}
+            isHeader
+            tokens={tokens}
+            cells={['Criterion', 'Specification', 'Measured value', 'Result', 'Remarks']}
+          />
+          {block.criteria.map((row) => (
+            <LabGridRow
+              key={row.id}
+              widths={widths}
+              isHeader={false}
+              tokens={tokens}
+              cells={[
+                row.criterion,
+                row.specification,
+                row.measuredValue ?? '',
+                CRITERIA_RESULT_LABELS[row.result],
+                row.remarks ?? '',
+              ]}
+            />
+          ))}
+        </React.Fragment>
+      )}
+      {block.overallResult !== undefined ? (
+        <Text style={{ fontWeight: 'bold', marginTop: 3, ...textStyle }} wrap>
+          {`Overall result: ${CRITERIA_RESULT_LABELS[block.overallResult]}`}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 export function BlockRenderer({
   block,
   doc,
@@ -1666,6 +2186,28 @@ export function BlockRenderer({
       // (P06-M3 §10.6 — fit scaling and the beside/below rule live in
       // planFormulaLayout; conversion lives in poc-math-svg).
       return <FormulaBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
+    case 'procedure-step':
+      // Auto/manual-numbered procedure steps with note/warning/caution
+      // levels (P06-M5 §6.6 — §10.9 "Procedure-step block").
+      return <ProcedureStepBlock block={block} tokens={tokens} />;
+    case 'equipment-list':
+      // Equipment / materials table (P06-M5 §6.6 — §10.9).
+      return <EquipmentListBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
+    case 'observation':
+      // Technical / sample observation rows (P06-M5 §6.6 — §10.9).
+      return <ObservationBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
+    case 'measurement':
+      // Worksheet / rough-datasheet grid with handwriting-space rows
+      // (P06-M5 §6.6 — §10.9 "Measurement/worksheet table").
+      return <MeasurementBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
+    case 'calculation':
+      // Calculation presentation reusing the MathJax→vector pipeline
+      // (P06-M5 §6.6 — §10.9 "Calculation block"; no calculation engine).
+      return <CalculationBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
+    case 'acceptance-criteria':
+      // Author-entered acceptance-criteria table + overall verdict
+      // (P06-M5 §6.6 — §10.9; DocStudio never evaluates conformity).
+      return <AcceptanceCriteriaBlock block={block} contentWidth={contentWidth} tokens={tokens} />;
     default:
       // Unsupported block in the PoC: rendered as a visible marker so the
       // gap is obvious during evaluation rather than silently dropped.
@@ -1682,7 +2224,7 @@ export function BlockRenderer({
             },
           ]}
         >
-          [P02-M4 PoC: block type “{block.type}” not yet mapped]
+          [P02-M4 PoC: block type “{(block as AnyBlockData).type}” not yet mapped]
         </Text>
       );
   }

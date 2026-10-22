@@ -49,6 +49,10 @@ import type {
   ImageSignatureActionResult,
 } from '../../services/image-signature-content';
 import type {
+  LabContentAction,
+  LabContentActionResult,
+} from '../../services/lab-block-content';
+import type {
   BodyThemePatch,
   PageSetupPatch,
   SettingsUpdateResult,
@@ -172,6 +176,11 @@ interface WorkspaceProps {
     blockId: DocUUID,
     action: ImageSignatureContentAction,
   ) => ImageSignatureActionResult;
+  /** Dispatch one validated laboratory-block action (P06-M5, §6.6). */
+  onLabAction: (
+    blockId: DocUUID,
+    action: LabContentAction,
+  ) => LabContentActionResult;
   /** Pick a local image file (native dialog) and attach it to the slot. */
   onPickImage: (blockId: DocUUID, imageId: DocUUID) => Promise<{ ok: boolean; message: string }>;
   /** Ask the App to confirm a content-losing action (table column removal). */
@@ -224,6 +233,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onStructuralAction,
   onFormulaAction,
   onImageSignatureAction,
+  onLabAction,
   onPickImage,
   onRequestConfirm,
 }) => {
@@ -271,6 +281,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onStructuralAction={onStructuralAction}
         onFormulaAction={onFormulaAction}
         onImageSignatureAction={onImageSignatureAction}
+        onLabAction={onLabAction}
         onPickImage={onPickImage}
         customFields={customFields}
         assets={assets ? Object.values(assets) : []}

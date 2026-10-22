@@ -323,3 +323,63 @@ export {
   SIGNATURE_SPACE_PT,
   SIGNATURE_LINE_PT,
 } from './image-signature-layout';
+
+// ── P06-M5 (laboratory-specific blocks) — additive exports only ─────────────
+// The pure lab-block content service and the four representative sample
+// documents (SOP, technical procedure, worksheet/rough datasheet,
+// exhibit).  Every export below is exercised by verify_p06_m5.mjs through
+// this entry so the suite compiles the same module graph the renderer
+// uses.  Nothing here changes what `PocDocument` renders for any
+// committed baseline (no committed fixture or gallery document carries
+// a laboratory-specific block).
+export {
+  MAX_LAB_TEXT_LENGTH,
+  MAX_LAB_TITLE_LENGTH,
+  MAX_LAB_STEP_NUMBER_LENGTH,
+  MAX_LAB_UNIT_LENGTH,
+  MAX_MEASUREMENT_COLUMNS,
+  PROCEDURE_STEP_LEVELS,
+  PROCEDURE_LEVEL_LABELS,
+  CRITERIA_RESULTS,
+  CRITERIA_RESULT_LABELS,
+  LAB_DATE_PATTERN,
+  addProcedureStep,
+  updateProcedureStep,
+  removeProcedureStep,
+  moveProcedureStep,
+  addEquipmentItem,
+  updateEquipmentItem,
+  removeEquipmentItem,
+  moveEquipmentItem,
+  addObservationRow,
+  updateObservationRow,
+  removeObservationRow,
+  moveObservationRow,
+  addMeasurementColumn,
+  updateMeasurementColumn,
+  removeMeasurementColumn,
+  moveMeasurementColumn,
+  addMeasurementRow,
+  setMeasurementCell,
+  removeMeasurementRow,
+  moveMeasurementRow,
+  setMeasurementUncertaintyNote,
+  addCalculationStep,
+  updateCalculationStep,
+  removeCalculationStep,
+  moveCalculationStep,
+  setCalculationConclusion,
+  addAcceptanceCriterion,
+  updateAcceptanceCriterion,
+  removeAcceptanceCriterion,
+  moveAcceptanceCriterion,
+  setAcceptanceOverallResult,
+  applyLabAction,
+} from '../../services/lab-block-content';
+export {
+  buildLabSopSampleDoc,
+  buildLabProcedureSampleDoc,
+  buildLabWorksheetSampleDoc,
+  buildLabExhibitSampleDoc,
+  LAB_SAMPLE_CREATED_AT,
+} from './lab-sample-docs';

@@ -102,6 +102,11 @@ import {
   type ImageSignatureContentAction,
   type ImageSignatureActionResult,
 } from './services/image-signature-content';
+import {
+  applyLabAction,
+  type LabContentAction,
+  type LabContentActionResult,
+} from './services/lab-block-content';
 import type { BlockType } from './types/blocks';
 import {
   getBuiltinTemplates,
@@ -705,6 +710,23 @@ export const App: React.FC = () => {
     return result.ok ? { ok: true, message: '' } : { ok: false, message: result.message };
   };
 
+  // ── Laboratory block content (P06-M5) ────────────────────────────────────
+  // The six laboratory types (procedure steps, equipment list,
+  // observation, measurement worksheet, calculation, acceptance
+  // criteria) commit through the immutable `lab-block-content` service —
+  // same conventions: no-op returns the same reference (no false
+  // Modified status), real changes stamp `modifiedAt`, failures leave
+  // the document untouched and surface the service's field-specific
+  // message.
+  const handleLabAction = (
+    blockId: DocUUID,
+    action: LabContentAction,
+  ): LabContentActionResult => {
+    const result = applyLabAction(activeDocument, blockId, action);
+    if (result.ok && result.changed) setActiveDocument(result.doc);
+    return result;
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -807,6 +829,7 @@ export const App: React.FC = () => {
         onStructuralAction={handleStructuralAction}
         onFormulaAction={handleFormulaAction}
         onImageSignatureAction={handleImageSignatureAction}
+        onLabAction={handleLabAction}
         onPickImage={handleBlockImagePick}
         onRequestConfirm={confirmAction}
       />

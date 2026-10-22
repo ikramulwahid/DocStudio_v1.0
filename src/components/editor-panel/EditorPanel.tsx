@@ -49,6 +49,10 @@ import type {
   ImageSignatureContentAction,
   ImageSignatureActionResult,
 } from '../../services/image-signature-content';
+import type {
+  LabContentAction,
+  LabContentActionResult,
+} from '../../services/lab-block-content';
 import {
   HorizontalLineEditor,
   MetadataBlockEditor,
@@ -59,6 +63,14 @@ import {
   ExhibitEditor,
 } from './StructuralContentEditor';
 import { FormulaContentEditor } from './FormulaContentEditor';
+import {
+  ProcedureStepEditor,
+  EquipmentListEditor,
+  ObservationEditor,
+  MeasurementEditor,
+  CalculationEditor,
+  AcceptanceCriteriaEditor,
+} from './LabContentEditor';
 import {
   ImageContentEditor,
   SignatureContentEditor,
@@ -128,6 +140,11 @@ interface EditorPanelProps {
     blockId: DocUUID,
     action: ImageSignatureContentAction,
   ) => ImageSignatureActionResult;
+  /** Dispatch one validated laboratory-block action (P06-M5, §6.6). */
+  onLabAction: (
+    blockId: DocUUID,
+    action: LabContentAction,
+  ) => LabContentActionResult;
   /** Pick a local image file (native dialog) and attach it to the slot. */
   onPickImage: ImagePickHandler;
   /** Document custom fields — labels/ids for the metadata block picker. */
@@ -161,11 +178,12 @@ interface EditorNotice {
  * (§10.5) blocks additionally show their content editors; the P06-M2
  * structural blocks (horizontal rule, section break, page break marker,
  * metadata, revision history, references, exhibit), the P06-M3 formula
- * block and the P06-M4 image/signature blocks show their own content
- * editors wired through `structural-block-content`/`formula-content`/
- * `image-signature-content`; the remaining
- * lab-specific block types show truthful structural summaries until
- * their checkpoints.
+ * block, the P06-M4 image/signature blocks and the P06-M5
+ * laboratory-specific blocks (procedure steps, equipment list,
+ * observation, measurement worksheet, calculation, acceptance criteria)
+ * show their own content editors wired through
+ * `structural-block-content`/`formula-content`/
+ * `image-signature-content`/`lab-block-content`.
  */
 export const EditorPanel: React.FC<EditorPanelProps> = ({
   blocks,
@@ -184,6 +202,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   onStructuralAction,
   onFormulaAction,
   onImageSignatureAction,
+  onLabAction,
   onPickImage,
   customFields = [],
   assets = [],
@@ -270,6 +289,24 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
     action: ImageSignatureContentAction,
   ): ImageSignatureActionResult => {
     const result = onImageSignatureAction(blockId, action);
+    setNotice(
+      result.ok ? null : { severity: 'error', text: result.message },
+    );
+    return result;
+  };
+
+  /**
+   * Laboratory-block content dispatch (P06-M5): same contract as
+   * `handleStructural`, routed through the App's immutable
+   * `applyLabAction` service (steps/rows/columns/criteria entries,
+   * measurement cells, LaTeX validation and the author-entered verdict
+   * rules).
+   */
+  const handleLab = (
+    blockId: DocUUID,
+    action: LabContentAction,
+  ): LabContentActionResult => {
+    const result = onLabAction(blockId, action);
     setNotice(
       result.ok ? null : { severity: 'error', text: result.message },
     );
@@ -603,6 +640,55 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
                             onAction={handleImageSignature}
                             onError={(text) => setNotice({ severity: 'error', text })}
                             onRequestConfirm={onRequestConfirm}
+                          />
+                        )}
+                        {block.data.type === 'procedure-step' && (
+                          <ProcedureStepEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleLab}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'equipment-list' && (
+                          <EquipmentListEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleLab}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'observation' && (
+                          <ObservationEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleLab}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'measurement' && (
+                          <MeasurementEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleLab}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                            onRequestConfirm={onRequestConfirm}
+                          />
+                        )}
+                        {block.data.type === 'calculation' && (
+                          <CalculationEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleLab}
+                            onError={(text) => setNotice({ severity: 'error', text })}
+                          />
+                        )}
+                        {block.data.type === 'acceptance-criteria' && (
+                          <AcceptanceCriteriaEditor
+                            blockId={block.id}
+                            data={block.data}
+                            onAction={handleLab}
+                            onError={(text) => setNotice({ severity: 'error', text })}
                           />
                         )}
                         <div className="block-spacing-panel" aria-label={`Spacing for block ${position}`}>
