@@ -502,14 +502,16 @@ export const App: React.FC = () => {
   };
 
   // ── Front page / cover designer (§7, P04-M4) ─────────────────────────
-  // P07-M2 limitation (documented): the front-page designer, the
-  // header/footer grid and the watermark editor are NOT tracked — their
-  // rich composite structures are outside this checkpoint's capture
-  // scope.  They keep their ordinary editing behavior; the limitation is
-  // recorded in project_roadmap.md P07-M2.
+  // P07-M2-R1: the designer TEXT values (front-page synopsis, header/
+  // footer cell content, watermark text) are captured as settings events
+  // through the single tracking seam; non-text designer configuration
+  // (themes, flags, sizes, logos, grid geometry) stays untracked pending
+  // the owner-boundary decision recorded in project_roadmap.md P07-M2-R1.
   const handleFrontPageChange = (patch: FrontPagePatch): FrontPageUpdateResult => {
     const result = updateFrontPage(activeDocument, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 
@@ -522,13 +524,17 @@ export const App: React.FC = () => {
     patch: HeaderFooterPatch,
   ): HeaderFooterUpdateResult => {
     const result = applyHeaderFooterPatch(activeDocument, band, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 
   const handleWatermarkChange = (patch: WatermarkPatch): HeaderFooterUpdateResult => {
     const result = applyWatermarkPatch(activeDocument, patch);
-    if (result.ok && result.changed) setActiveDocument(result.doc);
+    if (result.ok && result.changed) {
+      setActiveDocument(trackCommit(activeDocument, result.doc, { kind: 'settings' }));
+    }
     return result;
   };
 

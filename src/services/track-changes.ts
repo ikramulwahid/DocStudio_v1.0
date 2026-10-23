@@ -33,29 +33,62 @@
  * same reference and produces no events, and the recorded values are
  * exactly what the authoritative services committed.
  *
- * WHAT IS CAPTURED IN P07-M2 (documented scope, §12.1 feasibility clause)
+ * WHAT IS CAPTURED (P07-M2, its content coverage completed by the
+ * P07-M2-R1 correction; §12.1)
  * ──────────────────────────────────────────────────────────────────────
- * • Text/formatting: HEADING (`text`, `level`, `numbered`, `hAlign`) and
- *   PARAGRAPH (`spans` text projection, styling, `hAlign`, `indentLevel`)
- *   - the two P05-M2 field-level text editors.  Other block types' inner
- *   content (list items, callouts, tables, formula, image/signature,
- *   laboratory blocks) is NOT captured in P07-M2; their whole-block
- *   create/delete/reorder IS.  Recorded as an explicit checkpoint
- *   limitation, not silently as coverage.
+ * Every family below is captured from the SAME immutable editing paths at
+ * the single App seam - there is no second capture mechanism and no
+ * parallel event format; the P07-M1 model is preserved unchanged.
+ * • HEADING (`text`, `level`, `numbered`, `hAlign`) and PARAGRAPH
+ *   (`spans` text projection, styling, `hAlign`, `indentLevel`).
+ * • TABLE: cell text/spans/alignment (addressed by STABLE row+cell ids),
+ *   caption, `hasHeaderRow`, `headerStyle`.  A removed row/column
+ *   surfaces as per-cell text-deletion events; rebuilding a removed row
+ *   from a field-level payload is not supported (see REVERSAL SCOPE).
+ * • LIST: item text/spans (stable item ids), item `depth`, checklist
+ *   `checked` toggles, `listType`/`bulletStyle`/`numberStyle`.
+ * • CALLOUT: `title`, body text/spans, `variant`.
+ * • FORMULA: `latex`, `formulaNumber`, `whereLabelOverride`, `hAlign`,
+ *   `displayMode`, variable-definition `symbol`/`definition`/`unit`.
+ *   There is no calculation engine - only authored text is tracked.
+ * • IMAGE: slot `caption` text and deterministic asset-reference swaps
+ *   (`images[{id}].assetId`, recorded from the actual asset records).
+ *   Image size/crop/layout/alignment are non-text designer properties
+ *   and stay inside the open owner-boundary question (roadmap P07-M2-R1).
+ * • SIGNATURE: signer `role`/`name`/`designation`/`department`/`date`.
+ *   The 1-3 signer rule and the signer-row alignment are service/editor
+ *   concerns, not text - no auth or identity claim is made anywhere.
+ * • STRUCTURAL: section-break `title`; revision-history entry
+ *   `revision`/`date`/`author`/`description`; reference `title` plus
+ *   entry `key`/`citation`/`url`; exhibit `label`/`title`/`notes` and
+ *   its asset reference.  A page break has no text; a horizontal rule
+ *   has no text field in the model; `metadata-block.visibleFields` is a
+ *   selection list (owner-boundary question), not text.
+ * • LABORATORY (all six P06-M5 families, field-level - never whole-block
+ *   replacement): procedure `sectionTitle` + step text/spans/`level`/
+ *   `stepNumber`; equipment `title` + item `name`/`assetTag`/
+ *   `manufacturer`/`modelNumber`/`calibrationDue`/`mandatory`;
+ *   observation `title` + row `parameter`/`observedValue`/`remarks`;
+ *   measurement `title` + column `header`/`unit` + per-cell values +
+ *   `uncertaintyNote`; calculation `title` + step `label`/`latex`/
+ *   `substitution`/`result`/`note` + `conclusionText`; acceptance
+ *   `title` + criterion `criterion`/`specification`/`measuredValue`/
+ *   `result`/`remarks` + `overallResult`.
  * • Spacing: `spacing.topPt` / `spacing.bottomPt` on any block (property).
  * • Block operations: create (insert + duplicate), delete, reorder -
  *   all block types.
  * • Metadata: the five scalar leaves (`title`, `subtitle`,
- *   `organizationName`, `documentId`, `status`).  `customFields` add /
- *   remove / rename is not representable per-leaf in this model - a
- *   documented P07-M2 limitation.  `createdAt`/`modifiedAt` are
- *   app-managed and never tracked.
- * • Settings: page setup (size, orientation, margin preset and the four
- *   custom-margin leaves), typography (fontFamily, baseFontSizePt,
- *   lineHeight, paragraphSpacingPt - `fontFallbacks` is an array and is
- *   excluded), body theme id, monochrome, display header.  Front-page
- *   designer, header/footer grid and watermark editing are NOT captured
- *   in P07-M2 (rich composite structures) - documented limitation.
+ *   `organizationName`, `documentId`, `status`).  `customFields` stays
+ *   untracked (ambiguous per-leaf representation - owner-boundary
+ *   question).  `createdAt`/`modifiedAt` are app-managed, never tracked.
+ * • Settings: the 14 P07-M2 leaves (page setup / typography / theme) -
+ *   unchanged.  ADDITIONALLY the designer TEXT values (P07-M2-R1 task I)
+ *   are captured as settings events on their own dotted paths:
+ *   `frontPage.synopsis`, `watermark.text`, and per-cell
+ *   `headerFooter.{header|footer}.rows[{rowId}].cells[{cellId}].content`.
+ *   Non-text designer configuration (themes, flags, sizes, logos, grid
+ *   geometry, visible metadata fields, `fontFallbacks`) stays inside the
+ *   open owner-boundary question - unchanged from the P07-M2 decision.
  * • The tracking toggle itself is not an event (recording control, not
  *   document authorship); new/open/duplicate/clear/reset are lifecycle
  *   operations, not tracked edits.
@@ -67,18 +100,59 @@
  *             | `spacing.topPt` | `spacing.bottomPt`
  * • paragraph: `text` (plain-text projection of `spans`) | `spans`
  *             | `hAlign` | `indentLevel` | `spacing.topPt` | `spacing.bottomPt`
+ * • repeatable children are addressed by their STABLE ids, NEVER by
+ *   index, so a later reorder can never misdirect a reversal:
+ *   `rows[{rowId}].cells[{cellId}].text|.spans|.hAlign`,
+ *   `items[{itemId}].text|.spans|.depth|.checked`,
+ *   `variableDefinitions[{id}].symbol|definition|unit`,
+ *   `images[{imageId}].caption|.assetId`,
+ *   `signers[{signerId}].role|name|designation|department|date`,
+ *   `entries[{entryId}].<field>`, `steps[{stepId}].<field>`,
+ *   `criteria[{criterionId}].<field>`, `columns[{columnId}].<field>`,
+ *   `rows[{rowId}].values[{columnId}]` (measurement cell value).
+ * • block-level family fields: `caption`, `hasHeaderRow`, `headerStyle`,
+ *   `listType`, `bulletStyle`, `numberStyle`, `title`, `sectionTitle`,
+ *   `variant`, `text`/`spans` (callout body), `latex`, `formulaNumber`,
+ *   `whereLabelOverride`, `hAlign`, `displayMode`, `conclusionText`,
+ *   `uncertaintyNote`, `overallResult`, `label`, `notes`.
  * • metadata / settings targets use dotted document-leaf paths, e.g.
- *   `title`, `pageSetup.margins.topMm`, `pageTypography.typography.lineHeight`.
+ *   `title`, `pageSetup.margins.topMm`, `frontPage.synopsis`,
+ *   `headerFooter.header.rows[{rowId}].cells[{cellId}].content`.
  *
  * TEXT LIMITATION (P07-M1 semantics, restated for consumers)
- * ─────────────────────────────────────────────────────────
+ * ─────────────────────────────────────────────────────────────────
  * Events store FIELD-LEVEL before/after strings; fine-grained inserted /
  * deleted fragments shown in markup are DERIVED by the common
  * prefix/suffix diff (`deriveTextSegments`) exactly as the P07-M1 record
- * anticipates.  Rejecting a paragraph text event restores the original
- * plain text WITHOUT the inline styling that later accumulated on the
- * field (spans are rebuilt via `plainTextToSpans`) - documented.
+ * anticipates.  Rejecting a text event restores the original plain text
+ * WITHOUT the inline styling that later accumulated on the field (spans
+ * are rebuilt via `plainTextToSpans`) - documented.
  *
+ * REVERSAL SCOPE (the honest boundaries of Reject, §12.1 "where supported")
+ * ──────────────────────────────────────────────────────────────────────
+ * • In-place edits (a child field's text/spans/scalar changed while the
+ *   child still exists) reverse through the SAME immutable content
+ *   services that made them, guarded by the recorded replacement value -
+ *   a target that moved again outside tracked flow is stale and fails
+ *   explicitly; nothing is silently dropped.
+ * • STRUCTURAL child operations are CAPTURED and marked, but rejecting
+ *   them fails honestly instead of corrupting the structure: a removed
+ *   row/cell/item/entry/signer/step/criterion cannot be rebuilt from a
+ *   field-level payload (its identity and position are gone), and an
+ *   added child's required-field seeds cannot always be cleared (the
+ *   validating services refuse the empty state).  Both surface as
+ *   explicit failures; the events stay pending until accepted.
+ * • Child REORDERING (same ids, same text, new order) changes no text
+ *   and produces no event - block-level reorder is the tracked event;
+ *   representing a reorder as positional text events would fabricate
+ *   text changes that never happened and make rejection unsafe.
+ * • Rejecting an image asset swap restores the recorded asset reference
+ *   only while the original asset record still exists in `doc.assets`
+ *   (the swap action itself dropped the slot's crop - an excluded,
+ *   non-text side effect that this checkpoint does not reverse).
+ * • A styling-only (identical text) change on a TABLE CELL is captured
+ *   but cannot be reversed: no content service writes raw cell spans
+ *   (fails honestly as unsupported rather than rewriting the text).
  * PERSISTENCE (schema v1, additive-optional)
  * ──────────────────────────────────────────
  * `DocStudioDocument.changeEvents?: ChangeEvent[]` is optional; absence
@@ -105,7 +179,18 @@
  *   is tamper-proof or an audit trail (§12.1/§12.4).
  */
 
-import type { InlineSpan, ParagraphAlignment } from '../types/blocks';
+import type {
+  BulletStyle,
+  CriteriaResult,
+  InlineSpan,
+  ListType,
+  MeasurementRow,
+  NumberStyle,
+  ParagraphAlignment,
+  ProcedureStepLevel,
+  TableHeaderStyle,
+  TableRow,
+} from '../types/blocks';
 import { BLOCK_REGISTRY } from './block-registry';
 import type {
   ContentBlock,
@@ -133,6 +218,44 @@ import {
   updateBlockSpacing,
 } from './block-actions';
 import { updateHeadingContent, updateParagraphContent } from './block-content';
+import { setTableCellAlignment, setTableCellText, updateTableSettings } from './table-content';
+import {
+  indentListItem,
+  outdentListItem,
+  setItemChecked,
+  updateCalloutContent,
+  updateListItemText,
+  updateListSettings,
+} from './list-callout-content';
+import { updateFormulaContent, updateVariableDefinition } from './formula-content';
+import { setImageCaption, setSignerField } from './image-signature-content';
+import {
+  updateExhibitContent,
+  updateReferenceEntry,
+  updateReferenceTitle,
+  updateRevisionEntry,
+  updateSectionBreakContent,
+} from './structural-block-content';
+import {
+  setAcceptanceOverallResult,
+  setCalculationConclusion,
+  setMeasurementCell,
+  setMeasurementUncertaintyNote,
+  updateAcceptanceCriterion,
+  updateAcceptanceTitle,
+  updateCalculationStep,
+  updateCalculationTitle,
+  updateEquipmentItem,
+  updateEquipmentTitle,
+  updateMeasurementColumn,
+  updateMeasurementTitle,
+  updateObservationRow,
+  updateObservationTitle,
+  updateProcedureStep,
+  updateProcedureTitle,
+} from './lab-block-content';
+import { updateFrontPage } from './front-page';
+import { applyHeaderFooterPatch, applyWatermarkPatch } from './header-footer-settings';
 import {
   updateBodyTheme,
   updateDisplayHeader,
@@ -282,6 +405,181 @@ function makeFormattingPropertyDraft(
   };
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// P07-M2-R1: content-family capture helpers (stable-id child diffing)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Optional stored strings project as '' (the event's empty degenerate). */
+const textOf = (value: string | undefined | null): string => value ?? '';
+
+/** A `text` draft for one block field, or null when nothing changed. */
+function makeTextDraft(
+  blockId: DocUUID,
+  field: string,
+  original: string,
+  replacement: string,
+): ChangeEventDraft | null {
+  if (original === replacement) return null;
+  return {
+    type: 'text',
+    target: { kind: 'block-field', blockId, field },
+    payload: { original, replacement },
+  };
+}
+
+/** One tracked field of a repeatable (stable-id) child collection. */
+interface ChildFieldSpec<T> {
+  /** Locator field name: `text` for span carriers, else the stored name. */
+  field: string;
+  /** Plain-text projection for string fields. */
+  text?: (child: T) => string;
+  /** Rich-text carrier: `text` projection + `spans` styling events. */
+  spans?: (child: T) => readonly InlineSpan[];
+  /** Scalar property; emitted only when BOTH sides are defined. */
+  scalar?: (child: T) => ChangeScalarValue | undefined;
+}
+
+/**
+ * Diff one repeatable child collection between before/after by STABLE id.
+ *
+ * • Removed children contribute text-deletion events (their fields to '');
+ *   rejecting such an event cannot rebuild the child and fails honestly.
+ * • Added children contribute text-insertion events for their seeded
+ *   fields; rejecting one clears the field through the real service.
+ * • Common children are diffed field by field (text / spans styling /
+ *   scalar), so a pure reorder (same ids and text, new order) yields NO
+ *   events - a reorder is not a text change.
+ */
+function deriveChildDrafts<T extends { id: DocUUID }>(
+  blockId: DocUUID,
+  collection: string,
+  beforeChildren: readonly T[],
+  afterChildren: readonly T[],
+  specs: readonly ChildFieldSpec<T>[],
+): ChangeEventDraft[] {
+  const drafts: ChangeEventDraft[] = [];
+  const beforeById = new Map<string, T>(beforeChildren.map((child) => [child.id, child]));
+  const afterById = new Map<string, T>(afterChildren.map((child) => [child.id, child]));
+
+  // Plain-text projection of one spec (string fields and rich-text carriers
+  // alike), so STRUCTURAL add/remove records text deletions/insertions for
+  // spans-carrying children too (list items, table cells, procedure steps).
+  const project = (child: T, spec: ChildFieldSpec<T>): string => {
+    if (spec.text !== undefined) return spec.text(child);
+    if (spec.spans !== undefined) {
+      return spansToPlainText(spec.spans(child) as InlineSpan[]);
+    }
+    return '';
+  };
+
+  for (const child of beforeChildren) {
+    if (afterById.has(child.id)) continue;
+    for (const spec of specs) {
+      const original = project(child, spec);
+      if (original === '') continue;
+      drafts.push({
+        type: 'text',
+        target: {
+          kind: 'block-field',
+          blockId,
+          field: `${collection}[${child.id}].${spec.field}`,
+        },
+        payload: { original, replacement: '' },
+      });
+    }
+  }
+
+  for (const child of afterChildren) {
+    if (beforeById.has(child.id)) continue;
+    for (const spec of specs) {
+      const replacement = project(child, spec);
+      if (replacement === '') continue;
+      drafts.push({
+        type: 'text',
+        target: {
+          kind: 'block-field',
+          blockId,
+          field: `${collection}[${child.id}].${spec.field}`,
+        },
+        payload: { original: '', replacement },
+      });
+    }
+  }
+
+  for (const child of afterChildren) {
+    const previous = beforeById.get(child.id);
+    if (previous === undefined) continue;
+    for (const spec of specs) {
+      const base = `${collection}[${child.id}].${spec.field}`;
+      if (spec.spans !== undefined) {
+        const beforeSpans = spec.spans(previous);
+        const afterSpans = spec.spans(child);
+        const beforeText = spansToPlainText(beforeSpans as InlineSpan[]);
+        const afterText = spansToPlainText(afterSpans as InlineSpan[]);
+        if (beforeText !== afterText) {
+          drafts.push({
+            type: 'text',
+            target: { kind: 'block-field', blockId, field: base },
+            payload: { original: beforeText, replacement: afterText },
+          });
+        } else if (JSON.stringify(beforeSpans) !== JSON.stringify(afterSpans)) {
+          drafts.push({
+            type: 'formatting',
+            target: { kind: 'block-field', blockId, field: `${collection}[${child.id}].spans` },
+            payload: {
+              kind: 'spans',
+              original: deepCopy(beforeSpans),
+              replacement: deepCopy(afterSpans),
+            },
+          });
+        }
+      } else if (spec.text !== undefined) {
+        const draft = makeTextDraft(blockId, base, spec.text(previous), spec.text(child));
+        if (draft !== null) drafts.push(draft);
+      }
+      if (spec.scalar !== undefined) {
+        const original = spec.scalar(previous);
+        const replacement = spec.scalar(child);
+        if (original !== undefined && replacement !== undefined) {
+          const draft = makeFormattingPropertyDraft(blockId, base, original, replacement);
+          if (draft !== null) drafts.push(draft);
+        }
+      }
+    }
+  }
+  return drafts;
+}
+
+/** Text/styling drafts for one block-level rich-text field (callout body). */
+function deriveRichTextDrafts(
+  blockId: DocUUID,
+  textField: string,
+  beforeSpans: readonly InlineSpan[],
+  afterSpans: readonly InlineSpan[],
+): ChangeEventDraft[] {
+  const drafts: ChangeEventDraft[] = [];
+  const beforeText = spansToPlainText(beforeSpans as InlineSpan[]);
+  const afterText = spansToPlainText(afterSpans as InlineSpan[]);
+  if (beforeText !== afterText) {
+    drafts.push({
+      type: 'text',
+      target: { kind: 'block-field', blockId, field: textField },
+      payload: { original: beforeText, replacement: afterText },
+    });
+  } else if (JSON.stringify(beforeSpans) !== JSON.stringify(afterSpans)) {
+    drafts.push({
+      type: 'formatting',
+      target: { kind: 'block-field', blockId, field: 'spans' },
+      payload: {
+        kind: 'spans',
+        original: deepCopy(beforeSpans),
+        replacement: deepCopy(afterSpans),
+      },
+    });
+  }
+  return drafts;
+}
+
 /** Diff one heading/paragraph/spacing block between before/after. */
 function deriveBlockContentDrafts(
   before: ContentBlock,
@@ -346,6 +644,8 @@ function deriveBlockContentDrafts(
       );
       if (draft !== null) drafts.push(draft);
     }
+  } else {
+    drafts.push(...deriveFamilyContentDrafts(before, after));
   }
 
   for (const key of ['topPt', 'bottomPt'] as const) {
@@ -358,6 +658,289 @@ function deriveBlockContentDrafts(
       );
       if (draft !== null) drafts.push(draft);
     }
+  }
+  return drafts;
+}
+
+/**
+ * Diff one content block of any P07-M2-R1 tracked family (everything
+ * except heading/paragraph, which keep their dedicated branches above).
+ * Pure; returns [] when nothing the model supports changed, including
+ * for families/fields deliberately held in the owner-boundary question.
+ */
+function deriveFamilyContentDrafts(
+  before: ContentBlock,
+  after: ContentBlock,
+): ChangeEventDraft[] {
+  const drafts: ChangeEventDraft[] = [];
+  const blockId = after.id;
+  const b = before.data;
+  const a = after.data;
+  if (b.type !== a.type) return drafts;
+
+  const pushText = (field: string, original: string, replacement: string): void => {
+    const draft = makeTextDraft(blockId, field, original, replacement);
+    if (draft !== null) drafts.push(draft);
+  };
+  const pushProp = (
+    field: string,
+    original: ChangeScalarValue,
+    replacement: ChangeScalarValue,
+  ): void => {
+    const draft = makeFormattingPropertyDraft(blockId, field, original, replacement);
+    if (draft !== null) drafts.push(draft);
+  };
+
+  switch (a.type) {
+    case 'callout': {
+      if (b.type !== 'callout') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      drafts.push(...deriveRichTextDrafts(blockId, 'text', b.spans, a.spans));
+      pushProp('variant', b.variant, a.variant);
+      break;
+    }
+    case 'list': {
+      if (b.type !== 'list') break;
+      pushProp('listType', b.listType, a.listType);
+      pushProp('bulletStyle', b.bulletStyle, a.bulletStyle);
+      pushProp('numberStyle', b.numberStyle, a.numberStyle);
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'items', b.items, a.items, [
+          { field: 'text', spans: (item) => item.spans },
+          { field: 'depth', scalar: (item) => item.depth },
+          {
+            field: 'checked',
+            scalar: (item) => (typeof item.checked === 'boolean' ? item.checked : undefined),
+          },
+        ]),
+      );
+      break;
+    }
+    case 'table': {
+      if (b.type !== 'table') break;
+      pushText('caption', textOf(b.caption), textOf(a.caption));
+      pushProp('hasHeaderRow', b.hasHeaderRow, a.hasHeaderRow);
+      pushProp('headerStyle', b.headerStyle, a.headerStyle);
+      const beforeRows = new Map<string, TableRow>(b.rows.map((row) => [row.id, row]));
+      const afterRows = new Map<string, TableRow>(a.rows.map((row) => [row.id, row]));
+      for (const row of b.rows) {
+        if (afterRows.has(row.id)) continue;
+        for (const cell of row.cells) {
+          const text = spansToPlainText(cell.spans);
+          if (text !== '') pushText(`rows[${row.id}].cells[${cell.id}].text`, text, '');
+        }
+      }
+      for (const row of a.rows) {
+        if (beforeRows.has(row.id)) continue;
+        for (const cell of row.cells) {
+          const text = spansToPlainText(cell.spans);
+          if (text !== '') pushText(`rows[${row.id}].cells[${cell.id}].text`, '', text);
+        }
+      }
+      for (const row of a.rows) {
+        const previous = beforeRows.get(row.id);
+        if (previous === undefined) continue;
+        drafts.push(
+          ...deriveChildDrafts(blockId, `rows[${row.id}].cells`, previous.cells, row.cells, [
+            { field: 'text', spans: (cell) => cell.spans },
+            { field: 'hAlign', scalar: (cell) => cell.hAlign },
+          ]),
+        );
+      }
+      break;
+    }
+    case 'formula': {
+      if (b.type !== 'formula') break;
+      pushText('latex', b.latex, a.latex);
+      pushText('formulaNumber', textOf(b.formulaNumber), textOf(a.formulaNumber));
+      pushText('whereLabelOverride', textOf(b.whereLabelOverride), textOf(a.whereLabelOverride));
+      pushProp('hAlign', b.hAlign, a.hAlign);
+      pushProp('displayMode', b.displayMode, a.displayMode);
+      drafts.push(
+        ...deriveChildDrafts(
+          blockId,
+          'variableDefinitions',
+          b.variableDefinitions,
+          a.variableDefinitions,
+          [
+            { field: 'symbol', text: (entry) => entry.symbol },
+            { field: 'definition', text: (entry) => entry.definition },
+            { field: 'unit', text: (entry) => textOf(entry.unit) },
+          ],
+        ),
+      );
+      break;
+    }
+    case 'image': {
+      if (b.type !== 'image') break;
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'images', b.images, a.images, [
+          { field: 'caption', text: (image) => textOf(image.caption) },
+          { field: 'assetId', text: (image) => textOf(image.assetId) },
+        ]),
+      );
+      break;
+    }
+    case 'signature': {
+      if (b.type !== 'signature') break;
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'signers', b.signers, a.signers, [
+          { field: 'role', text: (signer) => signer.role },
+          { field: 'name', text: (signer) => textOf(signer.name) },
+          { field: 'designation', text: (signer) => textOf(signer.designation) },
+          { field: 'department', text: (signer) => textOf(signer.department) },
+          { field: 'date', text: (signer) => textOf(signer.date) },
+        ]),
+      );
+      break;
+    }
+    case 'section-break': {
+      if (b.type !== 'section-break') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      break;
+    }
+    case 'revision-history': {
+      if (b.type !== 'revision-history') break;
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'entries', b.entries, a.entries, [
+          { field: 'revision', text: (entry) => entry.revision },
+          { field: 'date', text: (entry) => entry.date },
+          { field: 'author', text: (entry) => entry.author },
+          { field: 'description', text: (entry) => entry.description },
+        ]),
+      );
+      break;
+    }
+    case 'reference': {
+      if (b.type !== 'reference') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'entries', b.entries, a.entries, [
+          { field: 'key', text: (entry) => entry.key },
+          { field: 'citation', text: (entry) => entry.citation },
+          { field: 'url', text: (entry) => textOf(entry.url) },
+        ]),
+      );
+      break;
+    }
+    case 'exhibit': {
+      if (b.type !== 'exhibit') break;
+      pushText('label', b.label, a.label);
+      pushText('title', textOf(b.title), textOf(a.title));
+      pushText('notes', textOf(b.notes), textOf(a.notes));
+      pushText('assetId', textOf(b.assetId), textOf(a.assetId));
+      break;
+    }
+    case 'procedure-step': {
+      if (b.type !== 'procedure-step') break;
+      pushText('sectionTitle', textOf(b.sectionTitle), textOf(a.sectionTitle));
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'steps', b.steps, a.steps, [
+          { field: 'text', spans: (step) => step.spans },
+          { field: 'stepNumber', text: (step) => textOf(step.stepNumber) },
+          { field: 'level', scalar: (step) => step.level },
+        ]),
+      );
+      break;
+    }
+    case 'equipment-list': {
+      if (b.type !== 'equipment-list') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'items', b.items, a.items, [
+          { field: 'name', text: (item) => item.name },
+          { field: 'assetTag', text: (item) => textOf(item.assetTag) },
+          { field: 'manufacturer', text: (item) => textOf(item.manufacturer) },
+          { field: 'modelNumber', text: (item) => textOf(item.modelNumber) },
+          { field: 'calibrationDue', text: (item) => textOf(item.calibrationDue) },
+          { field: 'mandatory', scalar: (item) => item.mandatory },
+        ]),
+      );
+      break;
+    }
+    case 'observation': {
+      if (b.type !== 'observation') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'rows', b.rows, a.rows, [
+          { field: 'parameter', text: (row) => row.parameter },
+          { field: 'observedValue', text: (row) => textOf(row.observedValue) },
+          { field: 'remarks', text: (row) => textOf(row.remarks) },
+        ]),
+      );
+      break;
+    }
+    case 'measurement': {
+      if (b.type !== 'measurement') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      pushText('uncertaintyNote', textOf(b.uncertaintyNote), textOf(a.uncertaintyNote));
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'columns', b.columns, a.columns, [
+          { field: 'header', text: (column) => column.header },
+          { field: 'unit', text: (column) => textOf(column.unit) },
+        ]),
+      );
+      const beforeRows = new Map<string, MeasurementRow>(b.rows.map((row) => [row.id, row]));
+      const afterRows = new Map<string, MeasurementRow>(a.rows.map((row) => [row.id, row]));
+      for (const row of b.rows) {
+        if (afterRows.has(row.id)) continue;
+        for (const columnId of Object.keys(row.values)) {
+          const value = row.values[columnId] ?? '';
+          if (value !== '') pushText(`rows[${row.id}].values[${columnId}]`, value, '');
+        }
+      }
+      for (const row of a.rows) {
+        if (beforeRows.has(row.id)) continue;
+        for (const columnId of Object.keys(row.values)) {
+          const value = row.values[columnId] ?? '';
+          if (value !== '') pushText(`rows[${row.id}].values[${columnId}]`, '', value);
+        }
+      }
+      for (const row of a.rows) {
+        const previous = beforeRows.get(row.id);
+        if (previous === undefined) continue;
+        for (const columnId of Object.keys(row.values)) {
+          pushText(
+            `rows[${row.id}].values[${columnId}]`,
+            previous.values[columnId] ?? '',
+            row.values[columnId] ?? '',
+          );
+        }
+      }
+      break;
+    }
+    case 'calculation': {
+      if (b.type !== 'calculation') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      pushText('conclusionText', textOf(b.conclusionText), textOf(a.conclusionText));
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'steps', b.steps, a.steps, [
+          { field: 'label', text: (step) => textOf(step.label) },
+          { field: 'latex', text: (step) => step.latex },
+          { field: 'substitution', text: (step) => textOf(step.substitution) },
+          { field: 'result', text: (step) => textOf(step.result) },
+          { field: 'note', text: (step) => textOf(step.note) },
+        ]),
+      );
+      break;
+    }
+    case 'acceptance-criteria': {
+      if (b.type !== 'acceptance-criteria') break;
+      pushText('title', textOf(b.title), textOf(a.title));
+      pushProp('overallResult', b.overallResult ?? null, a.overallResult ?? null);
+      drafts.push(
+        ...deriveChildDrafts(blockId, 'criteria', b.criteria, a.criteria, [
+          { field: 'criterion', text: (criterion) => criterion.criterion },
+          { field: 'specification', text: (criterion) => criterion.specification },
+          { field: 'measuredValue', text: (criterion) => textOf(criterion.measuredValue) },
+          { field: 'result', scalar: (criterion) => criterion.result },
+          { field: 'remarks', text: (criterion) => textOf(criterion.remarks) },
+        ]),
+      );
+      break;
+    }
+    default:
+      break;
   }
   return drafts;
 }
@@ -382,6 +965,85 @@ const SETTINGS_LEAVES: ReadonlyArray<{
   { path: 'pageTypography.monochrome', read: (d) => d.pageTypography.monochrome },
   { path: 'pageTypography.displayHeader', read: (d) => d.pageTypography.displayHeader },
 ];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P07-M2-R1: designer TEXT capture (document-target settings events)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** The per-cell header/footer path grammar owned by P07-M2-R1. */
+const DESIGNER_CELL_PATH =
+  /^headerFooter\.(header|footer)\.rows\[([\w-]+)\]\.cells\[([\w-]+)\]\.content$/;
+
+/** The designer TEXT paths tracked from P07-M2-R1 (text values only). */
+function isDesignerTextPath(path: string): boolean {
+  return path === 'frontPage.synopsis' || path === 'watermark.text' || DESIGNER_CELL_PATH.test(path);
+}
+
+/**
+ * Diff the designer TEXT values of one mutation: the front-page synopsis,
+ * the watermark text and every header/footer cell's content.  Non-text
+ * designer configuration (themes, flags, sizes, logos, grid geometry)
+ * deliberately contributes nothing - it belongs to the open owner-boundary
+ * question recorded in roadmap P07-M2-R1.
+ */
+function deriveDesignerTextDrafts(
+  before: DocStudioDocument,
+  after: DocStudioDocument,
+): ChangeEventDraft[] {
+  const drafts: ChangeEventDraft[] = [];
+  const synopsis = makeScalarDraft(
+    'settings',
+    'frontPage.synopsis',
+    textOf(before.frontPage.synopsis),
+    textOf(after.frontPage.synopsis),
+  );
+  if (synopsis !== null) drafts.push(synopsis);
+  const watermark = makeScalarDraft(
+    'settings',
+    'watermark.text',
+    textOf(before.headerFooter.watermark.text),
+    textOf(after.headerFooter.watermark.text),
+  );
+  if (watermark !== null) drafts.push(watermark);
+
+  for (const band of ['header', 'footer'] as const) {
+    const beforeRows = new Map(before.headerFooter[band].rows.map((row) => [row.id, row]));
+    const afterRows = new Map(after.headerFooter[band].rows.map((row) => [row.id, row]));
+    const path = (rowId: string, cellId: string): string =>
+      `headerFooter.${band}.rows[${rowId}].cells[${cellId}].content`;
+    const push = (rowId: string, cellId: string, original: string, replacement: string): void => {
+      if (original === replacement) return;
+      drafts.push({
+        type: 'settings',
+        target: { kind: 'document', field: path(rowId, cellId) },
+        payload: { original, replacement },
+      });
+    };
+    for (const row of before.headerFooter[band].rows) {
+      if (afterRows.has(row.id)) continue;
+      for (const cell of row.cells) {
+        if (cell.content === '') continue;
+        push(row.id, cell.id, cell.content, '');
+      }
+    }
+    for (const row of after.headerFooter[band].rows) {
+      if (beforeRows.has(row.id)) continue;
+      for (const cell of row.cells) {
+        if (cell.content === '') continue;
+        push(row.id, cell.id, '', cell.content);
+      }
+    }
+    for (const row of after.headerFooter[band].rows) {
+      const previous = beforeRows.get(row.id);
+      if (previous === undefined) continue;
+      const beforeCells = new Map(previous.cells.map((cell) => [cell.id, cell]));
+      for (const cell of row.cells) {
+        push(row.id, cell.id, beforeCells.get(cell.id)?.content ?? '', cell.content);
+      }
+    }
+  }
+  return drafts;
+}
 
 /**
  * Derive the change-event drafts describing one tracked mutation, by
@@ -472,6 +1134,7 @@ export function deriveChangeDrafts(
         const draft = makeScalarDraft('settings', leaf.path, original, replacement);
         if (draft !== null) drafts.push(draft);
       }
+      drafts.push(...deriveDesignerTextDrafts(before, after));
       return drafts;
     }
   }
@@ -644,11 +1307,261 @@ export function acceptChange(
 const HEADING_PROPERTY_FIELDS = ['level', 'numbered', 'hAlign'] as const;
 const PARAGRAPH_PROPERTY_FIELDS = ['hAlign', 'indentLevel'] as const;
 
+// ─────────────────────────────────────────────────────────────────────────────
+// P07-M2-R1: stable-id child locators (resolution for reversal)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A parsed P07-M2-R1 child locator (`rows[{id}].cells[{id}].text`, ...). */
+interface ChildLocator {
+  collection: string;
+  id: string;
+  /** Nested collection segment (`cells` / `values`), when present. */
+  sub: { collection: string; id: string } | null;
+  /** The addressed field; '' for a nested map entry (measurement cell). */
+  field: string;
+}
+
+const SINGLE_CHILD_LOCATOR = /^(\w+)\[([\w-]+)\]\.(\w+)$/;
+const NESTED_CHILD_LOCATOR = /^(\w+)\[([\w-]+)\]\.(\w+)\[([\w-]+)\](?:\.(\w+))?$/;
+
+/** Parse a P07-M2-R1 child locator, or null when the field is not one. */
+function parseChildLocator(field: string): ChildLocator | null {
+  const single = SINGLE_CHILD_LOCATOR.exec(field);
+  if (single !== null) {
+    return { collection: single[1], id: single[2], sub: null, field: single[3] };
+  }
+  const nested = NESTED_CHILD_LOCATOR.exec(field);
+  if (nested !== null) {
+    return {
+      collection: nested[1],
+      id: nested[2],
+      sub: { collection: nested[3], id: nested[4] },
+      field: nested[5] ?? '',
+    };
+  }
+  return null;
+}
+
+/**
+ * Current value at a stable-id child locator.  Returns `null` when the
+ * locator does not apply to this block at all; `{ value: undefined }`
+ * when it applies but the addressed child no longer exists (a removed
+ * row/cell/item/entry/signer/step/criterion - the honest structural case).
+ */
+function readChildField(
+  block: ContentBlock,
+  loc: ChildLocator,
+): { value: ChangeScalarValue | undefined; spans?: readonly InlineSpan[] } | null {
+  const data = block.data;
+  const find = <T extends { id: DocUUID }>(list: readonly T[], id: string): T | undefined =>
+    list.find((entry) => entry.id === id);
+  const missing = { value: undefined };
+
+  if (data.type === 'table' && loc.collection === 'rows' && loc.sub?.collection === 'cells') {
+    const row = find(data.rows, loc.id);
+    const cell = row === undefined ? undefined : find(row.cells, loc.sub.id);
+    if (cell === undefined) return missing;
+    if (loc.field === 'text') return { value: spansToPlainText(cell.spans), spans: cell.spans };
+    if (loc.field === 'spans') return { value: undefined, spans: cell.spans };
+    if (loc.field === 'hAlign') return { value: cell.hAlign };
+    return missing;
+  }
+  if (data.type === 'list' && loc.collection === 'items' && loc.sub === null) {
+    const item = find(data.items, loc.id);
+    if (item === undefined) return missing;
+    if (loc.field === 'text') return { value: spansToPlainText(item.spans), spans: item.spans };
+    if (loc.field === 'spans') return { value: undefined, spans: item.spans };
+    if (loc.field === 'depth') return { value: item.depth };
+    if (loc.field === 'checked') {
+      return { value: typeof item.checked === 'boolean' ? item.checked : undefined };
+    }
+    return missing;
+  }
+  if (data.type === 'formula' && loc.collection === 'variableDefinitions' && loc.sub === null) {
+    const entry = find(data.variableDefinitions, loc.id);
+    if (entry === undefined) return missing;
+    if (loc.field === 'symbol') return { value: entry.symbol };
+    if (loc.field === 'definition') return { value: entry.definition };
+    if (loc.field === 'unit') return { value: entry.unit ?? '' };
+    return missing;
+  }
+  if (data.type === 'image' && loc.collection === 'images' && loc.sub === null) {
+    const image = find(data.images, loc.id);
+    if (image === undefined) return missing;
+    if (loc.field === 'caption') return { value: image.caption ?? '' };
+    if (loc.field === 'assetId') return { value: image.assetId ?? '' };
+    return missing;
+  }
+  if (data.type === 'signature' && loc.collection === 'signers' && loc.sub === null) {
+    const signer = find(data.signers, loc.id);
+    if (signer === undefined) return missing;
+    if (loc.field === 'role') return { value: signer.role };
+    if (loc.field === 'name') return { value: signer.name ?? '' };
+    if (loc.field === 'designation') return { value: signer.designation ?? '' };
+    if (loc.field === 'department') return { value: signer.department ?? '' };
+    if (loc.field === 'date') return { value: signer.date ?? '' };
+    return missing;
+  }
+  if (data.type === 'revision-history' && loc.collection === 'entries' && loc.sub === null) {
+    const entry = find(data.entries, loc.id);
+    if (entry === undefined) return missing;
+    if (loc.field === 'revision') return { value: entry.revision };
+    if (loc.field === 'date') return { value: entry.date };
+    if (loc.field === 'author') return { value: entry.author };
+    if (loc.field === 'description') return { value: entry.description };
+    return missing;
+  }
+  if (data.type === 'reference' && loc.collection === 'entries' && loc.sub === null) {
+    const entry = find(data.entries, loc.id);
+    if (entry === undefined) return missing;
+    if (loc.field === 'key') return { value: entry.key };
+    if (loc.field === 'citation') return { value: entry.citation };
+    if (loc.field === 'url') return { value: entry.url ?? '' };
+    return missing;
+  }
+  if (data.type === 'procedure-step' && loc.collection === 'steps' && loc.sub === null) {
+    const step = find(data.steps, loc.id);
+    if (step === undefined) return missing;
+    if (loc.field === 'text') return { value: spansToPlainText(step.spans), spans: step.spans };
+    if (loc.field === 'spans') return { value: undefined, spans: step.spans };
+    if (loc.field === 'stepNumber') return { value: step.stepNumber ?? '' };
+    if (loc.field === 'level') return { value: step.level };
+    return missing;
+  }
+  if (data.type === 'equipment-list' && loc.collection === 'items' && loc.sub === null) {
+    const item = find(data.items, loc.id);
+    if (item === undefined) return missing;
+    if (loc.field === 'name') return { value: item.name };
+    if (loc.field === 'assetTag') return { value: item.assetTag ?? '' };
+    if (loc.field === 'manufacturer') return { value: item.manufacturer ?? '' };
+    if (loc.field === 'modelNumber') return { value: item.modelNumber ?? '' };
+    if (loc.field === 'calibrationDue') return { value: item.calibrationDue ?? '' };
+    if (loc.field === 'mandatory') return { value: item.mandatory };
+    return missing;
+  }
+  if (data.type === 'observation' && loc.collection === 'rows' && loc.sub === null) {
+    const row = find(data.rows, loc.id);
+    if (row === undefined) return missing;
+    if (loc.field === 'parameter') return { value: row.parameter };
+    if (loc.field === 'observedValue') return { value: row.observedValue ?? '' };
+    if (loc.field === 'remarks') return { value: row.remarks ?? '' };
+    return missing;
+  }
+  if (data.type === 'measurement') {
+    if (loc.collection === 'columns' && loc.sub === null) {
+      const column = find(data.columns, loc.id);
+      if (column === undefined) return missing;
+      if (loc.field === 'header') return { value: column.header };
+      if (loc.field === 'unit') return { value: column.unit ?? '' };
+      return missing;
+    }
+    if (loc.collection === 'rows' && loc.sub?.collection === 'values') {
+      const row = find(data.rows, loc.id);
+      if (row === undefined) return missing;
+      return { value: row.values[loc.sub.id] ?? '' };
+    }
+  }
+  if (data.type === 'calculation' && loc.collection === 'steps' && loc.sub === null) {
+    const step = find(data.steps, loc.id);
+    if (step === undefined) return missing;
+    if (loc.field === 'label') return { value: step.label ?? '' };
+    if (loc.field === 'latex') return { value: step.latex };
+    if (loc.field === 'substitution') return { value: step.substitution ?? '' };
+    if (loc.field === 'result') return { value: step.result ?? '' };
+    if (loc.field === 'note') return { value: step.note ?? '' };
+    return missing;
+  }
+  if (data.type === 'acceptance-criteria' && loc.collection === 'criteria' && loc.sub === null) {
+    const criterion = find(data.criteria, loc.id);
+    if (criterion === undefined) return missing;
+    if (loc.field === 'criterion') return { value: criterion.criterion };
+    if (loc.field === 'specification') return { value: criterion.specification };
+    if (loc.field === 'measuredValue') return { value: criterion.measuredValue ?? '' };
+    if (loc.field === 'result') return { value: criterion.result };
+    if (loc.field === 'remarks') return { value: criterion.remarks ?? '' };
+    return missing;
+  }
+  return null;
+}
+
+/**
+ * Read one BLOCK-LEVEL family field (P07-M2-R1) for the stale guard and the
+ * reversal support check.  Returns `null` when the field is not a family
+ * field of this block type, which `readBlockFieldValue` reports as
+ * unsupported - so a captured field can never be silently un-reversible:
+ * the reader and the capture grammar stay in lockstep.
+ */
+function readFamilyBlockField(
+  block: ContentBlock,
+  field: string,
+): { value: ChangeScalarValue | undefined; spans?: readonly InlineSpan[] } | null {
+  const data = block.data;
+  switch (data.type) {
+    case 'callout':
+      if (field === 'text') return { value: spansToPlainText(data.spans), spans: data.spans };
+      if (field === 'spans') return { value: undefined, spans: data.spans };
+      if (field === 'title') return { value: textOf(data.title) };
+      if (field === 'variant') return { value: data.variant };
+      return null;
+    case 'list':
+      if (field === 'listType') return { value: data.listType };
+      if (field === 'bulletStyle') return { value: data.bulletStyle };
+      if (field === 'numberStyle') return { value: data.numberStyle };
+      return null;
+    case 'table':
+      if (field === 'caption') return { value: textOf(data.caption) };
+      if (field === 'hasHeaderRow') return { value: data.hasHeaderRow };
+      if (field === 'headerStyle') return { value: data.headerStyle };
+      return null;
+    case 'formula':
+      if (field === 'latex') return { value: data.latex };
+      if (field === 'formulaNumber') return { value: textOf(data.formulaNumber) };
+      if (field === 'whereLabelOverride') return { value: textOf(data.whereLabelOverride) };
+      if (field === 'hAlign') return { value: data.hAlign };
+      if (field === 'displayMode') return { value: data.displayMode };
+      return null;
+    case 'section-break':
+      return field === 'title' ? { value: textOf(data.title) } : null;
+    case 'reference':
+      return field === 'title' ? { value: textOf(data.title) } : null;
+    case 'exhibit':
+      if (field === 'label') return { value: data.label };
+      if (field === 'title') return { value: textOf(data.title) };
+      if (field === 'notes') return { value: textOf(data.notes) };
+      if (field === 'assetId') return { value: textOf(data.assetId) };
+      return null;
+    case 'procedure-step':
+      return field === 'sectionTitle' ? { value: textOf(data.sectionTitle) } : null;
+    case 'equipment-list':
+      return field === 'title' ? { value: textOf(data.title) } : null;
+    case 'observation':
+      return field === 'title' ? { value: textOf(data.title) } : null;
+    case 'measurement':
+      if (field === 'title') return { value: textOf(data.title) };
+      if (field === 'uncertaintyNote') return { value: textOf(data.uncertaintyNote) };
+      return null;
+    case 'calculation':
+      if (field === 'title') return { value: textOf(data.title) };
+      if (field === 'conclusionText') return { value: textOf(data.conclusionText) };
+      return null;
+    case 'acceptance-criteria':
+      if (field === 'title') return { value: textOf(data.title) };
+      // Absent reads as `null` (the capture records `?? null`), so clearing
+      // the overall verdict on rejection stays a supported reversal.
+      if (field === 'overallResult') return { value: scalarOrNull(data.overallResult ?? null) };
+      return null;
+    default:
+      return null;
+  }
+}
+
 /** Current field value for a block-field locator, when tracked in P07-M2. */
 function readBlockFieldValue(
   block: ContentBlock,
   field: string,
 ): { value: ChangeScalarValue | undefined; spans?: readonly InlineSpan[] } {
+  const child = parseChildLocator(field);
+  if (child !== null) return readChildField(block, child) ?? { value: undefined };
   if (block.data.type === 'heading') {
     if (field === 'text') return { value: block.data.text };
     if ((HEADING_PROPERTY_FIELDS as readonly string[]).includes(field)) {
@@ -663,6 +1576,8 @@ function readBlockFieldValue(
   }
   if (field === 'spacing.topPt') return { value: block.spacing.topPt };
   if (field === 'spacing.bottomPt') return { value: block.spacing.bottomPt };
+  const family = readFamilyBlockField(block, field);
+  if (family !== null) return family;
   return { value: undefined };
 }
 
@@ -681,6 +1596,8 @@ function restoreBlockField(
 ): TrackOpResult | { ok: true; doc: DocStudioDocument } {
   const fail = (message: string): TrackOpResult =>
     opReject('unsupported-reversal', message);
+  const child = parseChildLocator(field);
+  if (child !== null) return restoreChildField(doc, block, child, original, now);
   if (block.data.type === 'heading') {
     if (field === 'text') {
       if (typeof original !== 'string') return fail('The recorded original heading text is not a string.');
@@ -706,9 +1623,10 @@ function restoreBlockField(
       const result = updateHeadingContent(doc, block.id, { hAlign: original as HAlignment }, { now });
       return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
     }
-    return fail(`Reversing "${field}" on a heading is not supported in P07-M2.`);
-  }
-  if (block.data.type === 'paragraph') {
+    if (field !== 'spacing.topPt' && field !== 'spacing.bottomPt') {
+      return fail(`Reversing "${field}" on a heading is not supported in P07-M2.`);
+    }
+  } else if (block.data.type === 'paragraph') {
     if (field === 'text') {
       if (typeof original !== 'string') return fail('The recorded original paragraph text is not a string.');
       const result = updateParagraphContent(
@@ -742,7 +1660,9 @@ function restoreBlockField(
       const result = updateParagraphContent(doc, block.id, { indentLevel: original }, { now });
       return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
     }
-    return fail(`Reversing "${field}" on a paragraph is not supported in P07-M2.`);
+    if (field !== 'spacing.topPt' && field !== 'spacing.bottomPt') {
+      return fail(`Reversing "${field}" on a paragraph is not supported in P07-M2.`);
+    }
   }
   if (field === 'spacing.topPt' || field === 'spacing.bottomPt') {
     if (typeof original !== 'number') return fail('The recorded original spacing is not a number.');
@@ -755,7 +1675,596 @@ function restoreBlockField(
     );
     return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
   }
-  return fail(`Reversing "${field}" is not supported in P07-M2.`);
+  return restoreFamilyBlockField(doc, block, field, original, now);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// P07-M2-R1: reversal through the family content services
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Common shape of every content-service result used for reversal. */
+type ServiceOutcome =
+  | { ok: true; doc: DocStudioDocument }
+  | { ok: false; message: string };
+
+/** Adapt a content-service result to the reversal result union. */
+const via = (
+  outcome: ServiceOutcome,
+): TrackOpResult | { ok: true; doc: DocStudioDocument } =>
+  outcome.ok
+    ? { ok: true, doc: outcome.doc }
+    : opReject('unsupported-reversal', outcome.message);
+
+/** Max single reversal shift for list-item nesting (defensive bound). */
+const MAX_DEPTH_REVERSAL_STEPS = 8;
+
+const LIST_TYPES = ['bullet', 'numbered', 'checklist'];
+const BULLET_STYLES = ['disc', 'circle', 'square', 'dash', 'arrow'];
+const NUMBER_STYLES = ['decimal', 'lower-alpha', 'upper-alpha', 'lower-roman', 'upper-roman'];
+const TABLE_HEADER_STYLES = ['light', 'medium', 'heavy'];
+const CRITERIA_RESULT_VALUES = ['pass', 'fail', 'inconclusive', 'not-applicable', 'pending'];
+const STEP_LEVELS = ['main', 'sub', 'note', 'warning', 'caution'];
+
+/** Restore one tracked BLOCK-LEVEL family field via its content service. */
+function restoreFamilyBlockField(
+  doc: DocStudioDocument,
+  block: ContentBlock,
+  field: string,
+  original: ChangeScalarValue | readonly InlineSpan[],
+  now: ISODateString,
+): TrackOpResult | { ok: true; doc: DocStudioDocument } {
+  const fail = (message: string): TrackOpResult =>
+    opReject('unsupported-reversal', message);
+  const data = block.data;
+  const text = typeof original === 'string' ? original : null;
+  const optional = (): string | null | 'bad' => (text === null ? 'bad' : text === '' ? null : text);
+  const cleared = (): string | null | 'bad' => {
+    const value = optional();
+    return value === 'bad' || value === null ? 'bad' : value;
+  };
+
+  switch (data.type) {
+    case 'callout': {
+      if (field === 'text') {
+        if (text === null) return fail('The recorded original callout text is not a string.');
+        return via(updateCalloutContent(doc, block.id, { spans: plainTextToSpans(text) }, { now }));
+      }
+      if (field === 'spans') {
+        if (!Array.isArray(original)) return fail('The recorded original callout styling is not a span list.');
+        return via(
+          updateCalloutContent(doc, block.id, { spans: deepCopy(original as InlineSpan[]) }, { now }),
+        );
+      }
+      if (field === 'title') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original callout title is not a string.');
+        return via(updateCalloutContent(doc, block.id, { title: value }, { now }));
+      }
+      if (field === 'variant') {
+        if (text === null || text.trim() === '') {
+          return fail('The recorded original callout variant is not a usable label.');
+        }
+        return via(updateCalloutContent(doc, block.id, { variant: text }, { now }));
+      }
+      return fail(`Reversing "${field}" on a callout is not supported.`);
+    }
+    case 'list': {
+      if (field === 'listType') {
+        if (text === null || !LIST_TYPES.includes(text)) {
+          return fail('The recorded original list type is not supported.');
+        }
+        return via(updateListSettings(doc, block.id, { listType: text as ListType }, { now }));
+      }
+      if (field === 'bulletStyle') {
+        if (text === null || !BULLET_STYLES.includes(text)) {
+          return fail('The recorded original bullet style is not supported.');
+        }
+        return via(updateListSettings(doc, block.id, { bulletStyle: text as BulletStyle }, { now }));
+      }
+      if (field === 'numberStyle') {
+        if (text === null || !NUMBER_STYLES.includes(text)) {
+          return fail('The recorded original numbering style is not supported.');
+        }
+        return via(updateListSettings(doc, block.id, { numberStyle: text as NumberStyle }, { now }));
+      }
+      return fail(`Reversing "${field}" on a list is not supported.`);
+    }
+    case 'table': {
+      if (field === 'caption') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original table caption is not a string.');
+        return via(updateTableSettings(doc, block.id, { caption: value }, { now }));
+      }
+      if (field === 'hasHeaderRow') {
+        if (typeof original !== 'boolean') return fail('The recorded original header-row flag is not a boolean.');
+        return via(updateTableSettings(doc, block.id, { hasHeaderRow: original }, { now }));
+      }
+      if (field === 'headerStyle') {
+        if (text === null || !TABLE_HEADER_STYLES.includes(text)) {
+          return fail('The recorded original header style is not supported.');
+        }
+        return via(updateTableSettings(doc, block.id, { headerStyle: text as TableHeaderStyle }, { now }));
+      }
+      return fail(`Reversing "${field}" on a table is not supported.`);
+    }
+    case 'formula': {
+      if (field === 'latex') {
+        if (text === null || text.trim() === '') {
+          return fail('The recorded original formula source is not usable LaTeX.');
+        }
+        return via(updateFormulaContent(doc, block.id, { action: 'update-formula', latex: text }, { now }));
+      }
+      if (field === 'formulaNumber') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original formula number is not a string.');
+        return via(
+          updateFormulaContent(doc, block.id, { action: 'update-formula', formulaNumber: value }, { now }),
+        );
+      }
+      if (field === 'whereLabelOverride') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original Where-label override is not a string.');
+        return via(
+          updateFormulaContent(
+            doc,
+            block.id,
+            { action: 'update-formula', whereLabelOverride: value },
+            { now },
+          ),
+        );
+      }
+      if (field === 'hAlign') {
+        if (text !== 'left' && text !== 'center' && text !== 'right') {
+          return fail('The recorded original formula alignment is not supported.');
+        }
+        return via(
+          updateFormulaContent(doc, block.id, { action: 'update-formula', hAlign: text as HAlignment }, { now }),
+        );
+      }
+      if (field === 'displayMode') {
+        if (typeof original !== 'boolean') return fail('The recorded original display mode is not a boolean.');
+        return via(
+          updateFormulaContent(doc, block.id, { action: 'update-formula', displayMode: original }, { now }),
+        );
+      }
+      return fail(`Reversing "${field}" on a formula is not supported.`);
+    }
+    case 'section-break': {
+      if (field === 'title') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original section title is not a string.');
+        return via(updateSectionBreakContent(doc, block.id, { title: value }, { now }));
+      }
+      return fail(`Reversing "${field}" on a section break is not supported.`);
+    }
+    case 'reference': {
+      if (field === 'title') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original reference title is not a string.');
+        return via(updateReferenceTitle(doc, block.id, { title: value }, { now }));
+      }
+      return fail(`Reversing "${field}" on a reference block is not supported.`);
+    }
+    case 'exhibit': {
+      if (field === 'label') {
+        const value = cleared();
+        if (value === 'bad') return fail('The recorded original exhibit label is not usable.');
+        return via(updateExhibitContent(doc, block.id, { label: value }, { now }));
+      }
+      if (field === 'title') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original exhibit title is not a string.');
+        return via(updateExhibitContent(doc, block.id, { title: value }, { now }));
+      }
+      if (field === 'notes') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original exhibit notes are not a string.');
+        return via(updateExhibitContent(doc, block.id, { notes: value }, { now }));
+      }
+      if (field === 'assetId') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original exhibit asset reference is not a string.');
+        return via(updateExhibitContent(doc, block.id, { assetId: value }, { now }));
+      }
+      return fail(`Reversing "${field}" on an exhibit is not supported.`);
+    }
+    case 'procedure-step': {
+      if (field === 'sectionTitle') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original section title is not a string.');
+        return via(updateProcedureTitle(doc, block.id, value, { now }));
+      }
+      return fail(`Reversing "${field}" on a procedure block is not supported.`);
+    }
+    case 'equipment-list':
+    case 'observation':
+    case 'measurement':
+    case 'calculation':
+    case 'acceptance-criteria': {
+      if (field === 'title') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original title is not a string.');
+        if (data.type === 'equipment-list') return via(updateEquipmentTitle(doc, block.id, value, { now }));
+        if (data.type === 'observation') return via(updateObservationTitle(doc, block.id, value, { now }));
+        if (data.type === 'measurement') return via(updateMeasurementTitle(doc, block.id, value, { now }));
+        if (data.type === 'calculation') return via(updateCalculationTitle(doc, block.id, value, { now }));
+        return via(updateAcceptanceTitle(doc, block.id, value, { now }));
+      }
+      if (data.type === 'measurement' && field === 'uncertaintyNote') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original uncertainty note is not a string.');
+        return via(setMeasurementUncertaintyNote(doc, block.id, value, { now }));
+      }
+      if (data.type === 'calculation' && field === 'conclusionText') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original conclusion text is not a string.');
+        return via(setCalculationConclusion(doc, block.id, value, { now }));
+      }
+      if (data.type === 'acceptance-criteria' && field === 'overallResult') {
+        if (original !== null && !CRITERIA_RESULT_VALUES.includes(String(original))) {
+          return fail('The recorded original overall result is not supported.');
+        }
+        return via(
+          setAcceptanceOverallResult(
+            doc,
+            block.id,
+            original === null ? null : (original as CriteriaResult),
+            { now },
+          ),
+        );
+      }
+      return fail(`Reversing "${field}" on this laboratory block is not supported.`);
+    }
+  }
+  return fail(`Reversing "${field}" is not supported.`);
+}
+
+/**
+ * Restore one stable-id CHILD field to its recorded original through the
+ * family content service that owns it.  Structural absences (the child
+ * was removed together with its row/column/item) and states the
+ * validating services refuse (clearing a required field) fail honestly -
+ * the document and the event are left untouched.
+ */
+function restoreChildField(
+  doc: DocStudioDocument,
+  block: ContentBlock,
+  loc: ChildLocator,
+  original: ChangeScalarValue | readonly InlineSpan[],
+  now: ISODateString,
+): TrackOpResult | { ok: true; doc: DocStudioDocument } {
+  const fail = (message: string): TrackOpResult =>
+    opReject('unsupported-reversal', message);
+  const data = block.data;
+  const text = typeof original === 'string' ? original : null;
+  const optional = (): string | null | 'bad' => (text === null ? 'bad' : text === '' ? null : text);
+
+  if (data.type === 'table' && loc.collection === 'rows' && loc.sub?.collection === 'cells') {
+    if (loc.field === 'text') {
+      if (text === null) return fail('The recorded original cell text is not a string.');
+      return via(setTableCellText(doc, block.id, loc.sub.id, text, { now }));
+    }
+    if (loc.field === 'hAlign') {
+      if (text !== 'left' && text !== 'center' && text !== 'right') {
+        return fail('The recorded original cell alignment is not supported.');
+      }
+      return via(setTableCellAlignment(doc, block.id, loc.sub.id, text as HAlignment, { now }));
+    }
+    return fail(
+      'Reversing a styling-only change on this table cell is not supported (no content service writes raw cell styling).',
+    );
+  }
+  if (data.type === 'list' && loc.collection === 'items' && loc.sub === null) {
+    if (loc.field === 'text') {
+      if (text === null) return fail('The recorded original list item text is not a string.');
+      return via(updateListItemText(doc, block.id, loc.id, plainTextToSpans(text), { now }));
+    }
+    if (loc.field === 'spans') {
+      if (!Array.isArray(original)) return fail('The recorded original list item styling is not a span list.');
+      return via(updateListItemText(doc, block.id, loc.id, deepCopy(original as InlineSpan[]), { now }));
+    }
+    if (loc.field === 'depth') {
+      if (typeof original !== 'number' || !Number.isInteger(original) || original < 0) {
+        return fail('The recorded original list item nesting is not a supported depth.');
+      }
+      const item = data.items.find((entry) => entry.id === loc.id);
+      if (item === undefined) return fail('The addressed list item no longer exists in this list.');
+      const steps = Math.abs(original - item.depth);
+      if (steps > MAX_DEPTH_REVERSAL_STEPS) {
+        return fail('The recorded original nesting is too far from the current nesting to reverse safely.');
+      }
+      let cursor = doc;
+      for (let i = 0; i < steps; i += 1) {
+        const step =
+          original < item.depth
+            ? outdentListItem(cursor, block.id, loc.id, { now })
+            : indentListItem(cursor, block.id, loc.id, { now });
+        if (!step.ok) return fail(step.message);
+        cursor = step.doc;
+      }
+      return { ok: true, doc: cursor };
+    }
+    if (loc.field === 'checked') {
+      if (typeof original !== 'boolean') return fail('The recorded original checked state is not a boolean.');
+      return via(setItemChecked(doc, block.id, loc.id, original, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on a list item is not supported.`);
+  }
+  if (data.type === 'formula' && loc.collection === 'variableDefinitions' && loc.sub === null) {
+    if (loc.field === 'symbol') {
+      if (text === null || text.trim() === '') return fail('The recorded original variable symbol is not usable.');
+      return via(updateVariableDefinition(doc, block.id, loc.id, { symbol: text }, { now }));
+    }
+    if (loc.field === 'definition') {
+      if (text === null) return fail('The recorded original variable definition is not a string.');
+      return via(updateVariableDefinition(doc, block.id, loc.id, { definition: text }, { now }));
+    }
+    if (loc.field === 'unit') {
+      const value = optional();
+      if (value === 'bad') return fail('The recorded original variable unit is not a string.');
+      return via(updateVariableDefinition(doc, block.id, loc.id, { unit: value }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on a variable definition is not supported.`);
+  }
+  if (data.type === 'image' && loc.collection === 'images' && loc.sub === null) {
+    if (loc.field === 'caption') {
+      if (text === null) return fail('The recorded original image caption is not a string.');
+      return via(setImageCaption(doc, block.id, loc.id, text, { now }));
+    }
+    if (loc.field === 'assetId') {
+      if (text === null) return fail('The recorded original image asset reference is not a string.');
+      const originalAssetId = text === '' ? null : text;
+      const image = data.images.find((entry) => entry.id === loc.id);
+      if (image === undefined) return fail('The addressed image slot no longer exists in this block.');
+      if (originalAssetId !== null && doc.assets[originalAssetId] === undefined) {
+        return fail(
+          'The replaced image asset is no longer embedded in this document, so the swap cannot be reversed.',
+        );
+      }
+      // Direct immutable transform: no service writes an assetId without
+      // side effects (attach drops the slot's crop).  The reference itself
+      // is restored; the excluded crop side effect of the original swap is
+      // not (documented in the module docblock).
+      const images = data.images.map((entry) =>
+        entry.id === loc.id ? { ...entry, assetId: originalAssetId } : entry,
+      );
+      const blocks = doc.blocks.map((entry) =>
+        entry.id === block.id ? { ...entry, data: { ...data, images } } : entry,
+      );
+      return {
+        ok: true,
+        doc: { ...doc, blocks, metadata: { ...doc.metadata, modifiedAt: now } },
+      };
+    }
+    return fail(`Reversing "${loc.field}" on an image slot is not supported.`);
+  }
+  if (data.type === 'signature' && loc.collection === 'signers' && loc.sub === null) {
+    if (
+      loc.field === 'role' ||
+      loc.field === 'name' ||
+      loc.field === 'designation' ||
+      loc.field === 'department' ||
+      loc.field === 'date'
+    ) {
+      if (text === null) return fail('The recorded original signer field is not a string.');
+      return via(setSignerField(doc, block.id, loc.id, loc.field, text, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on a signer is not supported.`);
+  }
+  if (data.type === 'revision-history' && loc.collection === 'entries' && loc.sub === null) {
+    if (text === null) return fail('The recorded original revision entry field is not a string.');
+    if (loc.field === 'revision') {
+      return via(updateRevisionEntry(doc, block.id, loc.id, { revision: text }, { now }));
+    }
+    if (loc.field === 'date') {
+      return via(updateRevisionEntry(doc, block.id, loc.id, { date: text }, { now }));
+    }
+    if (loc.field === 'author') {
+      return via(updateRevisionEntry(doc, block.id, loc.id, { author: text }, { now }));
+    }
+    if (loc.field === 'description') {
+      return via(updateRevisionEntry(doc, block.id, loc.id, { description: text }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on a revision entry is not supported.`);
+  }
+  if (data.type === 'reference' && loc.collection === 'entries' && loc.sub === null) {
+    if (text === null) return fail('The recorded original reference entry field is not a string.');
+    if (loc.field === 'key') {
+      return via(updateReferenceEntry(doc, block.id, loc.id, { key: text }, { now }));
+    }
+    if (loc.field === 'citation') {
+      return via(updateReferenceEntry(doc, block.id, loc.id, { citation: text }, { now }));
+    }
+    if (loc.field === 'url') {
+      return via(updateReferenceEntry(doc, block.id, loc.id, { url: text }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on a reference entry is not supported.`);
+  }
+  if (data.type === 'procedure-step' && loc.collection === 'steps' && loc.sub === null) {
+    if (loc.field === 'text') {
+      if (text === null) return fail('The recorded original step text is not a string.');
+      return via(updateProcedureStep(doc, block.id, loc.id, { spans: plainTextToSpans(text) }, { now }));
+    }
+    if (loc.field === 'spans') {
+      if (!Array.isArray(original)) return fail('The recorded original step styling is not a span list.');
+      return via(updateProcedureStep(doc, block.id, loc.id, { spans: deepCopy(original as InlineSpan[]) }, { now }));
+    }
+    if (loc.field === 'stepNumber') {
+      const value = optional();
+      if (value === 'bad') return fail('The recorded original step number is not a string.');
+      return via(updateProcedureStep(doc, block.id, loc.id, { stepNumber: value }, { now }));
+    }
+    if (loc.field === 'level') {
+      if (text === null || !STEP_LEVELS.includes(text)) {
+        return fail('The recorded original step level is not supported.');
+      }
+      return via(
+        updateProcedureStep(doc, block.id, loc.id, { level: text as ProcedureStepLevel }, { now }),
+      );
+    }
+    return fail(`Reversing "${loc.field}" on a procedure step is not supported.`);
+  }
+  if (data.type === 'equipment-list' && loc.collection === 'items' && loc.sub === null) {
+    if (loc.field === 'mandatory') {
+      if (typeof original !== 'boolean') return fail('The recorded original mandatory flag is not a boolean.');
+      return via(updateEquipmentItem(doc, block.id, loc.id, { mandatory: original }, { now }));
+    }
+    if (loc.field === 'name') {
+      if (text === null || text.trim() === '') return fail('The recorded original equipment name is not usable.');
+      return via(updateEquipmentItem(doc, block.id, loc.id, { name: text }, { now }));
+    }
+    const value = optional();
+    if (value === 'bad') return fail('The recorded original equipment field is not a string.');
+    if (loc.field === 'assetTag') {
+      return via(updateEquipmentItem(doc, block.id, loc.id, { assetTag: value }, { now }));
+    }
+    if (loc.field === 'manufacturer') {
+      return via(updateEquipmentItem(doc, block.id, loc.id, { manufacturer: value }, { now }));
+    }
+    if (loc.field === 'modelNumber') {
+      return via(updateEquipmentItem(doc, block.id, loc.id, { modelNumber: value }, { now }));
+    }
+    if (loc.field === 'calibrationDue') {
+      return via(updateEquipmentItem(doc, block.id, loc.id, { calibrationDue: value }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on an equipment item is not supported.`);
+  }
+  if (data.type === 'observation' && loc.collection === 'rows' && loc.sub === null) {
+    if (loc.field === 'parameter') {
+      if (text === null || text.trim() === '') return fail('The recorded original observation parameter is not usable.');
+      return via(updateObservationRow(doc, block.id, loc.id, { parameter: text }, { now }));
+    }
+    const value = optional();
+    if (value === 'bad') return fail('The recorded original observation field is not a string.');
+    if (loc.field === 'observedValue') {
+      return via(updateObservationRow(doc, block.id, loc.id, { observedValue: value }, { now }));
+    }
+    if (loc.field === 'remarks') {
+      return via(updateObservationRow(doc, block.id, loc.id, { remarks: value }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on an observation row is not supported.`);
+  }
+  if (data.type === 'measurement') {
+    if (loc.collection === 'columns' && loc.sub === null) {
+      if (loc.field === 'header') {
+        if (text === null || text.trim() === '') return fail('The recorded original column header is not usable.');
+        return via(updateMeasurementColumn(doc, block.id, loc.id, { header: text }, { now }));
+      }
+      if (loc.field === 'unit') {
+        const value = optional();
+        if (value === 'bad') return fail('The recorded original column unit is not a string.');
+        return via(updateMeasurementColumn(doc, block.id, loc.id, { unit: value }, { now }));
+      }
+      return fail(`Reversing "${loc.field}" on a measurement column is not supported.`);
+    }
+    if (loc.collection === 'rows' && loc.sub?.collection === 'values') {
+      if (text === null) return fail('The recorded original cell value is not a string.');
+      return via(setMeasurementCell(doc, block.id, loc.id, loc.sub.id, text, { now }));
+    }
+  }
+  if (data.type === 'calculation' && loc.collection === 'steps' && loc.sub === null) {
+    if (loc.field === 'latex') {
+      if (text === null || text.trim() === '') return fail('The recorded original step formula is not usable LaTeX.');
+      return via(updateCalculationStep(doc, block.id, loc.id, { latex: text }, { now }));
+    }
+    const value = optional();
+    if (value === 'bad') return fail('The recorded original calculation step field is not a string.');
+    if (loc.field === 'label') {
+      return via(updateCalculationStep(doc, block.id, loc.id, { label: value }, { now }));
+    }
+    if (loc.field === 'substitution') {
+      return via(updateCalculationStep(doc, block.id, loc.id, { substitution: value }, { now }));
+    }
+    if (loc.field === 'result') {
+      return via(updateCalculationStep(doc, block.id, loc.id, { result: value }, { now }));
+    }
+    if (loc.field === 'note') {
+      return via(updateCalculationStep(doc, block.id, loc.id, { note: value }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on a calculation step is not supported.`);
+  }
+  if (data.type === 'acceptance-criteria' && loc.collection === 'criteria' && loc.sub === null) {
+    if (loc.field === 'result') {
+      if (text === null || !CRITERIA_RESULT_VALUES.includes(text)) {
+        return fail('The recorded original criterion result is not supported.');
+      }
+      return via(
+        updateAcceptanceCriterion(doc, block.id, loc.id, { result: text as CriteriaResult }, { now }),
+      );
+    }
+    if (loc.field === 'criterion') {
+      if (text === null || text.trim() === '') return fail('The recorded original criterion text is not usable.');
+      return via(updateAcceptanceCriterion(doc, block.id, loc.id, { criterion: text }, { now }));
+    }
+    if (loc.field === 'specification') {
+      if (text === null || text.trim() === '') return fail('The recorded original specification is not usable.');
+      return via(updateAcceptanceCriterion(doc, block.id, loc.id, { specification: text }, { now }));
+    }
+    const value = optional();
+    if (value === 'bad') return fail('The recorded original acceptance field is not a string.');
+    if (loc.field === 'measuredValue') {
+      return via(updateAcceptanceCriterion(doc, block.id, loc.id, { measuredValue: value }, { now }));
+    }
+    if (loc.field === 'remarks') {
+      return via(updateAcceptanceCriterion(doc, block.id, loc.id, { remarks: value }, { now }));
+    }
+    return fail(`Reversing "${loc.field}" on an acceptance criterion is not supported.`);
+  }
+  return fail(`Reversing "${loc.field}" on a ${loc.collection} element is not supported.`);
+}
+
+/** Read a designer TEXT leaf (P07-M2-R1 tracked paths) of the document. */
+function readDesignerText(
+  doc: DocStudioDocument,
+  path: string,
+): { resolved: boolean; value: string } {
+  if (path === 'frontPage.synopsis') {
+    return { resolved: true, value: textOf(doc.frontPage.synopsis) };
+  }
+  if (path === 'watermark.text') {
+    return { resolved: true, value: textOf(doc.headerFooter.watermark.text) };
+  }
+  const match = DESIGNER_CELL_PATH.exec(path);
+  if (match !== null) {
+    const band = doc.headerFooter[match[1] as 'header' | 'footer'];
+    const row = band.rows.find((entry) => entry.id === match[2]);
+    const cell = row?.cells.find((entry) => entry.id === match[3]);
+    if (cell === undefined) return { resolved: false, value: '' };
+    return { resolved: true, value: cell.content };
+  }
+  return { resolved: false, value: '' };
+}
+
+/** Restore one designer TEXT leaf to `original` via the designer services. */
+function restoreDesignerText(
+  doc: DocStudioDocument,
+  path: string,
+  original: ChangeScalarValue,
+  now: ISODateString,
+): TrackOpResult {
+  const fail = (message: string): TrackOpResult =>
+    opReject('unsupported-reversal', message);
+  if (typeof original !== 'string') {
+    return fail(`The recorded original value of "${path}" is not a string.`);
+  }
+  if (path === 'frontPage.synopsis') {
+    return via(updateFrontPage(doc, { field: 'synopsis', value: original === '' ? undefined : original }, now));
+  }
+  if (path === 'watermark.text') {
+    return via(applyWatermarkPatch(doc, { field: 'text', value: original }, now));
+  }
+  const match = DESIGNER_CELL_PATH.exec(path);
+  if (match !== null) {
+    return via(
+      applyHeaderFooterPatch(
+        doc,
+        match[1] as 'header' | 'footer',
+        { field: 'cellContent', rowId: match[2] as DocUUID, cellId: match[3] as DocUUID, value: original },
+        now,
+      ),
+    );
+  }
+  return fail(`Reversing the designer text field "${path}" is not supported.`);
 }
 
 /** Read the current scalar at a tracked settings path. */
@@ -911,6 +2420,13 @@ export function rejectChange(
       if (event.type === 'text') {
         const current = readBlockFieldValue(block, field);
         if (current.value === undefined) {
+          const child = parseChildLocator(field);
+          if (child !== null && readChildField(block, child) !== null) {
+            return opReject(
+              'unsupported-reversal',
+              `The addressed ${child.collection} element no longer exists in this block (it was removed together with its row, column or item), so this recorded deletion cannot be reversed automatically.`,
+            );
+          }
           return opReject(
             'unsupported-reversal',
             `Reversing the text field "${field}" on this block type is not supported in P07-M2.`,
@@ -929,13 +2445,14 @@ export function rejectChange(
 
       // formatting
       if (event.payload.kind === 'spans') {
-        if (block.data.type !== 'paragraph' || field !== 'spans') {
+        const current = readBlockFieldValue(block, field);
+        if (current.spans === undefined) {
           return opReject(
             'unsupported-reversal',
             'This formatting change can no longer be reversed on the current block.',
           );
         }
-        if (JSON.stringify(block.data.spans) !== JSON.stringify(event.payload.replacement)) {
+        if (JSON.stringify(current.spans) !== JSON.stringify(event.payload.replacement)) {
           return opReject(
             'stale-target',
             'The text styling changed again after this tracked change, so restoring the original styling is no longer safe.',
@@ -1052,6 +2569,22 @@ export function rejectChange(
 
     case 'settings': {
       const field = event.target.field;
+      if (isDesignerTextPath(field)) {
+        const current = readDesignerText(source, field);
+        if (!current.resolved) {
+          return opReject(
+            'unsupported-reversal',
+            `The addressed header/footer cell no longer exists in this document, so this recorded text change cannot be reversed automatically.`,
+          );
+        }
+        if (current.value !== event.payload.replacement) {
+          return opReject(
+            'stale-target',
+            `The field "${field}" changed again after this tracked change, so restoring its original value is no longer safe.`,
+          );
+        }
+        return restoreDesignerText(source, field, event.payload.original, now);
+      }
       const current = readSettingsLeaf(source, field);
       if (current === undefined) {
         return opReject(
@@ -1374,6 +2907,35 @@ export function describeBlockMarkupCues(events: readonly ChangeEvent[] | undefin
       default:
         break;
     }
+  }
+  return cues;
+}
+
+/**
+ * Cue lines for one block's PENDING text events on families whose text
+ * cannot be struck/underlined inline in the PDF (every family except
+ * heading/paragraph, which carry their own inline markup).  Each line
+ * shows the original and replacement strings, `(empty)` for the empty
+ * side, truncated for the page - the same non-color, print-readable
+ * convention as `describeBlockMarkupCues`.  A pure derivation helper;
+ * never shows resolved events.
+ */
+export function describePendingTextCues(
+  events: readonly ChangeEvent[] | undefined,
+  maxLength = 60,
+): string[] {
+  if (events === undefined) return [];
+  const side = (value: string): string => {
+    if (value === '') return '(empty)';
+    if (value.length <= maxLength) return value;
+    return `${value.slice(0, Math.max(1, maxLength - 1))}\u2026`;
+  };
+  const cues: string[] = [];
+  for (const event of events) {
+    if (event.status !== 'pending' || event.type !== 'text') continue;
+    const { original, replacement } = event.payload;
+    if (original === '' && replacement === '') continue;
+    cues.push(`Text: ${side(original)} \u2192 ${side(replacement)}`);
   }
   return cues;
 }

@@ -23,6 +23,7 @@ import { Document as PdfJsDocument, Page as PdfJsPage, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { renderDocPdfBytes, renderPocFixturePdfBytes } from './poc-render';
+import { ChangeViewSelector } from './ChangeViewSelector';
 import type { DocumentChangeView } from '../../services/track-changes';
 import { hasPendingChanges } from '../../services/track-changes';
 import { savePdfViaDialog } from '../../services/pdf-export-io';
@@ -192,33 +193,7 @@ export const PocViewer: React.FC<{
           </button>
         )}
         {activeDoc && trackingPending && (
-          <div
-            className="poc-change-view"
-            role="radiogroup"
-            aria-label="Tracked-change markup in the rendered and exported PDF"
-          >
-            <span className="poc-change-view-label">PDF view:</span>
-            <label className="poc-change-view-option" title="Show pending tracked-change markup in the PDF">
-              <input
-                type="radio"
-                name="poc-change-view"
-                value="markup"
-                checked={changeView === 'markup'}
-                onChange={() => setChangeView('markup')}
-              />
-              <span>Markup</span>
-            </label>
-            <label className="poc-change-view-option" title="Render the current content without review markup">
-              <input
-                type="radio"
-                name="poc-change-view"
-                value="clean"
-                checked={changeView === 'clean'}
-                onChange={() => setChangeView('clean')}
-              />
-              <span>Clean</span>
-            </label>
-          </div>
+          <ChangeViewSelector value={changeView} onChange={setChangeView} />
         )}
         <button type="button" className="poc-btn" onClick={handleExport} disabled={!pdfBytes || busy} title="Export the exact bytes shown in the preview (native save dialog)">
           Export PDF…

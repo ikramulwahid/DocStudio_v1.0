@@ -102,6 +102,7 @@ const COMPILE_ROOTS = [
   'src/services/document-file.ts',
   'src/services/document-actions.ts',
   'src/renderer/poc/poc-render.ts',
+  'src/renderer/poc/ChangeViewSelector.tsx',
   'src/components/left-panel/TrackChangesPanel.tsx',
   'src/components/editor-panel/EditorPanel.tsx',
 ];
@@ -180,6 +181,44 @@ const pocRender = pick(
   path.join(CACHE, 'renderer', 'poc', 'poc-render.js'),
   path.join(CACHE, 'src', 'renderer', 'poc', 'poc-render.js'),
 );
+// P07-M2-R1: the family content services (real immutable editors used by the
+// capture fixtures and the reversal tests) + the extracted PDF-view control.
+const tableContent = pick(
+  path.join(CACHE, 'services', 'table-content.js'),
+  path.join(CACHE, 'src', 'services', 'table-content.js'),
+);
+const listCalloutContent = pick(
+  path.join(CACHE, 'services', 'list-callout-content.js'),
+  path.join(CACHE, 'src', 'services', 'list-callout-content.js'),
+);
+const formulaContent = pick(
+  path.join(CACHE, 'services', 'formula-content.js'),
+  path.join(CACHE, 'src', 'services', 'formula-content.js'),
+);
+const imageSignatureContent = pick(
+  path.join(CACHE, 'services', 'image-signature-content.js'),
+  path.join(CACHE, 'src', 'services', 'image-signature-content.js'),
+);
+const structuralContent = pick(
+  path.join(CACHE, 'services', 'structural-block-content.js'),
+  path.join(CACHE, 'src', 'services', 'structural-block-content.js'),
+);
+const labContent = pick(
+  path.join(CACHE, 'services', 'lab-block-content.js'),
+  path.join(CACHE, 'src', 'services', 'lab-block-content.js'),
+);
+const frontPageService = pick(
+  path.join(CACHE, 'services', 'front-page.js'),
+  path.join(CACHE, 'src', 'services', 'front-page.js'),
+);
+const headerFooterService = pick(
+  path.join(CACHE, 'services', 'header-footer-settings.js'),
+  path.join(CACHE, 'src', 'services', 'header-footer-settings.js'),
+);
+const changeViewSelector = pick(
+  path.join(CACHE, 'renderer', 'poc', 'ChangeViewSelector.js'),
+  path.join(CACHE, 'src', 'renderer', 'poc', 'ChangeViewSelector.js'),
+);
 
 const {
   documentChangeEvents,
@@ -201,6 +240,7 @@ const {
   buildDocumentChangeViewContext,
   pendingTextEventFor,
   describeBlockMarkupCues,
+  describePendingTextCues,
   describeChangeEvent,
 } = trackChanges;
 const { serializeDocument, deserializeDocument, DocumentFileError } = documentFile;
@@ -212,6 +252,57 @@ const { updatePageSetup, updateTypography } = pageTypography;
 const { spansToPlainText, plainTextToSpans } = richText;
 const { createDefaultDocument } = defaults;
 const { renderDocPdfBytes } = pocRender;
+const { ChangeViewSelector } = changeViewSelector;
+const {
+  addTableColumn,
+  addTableRow,
+  removeTableColumn,
+  removeTableRow,
+  setTableCellAlignment,
+  setTableCellText,
+  updateTableSettings,
+} = tableContent;
+const {
+  addListItem,
+  indentListItem,
+  moveListItem,
+  removeListItem,
+  setItemChecked,
+  updateCalloutContent,
+  updateListItemText,
+  updateListSettings,
+} = listCalloutContent;
+const { updateFormulaContent, updateVariableDefinition } = formulaContent;
+const {
+  SIGNER_SEED_DESIGNATION,
+  addSigner,
+  attachImageAsset,
+  removeSigner,
+  setSignerField,
+  setImageCaption,
+} = imageSignatureContent;
+const {
+  updateExhibitContent,
+  updateReferenceEntry,
+  updateReferenceTitle,
+  updateRevisionEntry,
+  updateSectionBreakContent,
+} = structuralContent;
+const {
+  setAcceptanceOverallResult,
+  setCalculationConclusion,
+  setMeasurementCell,
+  setMeasurementUncertaintyNote,
+  updateAcceptanceCriterion,
+  updateCalculationStep,
+  updateEquipmentItem,
+  updateMeasurementColumn,
+  updateObservationRow,
+  updateProcedureStep,
+  updateProcedureTitle,
+} = labContent;
+const { updateFrontPage } = frontPageService;
+const { applyHeaderFooterPatch, applyWatermarkPatch } = headerFooterService;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Deterministic fixtures (real services; no committed artifacts)
@@ -262,6 +353,54 @@ const capture = (before, after, hint, extra = {}) => {
 };
 
 const lastEvent = (doc) => documentChangeEvents(doc)[documentChangeEvents(doc).length - 1];
+
+// ── P07-M2-R1 family fixtures (real services through the single App seam) ───
+
+/** The `data` of one block by id. */
+const blockData = (doc, blockId) => doc.blocks.find((b) => b.id === blockId).data;
+
+/** Every PENDING event of a document, in log order. */
+const pendingEvents = (doc) => documentChangeEvents(doc).filter((e) => e.status === 'pending');
+
+/** The one pending event addressed at `field`; asserts exactly one exists. */
+function pendingOn(doc, field) {
+  const hits = pendingEvents(doc).filter((e) => e.target.field === field);
+  assert.equal(
+    hits.length,
+    1,
+    `expected exactly one pending event on ${field}, got ${hits.length}`,
+  );
+  return hits[0];
+}
+
+/**
+ * A base document plus one inserted block of `type`, captured through the
+ * real block-create seam and settled, so family tests start from an empty
+ * pending log (only the accepted create remains).
+ */
+function baseWithBlock(type) {
+  const base = buildBase();
+  const ins = must(insertBlock(base.doc, type, { kind: 'end' }, opts()), `insert ${type}`);
+  const doc = capture(base.doc, ins.doc, { kind: 'block-create', blockId: ins.blockId }).doc;
+  return { doc: acceptAllChanges(doc, { now: T1 }).doc, blockId: ins.blockId };
+}
+
+/** Apply a family service result through the App seam and return the doc. */
+const edit = (doc, blockId, result, what) =>
+  capture(doc, must(result, what).doc, { kind: 'block-content', blockId }).doc;
+
+/** A deterministic PNG asset record (schema-v1 envelope fields only). */
+function makeAsset(id, filename) {
+  return {
+    id,
+    filename,
+    mimeType: 'image/png',
+    sizeBytes: 68,
+    addedAt: T0,
+    base64Data:
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+  };
+}
 
 // ═════════════════════════════════════════════════════════════════════════════
 group('1. module surface (P07-M2 track-changes service)');
@@ -1649,6 +1788,1229 @@ await testAsync('8.9 typing into a tracked field captures an event end to end', 
   await mounted.unmount();
 });
 
+// ── 8C. PDF-view radiogroup (P07-M2-R1: the real control, now testable) ────
+
+await testAsync('8.10 the PDF-view radiogroup switches Markup/Clean via onChange', async () => {
+  const seen = [];
+  const Harness = () => {
+    const [view, setView] = React.useState('markup');
+    return React.createElement(ChangeViewSelector, {
+      value: view,
+      onChange: (next) => {
+        seen.push(`click:${next}`);
+        setView(next);
+      },
+    });
+  };
+  await mount(React.createElement(Harness));
+
+  const groupEl = q('[role="radiogroup"]');
+  assert.ok(groupEl, 'the selector renders as an accessible radiogroup');
+  assert.ok(
+    groupEl.getAttribute('aria-label').includes('PDF'),
+    'the group is labelled for the rendered/exported PDF',
+  );
+  const radios = qa('input[type="radio"]');
+  assert.equal(radios.length, 2);
+  assert.equal(radios[0].value, 'markup');
+  assert.equal(radios[1].value, 'clean');
+  assert.equal(radios[0].checked, true, 'markup is the default selection');
+
+  // Real interaction: click Clean -> the controlled value follows.
+  await click(radios[1]);
+  assert.ok(seen.includes('click:clean'), 'onChange fired with "clean"');
+  assert.equal(qa('input[type="radio"]')[1].checked, true, 'clean is now selected');
+  assert.equal(qa('input[type="radio"]')[0].checked, false);
+
+  // And back to Markup.
+  await click(qa('input[type="radio"]')[0]);
+  assert.ok(seen.includes('click:markup'), 'onChange fired with "markup"');
+  assert.equal(qa('input[type="radio"]')[0].checked, true);
+
+  await mounted.unmount();
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+group('9. P07-M2-R1: content-family capture (stable-id locators)');
+// ═════════════════════════════════════════════════════════════════════════════
+
+test('9.1 table: cell text, cell alignment, caption and settings carry stable-id locators', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const data = blockData(doc, blockId);
+  const bodyRow = data.rows[data.rows.length - 1];
+  const [cellA] = bodyRow.cells;
+
+  let d = edit(doc, blockId, setTableCellText(doc, blockId, cellA.id, 'Sample cell', opts()), 'cell text');
+  d = edit(d, blockId, setTableCellAlignment(d, blockId, cellA.id, 'right', opts()), 'cell align');
+  d = edit(d, blockId, updateTableSettings(d, blockId, { caption: 'Table caption' }, opts()), 'caption');
+  d = edit(d, blockId, updateTableSettings(d, blockId, { headerStyle: 'heavy' }, opts()), 'style');
+
+  assert.equal(pendingEvents(d).length, 4);
+
+  const cellEvent = pendingOn(d, `rows[${bodyRow.id}].cells[${cellA.id}].text`);
+  assert.equal(cellEvent.type, 'text');
+  assert.equal(cellEvent.target.blockId, blockId);
+  assert.equal(cellEvent.payload.original, '');
+  assert.equal(cellEvent.payload.replacement, 'Sample cell');
+
+  const alignEvent = pendingOn(d, `rows[${bodyRow.id}].cells[${cellA.id}].hAlign`);
+  assert.equal(alignEvent.type, 'formatting');
+  assert.equal(alignEvent.payload.kind, 'property');
+  assert.equal(alignEvent.payload.replacement, 'right');
+
+  assert.equal(pendingOn(d, 'caption').payload.replacement, 'Table caption');
+  const styleEvent = pendingOn(d, 'headerStyle');
+  assert.equal(styleEvent.type, 'formatting');
+  assert.equal(styleEvent.payload.replacement, 'heavy');
+  // Ownership boundary: cell spans styling (colSpan/rowSpan/isHeader) is NOT
+  // a text change - only TEXT content and alignment are captured here.
+  assert.ok(pendingEvents(d).every((e) => !/\.(colSpan|rowSpan|isHeader)$/.test(e.target.field)));
+});
+
+test('9.2 table: one cell fires alone; reorder fires nothing; row removal marks deletions', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const rows = blockData(doc, blockId).rows;
+  const bodyRow = rows[rows.length - 1];
+  const [cellA, cellB] = bodyRow.cells;
+
+  // One-of-many: editing ONE of two cells produces exactly its own event.
+  const d1 = edit(doc, blockId, setTableCellText(doc, blockId, cellA.id, 'Alpha', opts()), 'cell A');
+  assert.equal(pendingEvents(d1).length, 1);
+  pendingOn(d1, `rows[${bodyRow.id}].cells[${cellA.id}].text`);
+  assert.equal(
+    pendingEvents(d1).some((e) => e.target.field.includes(cellB.id)),
+    false,
+    'the untouched sibling cell records nothing',
+  );
+
+  // A pure reorder (an immutable rows reversal - what a move action does):
+  // same ids, same text -> NO events (reorders never fabricate text events).
+  const moved = {
+    ...d1,
+    blocks: d1.blocks.map((b) =>
+      b.id === blockId ? { ...b, data: { ...b.data, rows: [...b.data.rows].reverse() } } : b,
+    ),
+  };
+  const d2 = capture(d1, moved, { kind: 'block-content', blockId }).doc;
+  assert.equal(pendingEvents(d2).length, 1, 'a pure row reorder captures nothing');
+
+  // A new EMPTY row is silent ...
+  const d3 = edit(d2, blockId, addTableRow(d2, blockId, { kind: 'end' }, opts()), 'add row');
+  assert.equal(pendingEvents(d3).length, 1, 'an empty added row seeds no text');
+  const grownRows = blockData(d3, blockId).rows;
+  const newRow = grownRows[grownRows.length - 1];
+  const newCell = newRow.cells[0];
+
+  // ... until it holds text; removing that row records per-cell deletions.
+  const d4 = edit(d3, blockId, setTableCellText(d3, blockId, newCell.id, 'Doomed', opts()), 'doom');
+  const settled = acceptAllChanges(d4, { now: T1 }).doc;
+  const removed = capture(
+    settled,
+    must(removeTableRow(settled, blockId, newRow.id, opts()), 'remove row').doc,
+    { kind: 'block-content', blockId },
+  ).doc;
+  const deletion = pendingOn(removed, `rows[${newRow.id}].cells[${newCell.id}].text`);
+  assert.equal(deletion.payload.original, 'Doomed');
+  assert.equal(deletion.payload.replacement, '', 'row removal surfaces as text deletion events');
+  assert.equal(pendingEvents(removed).length, 1);
+});
+
+test('9.3 table: an empty column add is silent; column removal marks its cells', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const grown = edit(doc, blockId, addTableColumn(doc, blockId, { kind: 'end' }, opts()), 'add col');
+  assert.equal(pendingEvents(grown).length, 0, 'an empty column seeds no text');
+
+  // Seed the new HEADER cell (the only non-empty cell of that column).
+  const headerRow = blockData(grown, blockId).rows[0];
+  const newHeaderCell = headerRow.cells[headerRow.cells.length - 1];
+  const withText = edit(
+    grown,
+    blockId,
+    setTableCellText(grown, blockId, newHeaderCell.id, 'Extra', opts()),
+    'header cell',
+  );
+  const settled = acceptAllChanges(withText, { now: T1 }).doc;
+  const colIndex = blockData(settled, blockId).rows[0].cells.length - 1;
+  const removed = capture(
+    settled,
+    must(removeTableColumn(settled, blockId, colIndex, opts()), 'remove col').doc,
+    { kind: 'block-content', blockId },
+  ).doc;
+  const deletion = pendingOn(removed, `rows[${headerRow.id}].cells[${newHeaderCell.id}].text`);
+  assert.equal(deletion.payload.original, 'Extra');
+  assert.equal(deletion.payload.replacement, '');
+  assert.equal(pendingEvents(removed).length, 1, 'empty removed cells record nothing');
+});
+
+test('9.4 list: item text, settings, checked toggle and removal; reorder is silent', () => {
+  const { doc, blockId } = baseWithBlock('list');
+  const items0 = blockData(doc, blockId).items;
+  assert.equal(items0.length, 1);
+
+  // Item text through the real editor service.
+  const d1 = edit(
+    doc,
+    blockId,
+    updateListItemText(doc, blockId, items0[0].id, plainTextToSpans('First item'), opts()),
+    'item text',
+  );
+  assert.equal(pendingOn(d1, `items[${items0[0].id}].text`).payload.replacement, 'First item');
+
+  // A newly ADDED empty item seeds no events.
+  const d2 = edit(d1, blockId, addListItem(d1, blockId, null, opts()), 'add item');
+  const items1 = blockData(d2, blockId).items;
+  assert.equal(items1.length, 2);
+  assert.equal(pendingEvents(d2).length, 1, 'an empty added item seeds no text');
+
+  // A pure reorder via the real move action captures nothing.
+  const moved = must(moveListItem(d2, blockId, items1[1].id, 'up', opts()), 'move').doc;
+  const d3 = capture(d2, moved, { kind: 'block-content', blockId }).doc;
+  assert.equal(pendingEvents(d3).length, 1, 'a pure item reorder captures nothing');
+
+  // Switching to a checklist tracks the listType; the seeded per-item
+  // `checked: false` is a structural seed, NOT a tracked text change.
+  const d4 = edit(d3, blockId, updateListSettings(d3, blockId, { listType: 'checklist' }, opts()), 'checklist');
+  assert.equal(pendingOn(d4, 'listType').payload.replacement, 'checklist');
+  assert.equal(pendingEvents(d4).length, 2, 'checklist seeding contributes no per-item events');
+
+  // A real checkbox toggle on the checklist IS tracked.
+  const settled = acceptAllChanges(d4, { now: T1 }).doc;
+  const d5 = edit(settled, blockId, setItemChecked(settled, blockId, items0[0].id, true, opts()), 'tick');
+  assert.equal(pendingOn(d5, `items[${items0[0].id}].checked`).payload.replacement, true);
+
+  // Removing that item records its text as deleted (settling first so the
+  // log keeps exactly one event per concern).
+  const settled2 = acceptAllChanges(d5, { now: T1 }).doc;
+  const gone = capture(
+    settled2,
+    must(removeListItem(settled2, blockId, items0[0].id, opts()), 'remove item').doc,
+    { kind: 'block-content', blockId },
+  ).doc;
+  const deletion = pendingOn(gone, `items[${items0[0].id}].text`);
+  assert.equal(deletion.payload.original, 'First item');
+  assert.equal(deletion.payload.replacement, '');
+  assert.equal(pendingEvents(gone).length, 1);
+});
+
+test('9.5 callout: title, body text and variant; styling-only body; tracking off stays silent', () => {
+  const { doc, blockId } = baseWithBlock('callout');
+  let d = edit(doc, blockId, updateCalloutContent(doc, blockId, { title: 'Heads up' }, opts()), 'title');
+  d = edit(d, blockId, updateCalloutContent(d, blockId, { spans: plainTextToSpans('Body updated') }, opts()), 'body');
+  d = edit(d, blockId, updateCalloutContent(d, blockId, { variant: 'warning' }, opts()), 'variant');
+
+  assert.equal(pendingOn(d, 'title').payload.replacement, 'Heads up');
+  assert.equal(pendingOn(d, 'text').payload.replacement, 'Body updated');
+  const variantEvent = pendingOn(d, 'variant');
+  assert.equal(variantEvent.type, 'formatting');
+  assert.equal(variantEvent.payload.replacement, 'warning');
+  assert.equal(pendingEvents(d).length, 3);
+
+  // Styling-only body change (identical plain text): a spans event, not text.
+  const styled = must(
+    updateCalloutContent(d, blockId, { spans: [{ text: 'Body updated', bold: true }] }, opts()),
+    'style',
+  ).doc;
+  const d2 = capture(d, styled, { kind: 'block-content', blockId }).doc;
+  const spansEvent = pendingOn(d2, 'spans');
+  assert.equal(spansEvent.type, 'formatting');
+  assert.equal(spansEvent.payload.kind, 'spans');
+  assert.equal(spansEvent.payload.replacement[0].bold, true);
+
+  // Tracking OFF: the edit stands but nothing is recorded; the log survives.
+  const off = { ...d2, trackChangesEnabled: false };
+  const edited = must(updateCalloutContent(off, blockId, { title: 'Silent' }, opts()), 'off edit').doc;
+  const d3 = capture(off, edited, { kind: 'block-content', blockId }).doc;
+  assert.equal(blockData(d3, blockId).title, 'Silent', 'the content edit itself stands');
+  assert.equal(pendingEvents(d3).length, 4, 'tracking-off adds no events');
+  assert.equal(documentChangeEvents(d3).length, documentChangeEvents(d2).length, 'log untouched');
+});
+
+test('9.6 formula: latex, number, alignment and variable definitions (no auto-calculation)', () => {
+  // Fixture: one variable definition as if added in an earlier session.
+  const { doc: raw, blockId } = baseWithBlock('formula');
+  const seeded = {
+    ...raw,
+    blocks: raw.blocks.map((b) =>
+      b.id === blockId
+        ? { ...b, data: { ...b.data, variableDefinitions: [{ id: nextId(), symbol: 'm', definition: 'mass' }] } }
+        : b,
+    ),
+  };
+  const entryId = blockData(seeded, blockId).variableDefinitions[0].id;
+
+  let d = edit(seeded, blockId, updateFormulaContent(seeded, blockId, { action: 'update-formula', latex: 'E = mc^2 + kT' }, opts()), 'latex');
+  d = edit(d, blockId, updateFormulaContent(d, blockId, { action: 'update-formula', formulaNumber: '(1)' }, opts()), 'number');
+  d = edit(d, blockId, updateFormulaContent(d, blockId, { action: 'update-formula', hAlign: 'left' }, opts()), 'align');
+  d = edit(d, blockId, updateVariableDefinition(d, blockId, entryId, { unit: 'kg' }, opts()), 'unit');
+
+  assert.equal(pendingOn(d, 'latex').payload.replacement, 'E = mc^2 + kT');
+  assert.equal(pendingOn(d, 'formulaNumber').payload.replacement, '(1)');
+  assert.equal(pendingOn(d, 'hAlign').payload.replacement, 'left');
+  assert.equal(pendingOn(d, `variableDefinitions[${entryId}].unit`).payload.replacement, 'kg');
+  assert.equal(pendingEvents(d).length, 4);
+  // No calculation runs anywhere: only authored text/properties are tracked.
+  assert.ok(pendingEvents(d).every((e) => e.type === 'text' || e.type === 'formatting'));
+});
+
+test('9.7 image: caption text and deterministic asset-reference swaps are captured', () => {
+  const { doc: raw, blockId } = baseWithBlock('image');
+  const assetA = makeAsset(nextId(), 'original.png');
+  const assetB = makeAsset(nextId(), 'replacement.png');
+  const doc = { ...raw, assets: { ...raw.assets, [assetA.id]: assetA, [assetB.id]: assetB } };
+  const imageId = blockData(doc, blockId).images[0].id;
+
+  // Attach A (records the initial reference), settle, then swap to B.
+  const withA = edit(doc, blockId, attachImageAsset(doc, blockId, imageId, assetA, opts()), 'attach A');
+  const settled = acceptAllChanges(withA, { now: T1 }).doc;
+  const swapped = edit(settled, blockId, attachImageAsset(settled, blockId, imageId, assetB, opts()), 'swap B');
+  const swapEvent = pendingOn(swapped, `images[${imageId}].assetId`);
+  assert.equal(swapEvent.type, 'text');
+  assert.equal(swapEvent.payload.original, assetA.id, 'original is the previous asset record id');
+  assert.equal(swapEvent.payload.replacement, assetB.id, 'replacement is the new asset record id');
+
+  // Caption text.
+  const captioned = edit(swapped, blockId, setImageCaption(swapped, blockId, imageId, 'Figure 1 - trace', opts()), 'caption');
+  assert.equal(pendingOn(captioned, `images[${imageId}].caption`).payload.replacement, 'Figure 1 - trace');
+  assert.equal(pendingEvents(captioned).length, 2);
+
+  // Owner-boundary pins: size/crop/layout stay OUT of text capture.
+  assert.ok(
+    pendingEvents(captioned).every((e) => !/(widthFraction|hAlign|crop|layout|captionPlacement)/.test(e.target.field)),
+    'image size/crop/layout remain in the open owner-decision bucket',
+  );
+});
+
+test('9.8 signature: signer field edits, add-seed insertion, removal deletions', () => {
+  const { doc, blockId } = baseWithBlock('signature');
+  const signer0 = blockData(doc, blockId).signers[0];
+
+  // Edit an existing field.
+  const d1 = edit(doc, blockId, setSignerField(doc, blockId, signer0.id, 'role', 'Reviewed by', opts()), 'role');
+  assert.equal(pendingOn(d1, `signers[${signer0.id}].role`).payload.replacement, 'Reviewed by');
+
+  // Add a second signer (1 -> 2, within the 1-3 rule): only the seeded
+  // designation is non-empty -> ONE insertion event; empty fields stay silent.
+  const grown = edit(d1, blockId, addSigner(d1, blockId, opts()), 'add signer');
+  const signers = blockData(grown, blockId).signers;
+  assert.equal(signers.length, 2, 'the 1-3 signer rule is respected');
+  const signer1 = signers[1];
+  const seed = pendingOn(grown, `signers[${signer1.id}].designation`);
+  assert.equal(seed.payload.original, '');
+  assert.equal(seed.payload.replacement, SIGNER_SEED_DESIGNATION);
+  assert.equal(pendingEvents(grown).length, 2, 'only the seeded designation fires on add');
+
+  // Removal (2 -> 1, still >= 1): the removed signer's text becomes deletions.
+  const settled = acceptAllChanges(grown, { now: T1 }).doc;
+  const gone = capture(
+    settled,
+    must(removeSigner(settled, blockId, signer1.id, opts()), 'remove signer').doc,
+    { kind: 'block-content', blockId },
+  ).doc;
+  const deletion = pendingOn(gone, `signers[${signer1.id}].designation`);
+  assert.equal(deletion.payload.original, SIGNER_SEED_DESIGNATION);
+  assert.equal(deletion.payload.replacement, '');
+  assert.equal(pendingEvents(gone).length, 1, 'empty removed fields record nothing');
+  // Owner-boundary pin: signer ROW alignment is layout, not text.
+  assert.ok(pendingEvents(gone).every((e) => !e.target.field.includes('hAlign')));
+});
+
+test('9.9 structural: section, revision, reference, exhibit text; no-text blocks stay silent', () => {
+  // Section break title.
+  const s = baseWithBlock('section-break');
+  const ds = edit(s.doc, s.blockId, updateSectionBreakContent(s.doc, s.blockId, { title: 'Part I' }, opts()), 'section title');
+  assert.equal(pendingOn(ds, 'title').payload.replacement, 'Part I');
+
+  // Revision entry fields (stable-id child locator).
+  const r = baseWithBlock('revision-history');
+  const entryId = blockData(r.doc, r.blockId).entries[0].id;
+  let dr = edit(r.doc, r.blockId, updateRevisionEntry(r.doc, r.blockId, entryId, { description: 'Initial issue' }, opts()), 'desc');
+  dr = edit(dr, r.blockId, updateRevisionEntry(dr, r.blockId, entryId, { author: 'I. Wahid' }, opts()), 'author');
+  assert.equal(pendingOn(dr, `entries[${entryId}].description`).payload.replacement, 'Initial issue');
+  assert.equal(pendingOn(dr, `entries[${entryId}].author`).payload.replacement, 'I. Wahid');
+
+  // Reference block title + entry url.
+  const ref = baseWithBlock('reference');
+  const refEntryId = blockData(ref.doc, ref.blockId).entries[0].id;
+  let dref = edit(ref.doc, ref.blockId, updateReferenceTitle(ref.doc, ref.blockId, { title: 'Bibliography' }, opts()), 'ref title');
+  dref = edit(dref, ref.blockId, updateReferenceEntry(dref, ref.blockId, refEntryId, { url: 'https://www.iso.org/17025' }, opts()), 'url');
+  assert.equal(pendingOn(dref, 'title').payload.replacement, 'Bibliography');
+  assert.equal(pendingOn(dref, `entries[${refEntryId}].url`).payload.replacement, 'https://www.iso.org/17025');
+
+  // Exhibit notes (block-level text).
+  const x = baseWithBlock('exhibit');
+  const dx = edit(x.doc, x.blockId, updateExhibitContent(x.doc, x.blockId, { notes: 'See attachment' }, opts()), 'notes');
+  assert.equal(pendingOn(dx, 'notes').payload.replacement, 'See attachment');
+
+  // Page break has NO text: its spacing stays tracked but no text event exists.
+  const pgb = baseWithBlock('page-break');
+  const dpgb = edit(pgb.doc, pgb.blockId, updateBlockSpacing(pgb.doc, pgb.blockId, 'topPt', 12, opts()), 'spacing');
+  assert.equal(
+    pendingEvents(dpgb).filter((e) => e.type === 'text').length,
+    0,
+    'a page break has no text content to capture (page-break no-content is not a gap)',
+  );
+
+  // metadata-block.visibleFields and horizontal-line colour are configuration,
+  // not text: a direct config change captures NOTHING (owner-decision bucket).
+  const mb = baseWithBlock('metadata-block');
+  const reconfigured = {
+    ...mb.doc,
+    blocks: mb.doc.blocks.map((b) =>
+      b.id === mb.blockId ? { ...b, data: { ...b.data, visibleFields: ['title'] } } : b,
+    ),
+  };
+  const dmb = capture(mb.doc, reconfigured, { kind: 'block-content', blockId: mb.blockId }).doc;
+  assert.equal(pendingEvents(dmb).length, 0, 'visibleFields is not tracked (open owner decision)');
+
+  const hl = baseWithBlock('horizontal-line');
+  const recolored = {
+    ...hl.doc,
+    blocks: hl.doc.blocks.map((b) =>
+      b.id === hl.blockId ? { ...b, data: { ...b.data, color: '#ff0000' } } : b,
+    ),
+  };
+  const dhl = capture(hl.doc, recolored, { kind: 'block-content', blockId: hl.blockId }).doc;
+  assert.equal(pendingEvents(dhl).length, 0, 'a horizontal line has no text content');
+});
+
+test('9.10 procedure-step and equipment-list: field-level lab capture', () => {
+  const p = baseWithBlock('procedure-step');
+  const stepId = blockData(p.doc, p.blockId).steps[0].id;
+  let dp = edit(p.doc, p.blockId, updateProcedureStep(p.doc, p.blockId, stepId, { spans: plainTextToSpans('Weigh the sample.') }, opts()), 'step text');
+  dp = edit(dp, p.blockId, updateProcedureStep(dp, p.blockId, stepId, { level: 'warning' }, opts()), 'level');
+  dp = edit(dp, p.blockId, updateProcedureTitle(dp, p.blockId, 'Sample preparation', opts()), 'section title');
+  assert.equal(pendingOn(dp, `steps[${stepId}].text`).payload.replacement, 'Weigh the sample.');
+  assert.equal(pendingOn(dp, `steps[${stepId}].level`).payload.replacement, 'warning');
+  assert.equal(pendingOn(dp, 'sectionTitle').payload.replacement, 'Sample preparation');
+  assert.equal(pendingEvents(dp).length, 3);
+
+  const e = baseWithBlock('equipment-list');
+  const itemId = blockData(e.doc, e.blockId).items[0].id;
+  let de = edit(e.doc, e.blockId, updateEquipmentItem(e.doc, e.blockId, itemId, { name: 'Analytical balance' }, opts()), 'name');
+  de = edit(de, e.blockId, updateEquipmentItem(de, e.blockId, itemId, { assetTag: 'LAB-0042' }, opts()), 'asset tag');
+  de = edit(de, e.blockId, updateEquipmentItem(de, e.blockId, itemId, { mandatory: false }, opts()), 'mandatory');
+  assert.equal(pendingOn(de, `items[${itemId}].name`).payload.replacement, 'Analytical balance');
+  assert.equal(pendingOn(de, `items[${itemId}].assetTag`).payload.replacement, 'LAB-0042');
+  const mandatoryEvent = pendingOn(de, `items[${itemId}].mandatory`);
+  assert.equal(mandatoryEvent.type, 'formatting');
+  assert.equal(mandatoryEvent.payload.replacement, false, 'default mandatory is true -> false');
+  assert.equal(pendingEvents(de).length, 3);
+});
+
+test('9.11 observation and measurement: row values, column units, uncertainty note', () => {
+  const o = baseWithBlock('observation');
+  const obsRowId = blockData(o.doc, o.blockId).rows[0].id;
+  let dobs = edit(o.doc, o.blockId, updateObservationRow(o.doc, o.blockId, obsRowId, { observedValue: '25.4' }, opts()), 'value');
+  dobs = edit(dobs, o.blockId, updateObservationRow(dobs, o.blockId, obsRowId, { remarks: 'Within tolerance' }, opts()), 'remarks');
+  assert.equal(pendingOn(dobs, `rows[${obsRowId}].observedValue`).payload.replacement, '25.4');
+  assert.equal(pendingOn(dobs, `rows[${obsRowId}].remarks`).payload.replacement, 'Within tolerance');
+  assert.equal(pendingEvents(dobs).length, 2);
+
+  const m = baseWithBlock('measurement');
+  const mData = blockData(m.doc, m.blockId);
+  const measRowId = mData.rows[0].id;
+  const valueColumnId = mData.columns[1].id;
+  let dm = edit(m.doc, m.blockId, setMeasurementCell(m.doc, m.blockId, measRowId, valueColumnId, '12.34', opts()), 'cell value');
+  dm = edit(dm, m.blockId, updateMeasurementColumn(dm, m.blockId, valueColumnId, { unit: 'mg/L' }, opts()), 'unit');
+  dm = edit(dm, m.blockId, setMeasurementUncertaintyNote(dm, m.blockId, 'k = 2', opts()), 'uncertainty');
+  assert.equal(pendingOn(dm, `rows[${measRowId}].values[${valueColumnId}]`).payload.replacement, '12.34');
+  assert.equal(pendingOn(dm, `columns[${valueColumnId}].unit`).payload.replacement, 'mg/L');
+  assert.equal(pendingOn(dm, 'uncertaintyNote').payload.replacement, 'k = 2');
+  assert.equal(pendingEvents(dm).length, 3);
+});
+
+test('9.12 calculation and acceptance-criteria: steps, conclusion, verdicts', () => {
+  const c = baseWithBlock('calculation');
+  const calcStepId = blockData(c.doc, c.blockId).steps[0].id;
+  let dc = edit(c.doc, c.blockId, updateCalculationStep(c.doc, c.blockId, calcStepId, { result: '42.0' }, opts()), 'result');
+  dc = edit(dc, c.blockId, setCalculationConclusion(dc, c.blockId, 'Meets the requirement', opts()), 'conclusion');
+  assert.equal(pendingOn(dc, `steps[${calcStepId}].result`).payload.replacement, '42.0');
+  assert.equal(pendingOn(dc, 'conclusionText').payload.replacement, 'Meets the requirement');
+  assert.equal(pendingEvents(dc).length, 2);
+
+  const a = baseWithBlock('acceptance-criteria');
+  const critId = blockData(a.doc, a.blockId).criteria[0].id;
+  let da = edit(a.doc, a.blockId, updateAcceptanceCriterion(a.doc, a.blockId, critId, { measuredValue: '0.42 %' }, opts()), 'measured');
+  da = edit(da, a.blockId, updateAcceptanceCriterion(da, a.blockId, critId, { result: 'pass' }, opts()), 'verdict');
+  da = edit(da, a.blockId, setAcceptanceOverallResult(da, a.blockId, 'pass', opts()), 'overall');
+  assert.equal(pendingOn(da, `criteria[${critId}].measuredValue`).payload.replacement, '0.42 %');
+  const verdictEvent = pendingOn(da, `criteria[${critId}].result`);
+  assert.equal(verdictEvent.type, 'formatting');
+  assert.equal(verdictEvent.payload.replacement, 'pass');
+  assert.equal(pendingOn(da, 'overallResult').payload.replacement, 'pass');
+  assert.equal(pendingEvents(da).length, 3);
+});
+
+test('9.13 designer TEXT values are captured; non-text designer config is pinned out', () => {
+  const { doc } = buildBase();
+
+  // Front-page synopsis (settings event on a dotted document path).
+  const syn = must(updateFrontPage(doc, { field: 'synopsis', value: 'Lab report overview' }, T0), 'synopsis');
+  const d1 = capture(doc, syn.doc, { kind: 'settings' }).doc;
+  const synEvent = pendingOn(d1, 'frontPage.synopsis');
+  assert.equal(synEvent.type, 'settings');
+  assert.equal(synEvent.target.kind, 'document');
+  assert.equal(synEvent.payload.original, '');
+  assert.equal(synEvent.payload.replacement, 'Lab report overview');
+
+  // Watermark text (the path is headerFooter.watermark, NOT doc.watermark).
+  const wm = must(applyWatermarkPatch(d1, { field: 'text', value: 'CONFIDENTIAL' }, T0), 'watermark');
+  const d2 = capture(d1, wm.doc, { kind: 'settings' }).doc;
+  const wmEvent = pendingOn(d2, 'watermark.text');
+  assert.equal(wmEvent.payload.original, 'DRAFT', 'reads the actual default watermark text');
+  assert.equal(wmEvent.payload.replacement, 'CONFIDENTIAL');
+
+  // Header cell content (per-row/per-cell stable-id document path).
+  const row = d2.headerFooter.header.rows[0];
+  const cell = row.cells[0];
+  const hf = must(
+    applyHeaderFooterPatch(d2, 'header', { field: 'cellContent', rowId: row.id, cellId: cell.id, value: 'ACME Lab — {documentId}' }, T0),
+    'cell content',
+  );
+  const d3 = capture(d2, hf.doc, { kind: 'settings' }).doc;
+  const cellEvent = pendingOn(d3, `headerFooter.header.rows[${row.id}].cells[${cell.id}].content`);
+  assert.equal(cellEvent.type, 'settings');
+  assert.equal(cellEvent.payload.original, '{documentId}', 'reads the real cell content');
+  assert.equal(cellEvent.payload.replacement, 'ACME Lab — {documentId}');
+  assert.equal(pendingEvents(d3).length, 3);
+
+  // Pins: non-text designer configuration contributes no events (the open
+  // owner-boundary question, unchanged from the P07-M2 decision).
+  const rot = must(applyWatermarkPatch(d3, { field: 'rotationDeg', value: 30 }, T0), 'rotation');
+  const d4 = capture(d3, rot.doc, { kind: 'settings' }).doc;
+  const en = must(applyWatermarkPatch(d4, { field: 'enabled', value: true }, T0), 'enable');
+  const d5 = capture(d4, en.doc, { kind: 'settings' }).doc;
+  assert.equal(
+    pendingEvents(d5).length,
+    3,
+    'watermark geometry/flags stay untracked pending the owner decision',
+  );
+});
+
+test('9.14 no-op family edits and tracking-off edits fabricate nothing', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const data = blockData(doc, blockId);
+  const headerCell = data.rows[0].cells[0];
+
+  // Re-entering the identical cell text: the service reports NO change and
+  // capture sees the same document -> zero events.
+  const noop = setTableCellText(doc, blockId, headerCell.id, 'Column 1', opts());
+  assert.equal(noop.changed, false, 'an identical value is a service no-op');
+  assert.equal(noop.doc, doc, 'the service returns the source document unchanged');
+  const d1 = capture(doc, noop.doc, { kind: 'block-content', blockId }).doc;
+  assert.equal(pendingEvents(d1).length, 0);
+
+  // Tracking OFF: a real edit stands, nothing is recorded, log preserved.
+  const off = { ...doc, trackChangesEnabled: false };
+  const edited = must(setTableCellText(off, blockId, headerCell.id, 'Recorded nowhere', opts()), 'off edit').doc;
+  const d2 = capture(off, edited, { kind: 'block-content', blockId }).doc;
+  assert.equal(pendingEvents(d2).length, 0, 'tracking-off records nothing');
+  assert.equal(
+    documentChangeEvents(d2).length,
+    documentChangeEvents(doc).length,
+    'the existing log is untouched',
+  );
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+group('10. P07-M2-R1: accept/reject reversals per family (honest boundaries)');
+// ═════════════════════════════════════════════════════════════════════════════
+
+test('10.1 table cell text: reject restores; out-of-order rejection is honestly stale', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const bodyRow = blockData(doc, blockId).rows[blockData(doc, blockId).rows.length - 1];
+  const cell = bodyRow.cells[0];
+  const cellPath = `rows[${bodyRow.id}].cells[${cell.id}].text`;
+
+  // Two consecutive edits of the SAME cell -> a dependent chain.
+  const d1 = edit(doc, blockId, setTableCellText(doc, blockId, cell.id, 'First tracked', opts()), 'e1');
+  const ev1 = lastEvent(d1);
+  assert.equal(ev1.target.field, cellPath);
+  const d2 = edit(d1, blockId, setTableCellText(d1, blockId, cell.id, 'Second tracked', opts()), 'e2');
+  const ev2 = lastEvent(d2);
+
+  // Rejecting the FIRST event out of order: its replacement no longer holds.
+  const stale = rejectChange(d2, ev1.id, { now: T1 });
+  assert.equal(stale.ok, false, 'an out-of-order rejection must not guess');
+  assert.equal(stale.code, 'stale-target');
+  assert.equal(pendingEvents(d2).length, 2, 'a stale rejection changes nothing');
+
+  // Reverse order (as reject-all does): newest first, then the original.
+  const cellSpansAt = (docx) => {
+    const row = blockData(docx, blockId).rows.find((r) => r.id === bodyRow.id);
+    return spansToPlainText(row.cells[0].spans);
+  };
+  const back1 = rejectChange(d2, ev2.id, { now: T1 });
+  assert.equal(back1.ok, true, back1.message);
+  assert.equal(cellSpansAt(back1.doc), 'First tracked');
+  const back2 = rejectChange(back1.doc, ev1.id, { now: T1 });
+  assert.equal(back2.ok, true, back2.message);
+  assert.equal(cellSpansAt(back2.doc), '');
+  assert.equal(pendingEvents(back2.doc).length, 0, 'both rejections resolved');
+  assert.ok(
+    documentChangeEvents(back2.doc)
+      .filter((e) => e.type === 'text')
+      .every((e) => e.status === 'rejected'),
+    'both text events are marked rejected',
+  );
+});
+
+test('10.2 table caption and headerStyle reject cleanly back to the defaults', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const defaultHeaderStyle = blockData(doc, blockId).headerStyle;
+  let d = edit(doc, blockId, updateTableSettings(doc, blockId, { caption: 'Tracked caption' }, opts()), 'caption');
+  d = edit(d, blockId, updateTableSettings(d, blockId, { headerStyle: 'heavy' }, opts()), 'style');
+  assert.equal(blockData(d, blockId).caption, 'Tracked caption');
+
+  const r1 = rejectChange(d, pendingOn(d, 'caption').id, { now: T1 });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(blockData(r1.doc, blockId).caption ?? '', '', 'the optional caption is cleared');
+
+  const r2 = rejectChange(r1.doc, pendingOn(r1.doc, 'headerStyle').id, { now: T1 });
+  assert.equal(r2.ok, true, r2.message);
+  assert.equal(blockData(r2.doc, blockId).headerStyle, defaultHeaderStyle);
+  assert.equal(hasPendingChanges(r2.doc), false);
+});
+
+test('10.3 structural removals fail rejection honestly and change nothing', () => {
+  // Table row removal: the per-cell deletion cannot be rebuilt.
+  const { doc, blockId } = baseWithBlock('table');
+  const added = edit(doc, blockId, addTableRow(doc, blockId, { kind: 'end' }, opts()), 'add row');
+  const newRow = blockData(added, blockId).rows[blockData(added, blockId).rows.length - 1];
+  const filled = edit(added, blockId, setTableCellText(added, blockId, newRow.cells[0].id, 'Doomed', opts()), 'doom');
+  const settled = acceptAllChanges(filled, { now: T1 }).doc;
+  const removed = capture(
+    settled,
+    must(removeTableRow(settled, blockId, newRow.id, opts()), 'remove row').doc,
+    { kind: 'block-content', blockId },
+  ).doc;
+  const deletionEvent = lastEvent(removed);
+  assert.equal(deletionEvent.payload.original, 'Doomed');
+
+  const before = JSON.stringify(removed);
+  const attempt = rejectChange(removed, deletionEvent.id, { now: T1 });
+  assert.equal(attempt.ok, false, 'a removed row cannot be rebuilt from a field payload');
+  assert.equal(attempt.code, 'unsupported-reversal');
+  assert.match(attempt.message, /no longer exists/i, 'the message says WHY honestly');
+  assert.equal(JSON.stringify(attempt.doc ?? removed), before, 'the document is untouched');
+  assert.equal(pendingEvents(removed).length, 1, 'the event stays pending after the refusal');
+  assert.equal(pendingOn(removed, deletionEvent.target.field).id, deletionEvent.id);
+
+  // The event can still be ACCEPTED afterwards.
+  const resolved = acceptAllChanges(removed, { now: T1 });
+  assert.equal(resolved.resolved, 1);
+  assert.equal(hasPendingChanges(resolved.doc), false);
+
+  // List item removal behaves identically.
+  const l = baseWithBlock('list');
+  const item0 = blockData(l.doc, l.blockId).items[0];
+  const lText = edit(l.doc, l.blockId, updateListItemText(l.doc, l.blockId, item0.id, plainTextToSpans('Doomed item'), opts()), 'text');
+  const lSettled = acceptAllChanges(lText, { now: T1 }).doc;
+  const lGone = capture(
+    lSettled,
+    must(removeListItem(lSettled, l.blockId, item0.id, opts()), 'remove item').doc,
+    { kind: 'block-content', blockId: l.blockId },
+  ).doc;
+  const lAttempt = rejectChange(lGone, lastEvent(lGone).id, { now: T1 });
+  assert.equal(lAttempt.ok, false);
+  assert.equal(lAttempt.code, 'unsupported-reversal');
+  assert.match(lAttempt.message, /no longer exists/i);
+  assert.equal(hasPendingChanges(lAttempt.doc ?? lGone), true, 'the deletion stays pending');
+});
+
+test('10.4 list: text, nesting depth and checked-state reversals', () => {
+  const { doc, blockId } = baseWithBlock('list');
+  const item0 = blockData(doc, blockId).items[0];
+
+  // Text reversal restores the plain original text.
+  const d1 = edit(doc, blockId, updateListItemText(doc, blockId, item0.id, plainTextToSpans('Edited item'), opts()), 'text');
+  const r1 = rejectChange(d1, pendingOn(d1, `items[${item0.id}].text`).id, { now: T1 });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(spansToPlainText(blockData(r1.doc, blockId).items[0].spans), 'List item');
+
+  // Depth reversal via the bounded outdent loop (needs a sibling to nest under).
+  const added = edit(r1.doc, blockId, addListItem(r1.doc, blockId, null, opts()), 'add');
+  const item1 = blockData(added, blockId).items[1];
+  const indented = edit(added, blockId, indentListItem(added, blockId, item1.id, opts()), 'indent');
+  const depthEvent = pendingOn(indented, `items[${item1.id}].depth`);
+  assert.equal(depthEvent.payload.replacement, 1, 'the service indented the new item');
+  const r2 = rejectChange(indented, depthEvent.id, { now: T1 });
+  assert.equal(r2.ok, true, r2.message);
+  const restoredItem = blockData(r2.doc, blockId).items.find((it) => it.id === item1.id);
+  assert.equal(restoredItem.depth, 0, 'reject outdents back to the recorded nesting');
+
+  // Checked-state reversal (a checklist is required to toggle).
+  const checklist = edit(r2.doc, blockId, updateListSettings(r2.doc, blockId, { listType: 'checklist' }, opts()), 'checklist');
+  const settled = acceptAllChanges(checklist, { now: T1 }).doc;
+  const ticked = edit(settled, blockId, setItemChecked(settled, blockId, item1.id, true, opts()), 'tick');
+  const checkedEvent = pendingOn(ticked, `items[${item1.id}].checked`);
+  const r3 = rejectChange(ticked, checkedEvent.id, { now: T1 });
+  assert.equal(r3.ok, true, r3.message);
+  const checkedBack = blockData(r3.doc, blockId).items.find((it) => it.id === item1.id);
+  assert.equal(checkedBack.checked, false);
+  assert.equal(hasPendingChanges(r3.doc), false);
+});
+
+test('10.5 callout and formula reversals, plus an honest required-field refusal', () => {
+  // Callout title rejection clears the optional field.
+  const c = baseWithBlock('callout');
+  const d1 = edit(c.doc, c.blockId, updateCalloutContent(c.doc, c.blockId, { title: 'Tracked title' }, opts()), 'title');
+  const r1 = rejectChange(d1, pendingOn(d1, 'title').id, { now: T1 });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(blockData(r1.doc, c.blockId).title ?? '', '');
+
+  // Formula: latex and display-mode reversals.
+  const f = baseWithBlock('formula');
+  const d2 = edit(f.doc, f.blockId, updateFormulaContent(f.doc, f.blockId, { action: 'update-formula', latex: 'E = mc^2 + h\\nu' }, opts()), 'latex');
+  const r2 = rejectChange(d2, pendingOn(d2, 'latex').id, { now: T1 });
+  assert.equal(r2.ok, true, r2.message);
+  assert.equal(blockData(r2.doc, f.blockId).latex, 'E = mc^2');
+
+  const d3 = edit(d2, f.blockId, updateFormulaContent(d2, f.blockId, { action: 'update-formula', displayMode: false }, opts()), 'display');
+  const r3 = rejectChange(d3, pendingOn(d3, 'displayMode').id, { now: T1 });
+  assert.equal(r3.ok, true, r3.message);
+  assert.equal(blockData(r3.doc, f.blockId).displayMode, true);
+
+  // Honest refusal: rejecting a variable SYMBOL insertion would clear a
+  // required field; the validating service refuses the empty symbol, so the
+  // rejection fails explicitly instead of silently corrupting the entry.
+  const emptyBase = {
+    ...f.doc,
+    blocks: f.doc.blocks.map((b) =>
+      b.id === f.blockId
+        ? { ...b, data: { ...b.data, variableDefinitions: [{ id: nextId(), symbol: '', definition: 'temperature' }] } }
+        : b,
+    ),
+  };
+  const entryId = blockData(emptyBase, f.blockId).variableDefinitions[0].id;
+  const filled = must(
+    updateVariableDefinition(emptyBase, f.blockId, entryId, { symbol: 'T' }, opts()),
+    'symbol',
+  ).doc;
+  const ins = capture(emptyBase, filled, { kind: 'block-content', blockId: f.blockId }).doc;
+  const insEvent = pendingOn(ins, `variableDefinitions[${entryId}].symbol`);
+  assert.equal(insEvent.payload.original, '');
+  assert.equal(insEvent.payload.replacement, 'T');
+  const attempt = rejectChange(ins, insEvent.id, { now: T1 });
+  assert.equal(attempt.ok, false, 'clearing a required symbol is refused honestly');
+  assert.equal(attempt.code, 'unsupported-reversal');
+  assert.equal(hasPendingChanges(attempt.doc ?? ins), true, 'the event stays pending');
+});
+
+test('10.6 image and exhibit asset swaps reverse while the original asset exists', () => {
+  const { doc: raw, blockId } = baseWithBlock('image');
+  const assetA = makeAsset(nextId(), 'original.png');
+  const assetB = makeAsset(nextId(), 'replacement.png');
+  const doc = { ...raw, assets: { ...raw.assets, [assetA.id]: assetA, [assetB.id]: assetB } };
+  const imageId = blockData(doc, blockId).images[0].id;
+
+  const withA = edit(doc, blockId, attachImageAsset(doc, blockId, imageId, assetA, opts()), 'attach');
+  const settled = acceptAllChanges(withA, { now: T1 }).doc;
+  const swapped = edit(settled, blockId, attachImageAsset(settled, blockId, imageId, assetB, opts()), 'swap');
+  const swapEvent = pendingOn(swapped, `images[${imageId}].assetId`);
+
+  const r1 = rejectChange(swapped, swapEvent.id, { now: T1 });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(
+    blockData(r1.doc, blockId).images[0].assetId,
+    assetA.id,
+    'the original asset reference is restored directly (no crop side effects)',
+  );
+
+  // Honest failure: the ORIGINAL asset record no longer exists in doc.assets.
+  const pruned = { ...swapped, assets: { ...swapped.assets } };
+  delete pruned.assets[assetA.id];
+  const attempt = rejectChange(pruned, swapEvent.id, { now: T1 });
+  assert.equal(attempt.ok, false, 'a missing original asset cannot be restored');
+  assert.equal(attempt.code, 'unsupported-reversal');
+  assert.match(attempt.message, /no longer embedded/i);
+  assert.equal(JSON.stringify(attempt.doc ?? pruned), JSON.stringify(pruned), 'untouched');
+
+  // The exhibit uses the same asset-reference machinery through its service.
+  const x = baseWithBlock('exhibit');
+  const xAsset = makeAsset(nextId(), 'exhibit.png');
+  const xDoc = { ...x.doc, assets: { ...x.doc.assets, [xAsset.id]: xAsset } };
+  const attached = must(updateExhibitContent(xDoc, x.blockId, { assetId: xAsset.id }, opts()), 'x attach').doc;
+  const xTracked = capture(xDoc, attached, { kind: 'block-content', blockId: x.blockId }).doc;
+  const xEvent = pendingOn(xTracked, 'assetId');
+  assert.equal(xEvent.payload.original, '');
+  assert.equal(xEvent.payload.replacement, xAsset.id);
+  const xReject = rejectChange(xTracked, xEvent.id, { now: T1 });
+  assert.equal(xReject.ok, true, xReject.message);
+  assert.equal(blockData(xReject.doc, x.blockId).assetId ?? '', '', 'the reference is cleared');
+});
+
+test('10.7 signature: field reversal works; the add-seed rejection fails honestly', () => {
+  const { doc, blockId } = baseWithBlock('signature');
+  const signer0 = blockData(doc, blockId).signers[0];
+
+  const d1 = edit(doc, blockId, setSignerField(doc, blockId, signer0.id, 'designation', 'I. Wahid, MSc', opts()), 'designation');
+  const r1 = rejectChange(d1, pendingOn(d1, `signers[${signer0.id}].designation`).id, { now: T1 });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(blockData(r1.doc, blockId).signers[0].designation, 'Name / designation');
+
+  // The seeded designation of a NEW signer cannot be cleared (name is also
+  // empty -> the service refuses an unnamed signer): honest refusal, and the
+  // event stays pending rather than being silently dropped.
+  const grown = edit(r1.doc, blockId, addSigner(r1.doc, blockId, opts()), 'add');
+  const signer1 = blockData(grown, blockId).signers[1];
+  const seedEvent = pendingOn(grown, `signers[${signer1.id}].designation`);
+  const attempt = rejectChange(grown, seedEvent.id, { now: T1 });
+  assert.equal(attempt.ok, false, 'clearing the seed would leave an anonymous signer');
+  assert.equal(attempt.code, 'unsupported-reversal');
+  assert.equal(pendingEvents(attempt.doc ?? grown).length, 1, 'the seed event stays pending');
+});
+
+test('10.8 designer text: reject restores; an out-of-band edit is honestly stale', () => {
+  const { doc } = buildBase();
+
+  // Watermark text reversal routes through the designer service.
+  const wm = must(applyWatermarkPatch(doc, { field: 'text', value: 'CONFIDENTIAL' }, T0), 'wm');
+  const d1 = capture(doc, wm.doc, { kind: 'settings' }).doc;
+  const wmEvent = pendingOn(d1, 'watermark.text');
+  const r1 = rejectChange(d1, wmEvent.id, { now: T1 });
+  assert.equal(r1.ok, true, r1.message);
+  assert.equal(r1.doc.headerFooter.watermark.text, 'DRAFT', 'restored through applyWatermarkPatch');
+
+  // Header cell content: reject restores the recorded original.
+  const row = d1.headerFooter.header.rows[0];
+  const cell = row.cells[0];
+  const cellPath = `headerFooter.header.rows[${row.id}].cells[${cell.id}].content`;
+  const hf = must(
+    applyHeaderFooterPatch(d1, 'header', { field: 'cellContent', rowId: row.id, cellId: cell.id, value: 'Tracked header' }, T0),
+    'hf',
+  );
+  const d2 = capture(d1, hf.doc, { kind: 'settings' }).doc;
+  const cellEvent = pendingOn(d2, cellPath);
+  const r2 = rejectChange(d2, cellEvent.id, { now: T1 });
+  assert.equal(r2.ok, true, r2.message);
+  assert.equal(r2.doc.headerFooter.header.rows[0].cells[0].content, '{documentId}');
+
+  // Two more tracked edits of the same cell: out-of-order is stale, the
+  // newest-first order (reject-all semantics) unwinds the chain.
+  const e1 = capture(
+    r2.doc,
+    must(applyHeaderFooterPatch(r2.doc, 'header', { field: 'cellContent', rowId: row.id, cellId: cell.id, value: 'First' }, T0), 'e1').doc,
+    { kind: 'settings' },
+  ).doc;
+  const ev1 = lastEvent(e1);
+  assert.equal(ev1.target.field, cellPath);
+  const e2 = capture(
+    e1,
+    must(applyHeaderFooterPatch(e1, 'header', { field: 'cellContent', rowId: row.id, cellId: cell.id, value: 'Second' }, T0), 'e2').doc,
+    { kind: 'settings' },
+  ).doc;
+  const stale = rejectChange(e2, ev1.id, { now: T1 });
+  assert.equal(stale.ok, false);
+  assert.equal(stale.code, 'stale-target');
+
+  const back = rejectChange(e2, lastEvent(e2).id, { now: T1 });
+  assert.equal(back.ok, true, back.message);
+  assert.equal(back.doc.headerFooter.header.rows[0].cells[0].content, 'First');
+  const back2 = rejectChange(back.doc, ev1.id, { now: T1 });
+  assert.equal(back2.ok, true, back2.message);
+  assert.equal(back2.doc.headerFooter.header.rows[0].cells[0].content, '{documentId}');
+});
+
+test('10.9 lab families reverse field by field', () => {
+  // Measurement cell value + uncertainty note.
+  const m = baseWithBlock('measurement');
+  const mData = blockData(m.doc, m.blockId);
+  const measRowId = mData.rows[0].id;
+  const valueColumnId = mData.columns[1].id;
+  let dm = edit(m.doc, m.blockId, setMeasurementCell(m.doc, m.blockId, measRowId, valueColumnId, '12.34', opts()), 'cell');
+  dm = edit(dm, m.blockId, setMeasurementUncertaintyNote(dm, m.blockId, 'k = 2', opts()), 'note');
+  const cellEvent = pendingOn(dm, `rows[${measRowId}].values[${valueColumnId}]`);
+  const rCell = rejectChange(dm, cellEvent.id, { now: T1 });
+  assert.equal(rCell.ok, true, rCell.message);
+  assert.equal(blockData(rCell.doc, m.blockId).rows[0].values[valueColumnId] ?? '', '');
+  const noteEvent = pendingOn(rCell.doc, 'uncertaintyNote');
+  const rNote = rejectChange(rCell.doc, noteEvent.id, { now: T1 });
+  assert.equal(rNote.ok, true, rNote.message);
+  assert.equal(blockData(rNote.doc, m.blockId).uncertaintyNote ?? '', '');
+
+  // Procedure step level + text.
+  const p = baseWithBlock('procedure-step');
+  const stepId = blockData(p.doc, p.blockId).steps[0].id;
+  let dp = edit(p.doc, p.blockId, updateProcedureStep(p.doc, p.blockId, stepId, { level: 'warning' }, opts()), 'level');
+  dp = edit(dp, p.blockId, updateProcedureStep(dp, p.blockId, stepId, { spans: plainTextToSpans('Tracked step') }, opts()), 'text');
+  const levelEvent = pendingOn(dp, `steps[${stepId}].level`);
+  const rl = rejectChange(dp, levelEvent.id, { now: T1 });
+  assert.equal(rl.ok, true, rl.message);
+  assert.equal(blockData(rl.doc, p.blockId).steps[0].level, 'main');
+  const textEvent = pendingOn(rl.doc, `steps[${stepId}].text`);
+  const rt = rejectChange(rl.doc, textEvent.id, { now: T1 });
+  assert.equal(rt.ok, true, rt.message);
+  assert.equal(spansToPlainText(blockData(rt.doc, p.blockId).steps[0].spans), 'Procedure step description.');
+  assert.equal(hasPendingChanges(rt.doc), false);
+
+  // Acceptance criterion verdict + overall result.
+  const a = baseWithBlock('acceptance-criteria');
+  const critId = blockData(a.doc, a.blockId).criteria[0].id;
+  const defaultResult = blockData(a.doc, a.blockId).criteria[0].result;
+  let da = edit(a.doc, a.blockId, updateAcceptanceCriterion(a.doc, a.blockId, critId, { result: 'pass' }, opts()), 'verdict');
+  da = edit(da, a.blockId, setAcceptanceOverallResult(da, a.blockId, 'pass', opts()), 'overall');
+  const verdictEvent = pendingOn(da, `criteria[${critId}].result`);
+  const rv = rejectChange(da, verdictEvent.id, { now: T1 });
+  assert.equal(rv.ok, true, rv.message);
+  assert.equal(blockData(rv.doc, a.blockId).criteria[0].result, defaultResult, 'back to pending');
+  const overallEvent = pendingOn(rv.doc, 'overallResult');
+  const ro = rejectChange(rv.doc, overallEvent.id, { now: T1 });
+  assert.equal(ro.ok, true, ro.message);
+  assert.equal(blockData(ro.doc, a.blockId).overallResult ?? '', '', 'overall verdict cleared');
+  assert.equal(hasPendingChanges(ro.doc), false);
+});
+
+test('10.10 reject-all: honest structural failure stays pending; accept-all finishes', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const rows0 = blockData(doc, blockId).rows;
+  const bodyCell = rows0[rows0.length - 1].cells[0];
+
+  // Structural event FIRST (honest-fail on reject): a filled row removed,
+  // with its fill settled so only the deletion stays pending.
+  const added = edit(doc, blockId, addTableRow(doc, blockId, { kind: 'end' }, opts()), 'add');
+  const newRow = blockData(added, blockId).rows[blockData(added, blockId).rows.length - 1];
+  const filled = edit(added, blockId, setTableCellText(added, blockId, newRow.cells[0].id, 'Doomed', opts()), 'doom');
+  const settled = acceptAllChanges(filled, { now: T1 }).doc;
+  const removed = capture(
+    settled,
+    must(removeTableRow(settled, blockId, newRow.id, opts()), 'remove row').doc,
+    { kind: 'block-content', blockId },
+  ).doc;
+
+  // A reversible edit on TOP of the structural event.
+  const d1 = edit(removed, blockId, setTableCellText(removed, blockId, bodyCell.id, 'Reversible', opts()), 'edit');
+  assert.equal(pendingEvents(d1).length, 2);
+
+  const result = rejectAllChanges(d1, { now: T1 });
+  assert.equal(result.ok, true);
+  assert.equal(result.resolved, 1, 'the reversible cell edit unwinds');
+  assert.equal(result.failures.length, 1, 'the structural failure is reported honestly');
+  assert.match(result.failures[0].message, /no longer exists/i);
+  assert.equal(
+    spansToPlainText(blockData(result.doc, blockId).rows[rows0.length - 1].cells[0].spans),
+    '',
+    'the reversible edit is restored',
+  );
+  assert.equal(pendingEvents(result.doc).length, 1, 'the structural event stays pending');
+  const statuses = documentChangeEvents(result.doc).map((e) => `${e.type}:${e.status}`);
+  assert.deepEqual(
+    statuses,
+    ['block-create:accepted', 'text:accepted', 'text:pending', 'text:rejected'],
+    'newest resolved first; the honest failure stays pending; history preserved',
+  );
+
+  // Accept-all then finishes the honest failure without touching content.
+  const afterRows = blockData(result.doc, blockId).rows.length;
+  const finish = acceptAllChanges(result.doc, { now: T1 });
+  assert.equal(finish.resolved, 1);
+  assert.equal(hasPendingChanges(finish.doc), false);
+  assert.equal(blockData(finish.doc, blockId).rows.length, afterRows, 'accept never mutates content');
+});
+
+test('10.11 accepting family events never changes content', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const bodyRow = blockData(doc, blockId).rows[blockData(doc, blockId).rows.length - 1];
+  const d1 = edit(doc, blockId, setTableCellText(doc, blockId, bodyRow.cells[0].id, 'Accepted cell', opts()), 'edit');
+  const before = JSON.stringify(blockData(d1, blockId));
+  const accepted = acceptAllChanges(d1, { now: T1 });
+  assert.equal(accepted.resolved, 1);
+  assert.equal(JSON.stringify(blockData(accepted.doc, blockId)), before, 'accept is content-neutral');
+  assert.equal(hasPendingChanges(accepted.doc), false);
+  assert.ok(documentChangeEvents(accepted.doc).every((e) => e.status === 'accepted'));
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+group('11. P07-M2-R1: markup, PDF and DOM for the new families');
+// ═════════════════════════════════════════════════════════════════════════════
+
+test('11.1 describePendingTextCues renders printable old -> new cue lines', () => {
+  const cues = describePendingTextCues([
+    { status: 'pending', type: 'text', payload: { original: 'Old text', replacement: 'New text' } },
+    { status: 'pending', type: 'text', payload: { original: '', replacement: 'Inserted' } },
+    { status: 'pending', type: 'text', payload: { original: 'Removed', replacement: '' } },
+    { status: 'pending', type: 'text', payload: { original: 'x'.repeat(200), replacement: 'y' } },
+    { status: 'accepted', type: 'text', payload: { original: 'gone', replacement: 'gone too' } },
+    { status: 'pending', type: 'formatting', payload: { kind: 'property', original: 1, replacement: 2 } },
+    { status: 'pending', type: 'text', payload: { original: '', replacement: '' } },
+  ]);
+  assert.equal(cues.length, 4, 'only NON-EMPTY pending TEXT events cue');
+  assert.equal(cues[0], 'Text: Old text → New text');
+  assert.equal(cues[1], 'Text: (empty) → Inserted');
+  assert.equal(cues[2], 'Text: Removed → (empty)');
+  assert.ok(cues[3].includes('…'), 'the long side is truncated with an ellipsis');
+  assert.ok(cues[3].length <= 'Text: '.length + 60 + ' → '.length + 60, 'truncated for the page');
+  assert.deepEqual(describePendingTextCues(undefined), []);
+  assert.deepEqual(describePendingTextCues([]), []);
+});
+
+test('11.2 view context routes family events per block; inline runs stay heading/paragraph-only', () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const bodyRow = blockData(doc, blockId).rows[blockData(doc, blockId).rows.length - 1];
+  const cell = bodyRow.cells[0];
+  const d1 = edit(doc, blockId, setTableCellText(doc, blockId, cell.id, 'Context cell', opts()), 'edit');
+
+  const ctx = buildDocumentChangeViewContext(d1);
+  assert.ok(ctx !== null, 'pending family events produce a view context');
+  assert.equal(ctx.byBlock.size, 1);
+  assert.equal(ctx.byBlock.get(blockId).length, 1);
+  assert.equal(ctx.byBlock.get(blockId)[0].type, 'text');
+
+  // The inline heading/paragraph run selector ignores family locators
+  // (family text is cue-lined in the PDF instead of struck inline).
+  assert.equal(pendingTextEventFor(documentChangeEvents(d1)), undefined);
+
+  // The review description disambiguates by the stable-id locator.
+  const event = ctx.byBlock.get(blockId)[0];
+  const desc = describeChangeEvent(event, d1.blocks);
+  assert.equal(desc.title, 'Text change');
+  assert.equal(desc.target, `Table — rows[${bodyRow.id}].cells[${cell.id}].text`);
+  assert.equal(desc.after, 'Context cell');
+});
+
+await testAsync('11.3 PDF: family cue lines markup-only, clean shows current content, no clipping', async () => {
+  const base = buildBase();
+  const calloutIns = must(insertBlock(base.doc, 'callout', { kind: 'end' }, opts()), 'insert callout');
+  const tableIns = must(insertBlock(calloutIns.doc, 'table', { kind: 'end' }, opts()), 'insert table');
+  let d = capture(base.doc, calloutIns.doc, { kind: 'block-create', blockId: calloutIns.blockId }).doc;
+  d = capture(d, tableIns.doc, { kind: 'block-create', blockId: tableIns.blockId }).doc;
+  d = acceptAllChanges(d, { now: T1 }).doc;
+  d = edit(
+    d,
+    calloutIns.blockId,
+    updateCalloutContent(d, calloutIns.blockId, { spans: plainTextToSpans('Marked callout body') }, opts()),
+    'callout body',
+  );
+  const tableRows = blockData(d, tableIns.blockId).rows;
+  const tableCell = tableRows[tableRows.length - 1].cells[0];
+  d = edit(d, tableIns.blockId, setTableCellText(d, tableIns.blockId, tableCell.id, 'Marked cell text', opts()), 'cell');
+  assert.equal(pendingEvents(d).length, 2);
+
+  const cleanBuf = await renderDocPdfBytes(d, { changeView: 'clean' });
+  const markupBuf = await renderDocPdfBytes(d, { changeView: 'markup' });
+  assert.notEqual(
+    Buffer.compare(Buffer.from(cleanBuf), Buffer.from(markupBuf)),
+    0,
+    'pending family events change the PDF bytes',
+  );
+
+  const cleanText = await pdfText(cleanBuf);
+  const markupText = await pdfText(markupBuf);
+  const cleanCompact = await pdfTextCompact(cleanBuf);
+  const markupCompact = await pdfTextCompact(markupBuf);
+
+  // Clean renders current content only - never the struck original or cue.
+  assert.ok(cleanText.includes('Marked callout body'), 'clean renders the current callout body');
+  assert.ok(cleanText.includes('Marked cell text'), 'clean renders the current cell text');
+  assert.ok(!cleanText.includes('Callout text.'), 'clean never shows the struck original');
+  assert.ok(!cleanCompact.includes('Text:'), 'clean carries no cue lines');
+
+  // Markup carries the cue lines (callout old -> new, cell (empty) -> new).
+  assert.ok(markupText.includes('Callout text.'), 'markup cues the callout original');
+  assert.ok(markupCompact.includes('Text:Callouttext.'), `markup cue for the callout (got: ${markupCompact.slice(0, 400)})`);
+  assert.ok(markupCompact.includes('Text:(empty)'), 'markup cues the empty -> inserted cell text');
+
+  // Clip safety: every extracted run sits inside the page box (markup does
+  // not push text past the printable margins).
+  await withPdf(markupBuf, async (pdf) => {
+    for (let i = 1; i <= pdf.numPages; i += 1) {
+      const page = await pdf.getPage(i);
+      const { width, height } = page.getViewport({ scale: 1 });
+      const content = await page.getTextContent();
+      for (const item of content.items) {
+        if (!item.str || item.str.trim() === '') continue;
+        const x = item.transform[4];
+        const y = item.transform[5];
+        assert.ok(x >= -4 && x <= width + 4, `page ${i}: item x=${x.toFixed(1)} inside 0..${width}`);
+        assert.ok(y >= -4 && y <= height + 4, `page ${i}: item y=${y.toFixed(1)} inside 0..${height}`);
+      }
+    }
+  });
+});
+
+await testAsync('11.4 DOM: the editor markup strip renders family pending text generically', async () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const bodyRow = blockData(doc, blockId).rows[blockData(doc, blockId).rows.length - 1];
+  const cell = bodyRow.cells[0];
+  // Seed the cell, settle, then edit - so BOTH strip sides are non-empty.
+  const seeded = edit(doc, blockId, setTableCellText(doc, blockId, cell.id, 'Original cell', opts()), 'seed');
+  const settled = acceptAllChanges(seeded, { now: T1 }).doc;
+  const d1 = edit(settled, blockId, setTableCellText(settled, blockId, cell.id, 'Struck cell', opts()), 'edit');
+
+  await mount(React.createElement(EditorPanel, editorProps(d1)));
+  const strip = q('.tc-block-strip');
+  assert.ok(strip, 'a family text event renders the same inline strip as heading/paragraph');
+  assert.equal(q('.tc-strip-del').textContent.trim(), 'Original cell');
+  assert.equal(q('.tc-strip-ins').textContent.trim(), 'Struck cell');
+  await mounted.unmount();
+});
+
+await testAsync('11.5 DOM: the review panel lists family events with their locators', async () => {
+  const { doc, blockId } = baseWithBlock('table');
+  const bodyRow = blockData(doc, blockId).rows[blockData(doc, blockId).rows.length - 1];
+  const cell = bodyRow.cells[0];
+  const d1 = edit(doc, blockId, setTableCellText(doc, blockId, cell.id, 'Panel cell', opts()), 'edit');
+
+  await mount(
+    React.createElement(TrackChangesPanel, {
+      trackChangesEnabled: d1.trackChangesEnabled,
+      onTrackChangesToggle: () => {},
+      changeEvents: documentChangeEvents(d1),
+      blocks: d1.blocks,
+      onAccept: () => {},
+      onReject: () => {},
+      onAcceptAll: () => {},
+      onRejectAll: () => {},
+      viewMode: 'markup',
+      onViewModeChange: () => {},
+      editorLabel: '',
+      onEditorLabelChange: () => {},
+    }),
+  );
+  assert.ok(byText('.tc-section-title', 'Pending changes (1)'));
+  const titles = qa('.tc-event-title').map((el) => el.textContent.trim());
+  assert.ok(titles.includes('Text change'), `family text events are listed (got: ${titles.join(', ')})`);
+  const targets = qa('.tc-event-target').map((el) => el.textContent.trim());
+  assert.ok(
+    targets.some((t) => t.includes(`rows[${bodyRow.id}].cells[${cell.id}].text`)),
+    `the stable-id locator is shown for disambiguation (got: ${targets.join(' | ')})`,
+  );
+  await mounted.unmount();
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
+group('12. P07-M2-R1: persistence of content-family and designer events');
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** One document carrying pending events from four families + designer text. */
+function docWithFamilyEvents() {
+  const base = buildBase();
+  const created = ['table', 'signature', 'measurement', 'callout'].reduce(
+    (acc, type) => {
+      const ins = must(insertBlock(acc.doc, type, { kind: 'end' }, opts()), `insert ${type}`);
+      return {
+        doc: capture(acc.doc, ins.doc, { kind: 'block-create', blockId: ins.blockId }).doc,
+        blocks: { ...acc.blocks, [type]: ins.blockId },
+      };
+    },
+    { doc: base.doc, blocks: {} },
+  );
+  const settled = acceptAllChanges(created.doc, { now: T1 }).doc;
+  const blockIds = created.blocks;
+
+  // Table cell text.
+  const rows = blockData(settled, blockIds.table).rows;
+  const cell = rows[rows.length - 1].cells[0];
+  let d = edit(settled, blockIds.table, setTableCellText(settled, blockIds.table, cell.id, 'Persisted cell', opts()), 'cell');
+  // Signature signer name.
+  const signer = blockData(d, blockIds.signature).signers[0];
+  d = edit(d, blockIds.signature, setSignerField(d, blockIds.signature, signer.id, 'name', 'Ikram ul Wahid', opts()), 'signer');
+  // Measurement cell value.
+  const mData = blockData(d, blockIds.measurement);
+  d = edit(d, blockIds.measurement, setMeasurementCell(d, blockIds.measurement, mData.rows[0].id, mData.columns[1].id, '9.81', opts()), 'measured');
+  // Callout title.
+  d = edit(d, blockIds.callout, updateCalloutContent(d, blockIds.callout, { title: 'Persisted callout' }, opts()), 'callout');
+  // Designer watermark text (settings event on a document path).
+  const wm = must(applyWatermarkPatch(d, { field: 'text', value: 'PERSISTED' }, T0), 'wm');
+  const final = capture(d, wm.doc, { kind: 'settings' }).doc;
+
+  return { doc: final, blockIds, cellId: cell.id };
+}
+
+test('12.1 content-family and designer events round-trip losslessly at schema v1', () => {
+  const { doc, blockIds } = docWithFamilyEvents();
+  assert.equal(pendingEvents(doc).length, 5, 'four family events + one designer event');
+
+  const json = serializeDocument(doc);
+  const back = deserializeDocument(json);
+  assert.deepEqual(back, doc, 'every event, stable-id locator and payload survives save/open');
+  assert.equal(back.schemaVersion, 1, 'DOCSTUDIO_SCHEMA_VERSION stays 1');
+  assert.equal(serializeDocument(back), json, 're-serialization is byte-stable');
+
+  // The reopened log still reviews: locators resolve to real targets.
+  assert.equal(hasPendingChanges(back), true);
+  const targetFields = pendingEvents(back).map((e) => e.target.field);
+  assert.ok(targetFields.some((f) => f.startsWith('rows[')), 'child locators persisted');
+  assert.ok(targetFields.includes('watermark.text'), 'designer text persisted');
+  assert.ok(targetFields.includes('title'), 'block-level family field persisted');
+  assert.ok(
+    pendingEvents(back).every((e) => back.blocks.some((b) => b.id === e.target.blockId || e.target.kind === 'document')),
+    'every block-field event still addresses an existing block',
+  );
+  assert.ok(blockIds, 'fixture blocks recorded');
+});
+
+test('12.2 malformed family/designer events are rejected precisely on load', () => {
+  const { doc } = docWithFamilyEvents();
+  const base = JSON.parse(serializeDocument(doc));
+  const textIndex = base.changeEvents.findIndex((e) => e.type === 'text');
+  assert.ok(textIndex >= 0, 'the fixture carries at least one text event');
+
+  // DocumentFileError carries the message and the per-index detail bullets.
+  const detailOf = (fn) => {
+    try {
+      fn();
+    } catch (e) {
+      assert.ok(e instanceof DocumentFileError, `expected DocumentFileError, got ${e && e.name}`);
+      return String(e.detail ?? '');
+    }
+    throw new assert.AssertionError({ message: 'expected deserializeDocument to throw' });
+  };
+
+  // The P07-M1 model: a text event MUST target a block field. Designer text
+  // travels as a `settings` event - a document-targeted text event is refused.
+  assert.match(
+    detailOf(() =>
+      deserializeDocument(
+        JSON.stringify({
+          ...base,
+          changeEvents: base.changeEvents.map((e, i) =>
+            i === textIndex
+              ? { ...e, target: { kind: 'document', field: 'frontPage.synopsis' } }
+              : e,
+          ),
+        }),
+      ),
+    ),
+    new RegExp(`changeEvents\\[${textIndex}\\]`),
+    'a document-targeted text event is refused',
+  );
+
+  // Non-string payload on a family text event.
+  assert.match(
+    detailOf(() =>
+      deserializeDocument(
+        JSON.stringify({
+          ...base,
+          changeEvents: base.changeEvents.map((e, i) =>
+            i === textIndex ? { ...e, payload: { original: 42, replacement: 'x' } } : e,
+          ),
+        }),
+      ),
+    ),
+    new RegExp(`changeEvents\\[${textIndex}\\]`),
+    'non-string text payloads are refused',
+  );
+});
+
+test('12.3 an old document opens and a fresh family edit appends cleanly', () => {
+  const { doc, blockIds, cellId } = docWithFamilyEvents();
+  const opened = deserializeDocument(serializeDocument(doc));
+  const before = documentChangeEvents(opened).length;
+
+  const afterEdit = must(
+    setTableCellText(opened, blockIds.table, cellId, 'After reopen', opts()),
+    'edit',
+  ).doc;
+  const tracked = capture(opened, afterEdit, { kind: 'block-content', blockId: blockIds.table }).doc;
+  assert.equal(documentChangeEvents(tracked).length, before + 1, 'the fresh event appends');
+  assert.equal(tracked.changeEvents[0].status, 'accepted', 'older events keep identity and order');
+  const fresh = documentChangeEvents(tracked)[documentChangeEvents(tracked).length - 1];
+  assert.equal(fresh.target.field, `rows[${blockData(opened, blockIds.table).rows[1].id}].cells[${cellId}].text`);
+  assert.equal(fresh.payload.replacement, 'After reopen');
+  assert.equal(hasPendingChanges(tracked), true);
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // Summary
 // ═════════════════════════════════════════════════════════════════════════════
@@ -1658,7 +3020,13 @@ console.log('HONEST COVERAGE NOTES:');
 console.log(' - PDF.js preview inside PocViewer and the native save dialog are NOT');
 console.log('   exercised here (no WebView2 in the suite); preview == export is');
 console.log('   covered at the byte level through renderDocPdfBytes directly.');
-console.log(" - Untracked-by-design surfaces (other block types' inner content,");
-console.log('   customFields, fontFallbacks, front page, header/footer, watermark)');
-console.log('   are documented limitations of P07-M2, not defects.');
+console.log(' - Since P07-M2-R1 every text-bearing content family IS tracked');
+console.log('   (tables, lists, callouts, formulas, image captions/asset refs,');
+console.log('   signature text, structural text, all six lab blocks, designer');
+console.log('   text).  Deliberate boundaries: structural child removals are');
+console.log('   captured but their REJECT fails honestly; child reorders record');
+console.log('   no text events; image size/crop/layout, signature hAlign,');
+console.log('   non-text designer config, customFields and fontFallbacks stay in');
+console.log('   the open owner-decision bucket (roadmap P07-M2-R1 / proposed');
+console.log('   DEC-009).  A page break has no text by design.');
 if (failed > 0) process.exit(1);

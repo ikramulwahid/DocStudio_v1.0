@@ -131,6 +131,7 @@ import {
   buildDocumentChangeViewContext,
   deriveTextSegments,
   describeBlockMarkupCues,
+  describePendingTextCues,
   markupRuns,
   pendingTextEventFor,
   type ChangeViewContext,
@@ -2236,12 +2237,18 @@ export function BlockRenderer({
     monochrome,
     markupEvents,
   });
-  const cues = describeBlockMarkupCues(markupEvents);
+  // P07-M2-R1: heading/paragraph carry inline struck/underlined text; every
+  // other family shows its pending text as printable cue lines above the
+  // block so inserted/deleted content stays visibly marked in the PDF.
+  const cues =
+    block.type === 'heading' || block.type === 'paragraph'
+      ? describeBlockMarkupCues(markupEvents)
+      : [...describeBlockMarkupCues(markupEvents), ...describePendingTextCues(markupEvents)];
   if (cues.length === 0) return body;
   return (
     <View wrap={false}>
-      {cues.map((cue) => (
-        <MarkupCue key={cue} label={cue} tokens={tokens} />
+      {cues.map((cue, index) => (
+        <MarkupCue key={`${index}:${cue}`} label={cue} tokens={tokens} />
       ))}
       {body}
     </View>
