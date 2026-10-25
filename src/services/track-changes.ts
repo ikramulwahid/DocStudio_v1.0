@@ -367,9 +367,14 @@ const TRACKED_METADATA_KEYS = [
 const deepCopy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
 
 const scalarOrNull = (value: unknown): ChangeScalarValue | undefined => {
-  if (value === null || typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return value;
-  }
+  // One `typeof` check per branch: the combined `||` chain (with the
+  // leading `value === null`) does not narrow `unknown` when this file is
+  // compiled WITHOUT `--strict` (the legacy verify suites do), while each
+  // isolated check narrows identically in both modes.  Semantics unchanged.
+  if (value === null) return null;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return value;
+  if (typeof value === 'boolean') return value;
   return undefined;
 };
 
@@ -1177,7 +1182,9 @@ export function commitTrackedChange(
     return { doc: after, events: [], recorded: false, error: null };
   }
   const result = appendChangeEvents(after, drafts, options);
-  if (!result.ok) {
+  // `=== false` instead of `!…`: truthiness does not narrow these unions
+  // in non-strict compiles (see the note in scalarOrNull above).
+  if (result.ok === false) {
     return { doc: after, events: [], recorded: false, error: result.message };
   }
   return { doc: result.doc, events: result.events, recorded: true, error: null };
@@ -1212,7 +1219,7 @@ export function appendChangeEvents(
   for (const draft of drafts) {
     const shaped: ChangeEventDraft = label === undefined ? draft : { ...draft, editorLabel: label };
     const result = createChangeEvent(shaped, { now: options.now, genId: options.genId });
-    if (!result.ok) {
+    if (result.ok === false) {
       return { ok: false, code: result.code, message: result.message };
     }
     events.push(result.event);
@@ -1602,26 +1609,26 @@ function restoreBlockField(
     if (field === 'text') {
       if (typeof original !== 'string') return fail('The recorded original heading text is not a string.');
       const result = updateHeadingContent(doc, block.id, { text: original }, { now });
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field === 'level') {
       if (original !== 1 && original !== 2 && original !== 3 && original !== 4) {
         return fail('The recorded original heading level is not 1-4.');
       }
       const result = updateHeadingContent(doc, block.id, { level: original }, { now });
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field === 'numbered') {
       if (typeof original !== 'boolean') return fail('The recorded original numbered flag is not a boolean.');
       const result = updateHeadingContent(doc, block.id, { numbered: original }, { now });
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field === 'hAlign') {
       if (original !== 'left' && original !== 'center' && original !== 'right') {
         return fail('The recorded original heading alignment is not supported.');
       }
       const result = updateHeadingContent(doc, block.id, { hAlign: original as HAlignment }, { now });
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field !== 'spacing.topPt' && field !== 'spacing.bottomPt') {
       return fail(`Reversing "${field}" on a heading is not supported in P07-M2.`);
@@ -1635,11 +1642,11 @@ function restoreBlockField(
         { spans: plainTextToSpans(original) },
         { now },
       );
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field === 'spans') {
       const result = updateParagraphContent(doc, block.id, { spans: deepCopy(original as InlineSpan[]) }, { now });
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field === 'hAlign') {
       if (original !== 'left' && original !== 'center' && original !== 'right' && original !== 'justify') {
@@ -1651,14 +1658,14 @@ function restoreBlockField(
         { hAlign: original as ParagraphAlignment },
         { now },
       );
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field === 'indentLevel') {
       if (typeof original !== 'number' || !Number.isInteger(original) || original < 0) {
         return fail('The recorded original indent level is not a non-negative integer.');
       }
       const result = updateParagraphContent(doc, block.id, { indentLevel: original }, { now });
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     if (field !== 'spacing.topPt' && field !== 'spacing.bottomPt') {
       return fail(`Reversing "${field}" on a paragraph is not supported in P07-M2.`);
@@ -1673,7 +1680,7 @@ function restoreBlockField(
       original,
       { now },
     );
-    return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+    return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
   }
   return restoreFamilyBlockField(doc, block, field, original, now);
 }
@@ -1691,9 +1698,9 @@ type ServiceOutcome =
 const via = (
   outcome: ServiceOutcome,
 ): TrackOpResult | { ok: true; doc: DocStudioDocument } =>
-  outcome.ok
-    ? { ok: true, doc: outcome.doc }
-    : opReject('unsupported-reversal', outcome.message);
+  outcome.ok === false
+    ? opReject('unsupported-reversal', outcome.message)
+    : { ok: true, doc: outcome.doc };
 
 /** Max single reversal shift for list-item nesting (defensive bound). */
 const MAX_DEPTH_REVERSAL_STEPS = 8;
@@ -1979,7 +1986,7 @@ function restoreChildField(
           original < item.depth
             ? outdentListItem(cursor, block.id, loc.id, { now })
             : indentListItem(cursor, block.id, loc.id, { now });
-        if (!step.ok) return fail(step.message);
+        if (step.ok === false) return fail(step.message);
         cursor = step.doc;
       }
       return { ok: true, doc: cursor };
@@ -2286,7 +2293,7 @@ function restoreSettingsLeaf(
   switch (path) {
     case 'pageSetup.size': {
       const result = updatePageSetup(doc, { field: 'size', size: original as PageSize }, now);
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageSetup.orientation': {
       const result = updatePageSetup(
@@ -2294,7 +2301,7 @@ function restoreSettingsLeaf(
         { field: 'orientation', orientation: original as PageOrientation },
         now,
       );
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageSetup.margins.preset': {
       const result = updatePageSetup(
@@ -2302,7 +2309,7 @@ function restoreSettingsLeaf(
         { field: 'marginPreset', preset: original as typeof settings.margins.preset },
         now,
       );
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageSetup.margins.topMm':
     case 'pageSetup.margins.bottomMm':
@@ -2321,12 +2328,12 @@ function restoreSettingsLeaf(
         },
         now,
       );
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageTypography.typography.fontFamily': {
       if (typeof original !== 'string') return fail('The recorded original font family is not a string.');
       const result = updateTypography(doc, { field: 'fontFamily', value: original }, now);
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageTypography.typography.baseFontSizePt':
     case 'pageTypography.typography.lineHeight':
@@ -2338,21 +2345,21 @@ function restoreSettingsLeaf(
           ? 'lineHeight'
           : 'paragraphSpacingPt';
       const result = updateTypography(doc, { field, value: original }, now);
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageTypography.bodyThemeId': {
       const result = updateBodyTheme(doc, { field: 'bodyThemeId', value: original as never }, now);
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageTypography.monochrome': {
       if (typeof original !== 'boolean') return fail('The recorded original monochrome flag is not a boolean.');
       const result = updateBodyTheme(doc, { field: 'monochrome', value: original }, now);
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     case 'pageTypography.displayHeader': {
       if (typeof original !== 'boolean') return fail('The recorded original display-header flag is not a boolean.');
       const result = updateDisplayHeader(doc, original, now);
-      return result.ok ? { ok: true, doc: result.doc } : fail(result.message);
+      return result.ok === false ? fail(result.message) : { ok: true, doc: result.doc };
     }
     default:
       return fail(`Reversing the settings field "${path}" is not supported in P07-M2.`);
@@ -2497,7 +2504,7 @@ export function rejectChange(
         );
       }
       const result = deleteBlock(source, event.target.blockId, { now });
-      if (!result.ok) return opReject('stale-target', result.message);
+      if (result.ok === false) return opReject('stale-target', result.message);
       return done(result.doc);
     }
 
@@ -2540,7 +2547,7 @@ export function rejectChange(
       }
       originIndex = Math.max(0, Math.min(originIndex, source.blocks.length - 1));
       const result = moveBlockTo(source, event.target.blockId, originIndex, { now });
-      if (!result.ok) return opReject('stale-target', result.message);
+      if (result.ok === false) return opReject('stale-target', result.message);
       return done(result.doc);
     }
 
@@ -2672,11 +2679,11 @@ export function rejectAllChanges(
     .map((event) => event.id);
   for (let i = pendingIds.length - 1; i >= 0; i -= 1) {
     const result = rejectChange(doc, pendingIds[i], options);
-    if (result.ok) {
+    if (result.ok === false) {
+      failures.push({ id: pendingIds[i], message: result.message });
+    } else {
       doc = result.doc;
       resolved += 1;
-    } else {
-      failures.push({ id: pendingIds[i], message: result.message });
     }
   }
   return { ok: true, doc, resolved, failures };

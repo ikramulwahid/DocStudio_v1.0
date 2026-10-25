@@ -6,6 +6,7 @@ import { PageTypographyPanel } from './PageTypographyPanel';
 import { FrontPagePanel } from './FrontPagePanel';
 import { HeaderFooterPanel } from './HeaderFooterPanel';
 import { TrackChangesPanel } from './TrackChangesPanel';
+import { SavedRevisionsPanel } from './SavedRevisionsPanel';
 import { SectionState } from '../../types';
 import type {
   AssetRecord,
@@ -17,7 +18,7 @@ import type {
   PageSetup,
   PageTypographySettings,
 } from '../../types/document';
-import type { DocUUID } from '../../types/document';
+import type { DocUUID, SavedRevision } from '../../types/document';
 import type { ChangeEvent } from '../../types/change-events';
 import type { DocumentChangeView } from '../../services/track-changes';
 import type { LabProfile } from '../../types/lab-profile';
@@ -34,6 +35,11 @@ import type {
   WatermarkPatch,
 } from '../../services/header-footer-settings';
 import type { FrontPagePatch, FrontPageUpdateResult } from '../../services/front-page';
+import type {
+  SnapshotCreateResult,
+  SnapshotHistoryStats,
+  SnapshotInput,
+} from '../../services/snapshots';
 import './LeftPanel.css';
 
 interface LeftPanelProps {
@@ -105,6 +111,16 @@ interface LeftPanelProps {
   /** Locally configured editor name stamped on new events (P07-M2). */
   editorLabel?: string;
   onEditorLabelChange?: (label: string) => void;
+  /** Authoritative `document.savedRevisions` (P07-M3, §12.2). */
+  savedRevisions?: readonly SavedRevision[];
+  /** Measured snapshot-history size report (P07-M3, R-003 advisory). */
+  snapshotHistory?: SnapshotHistoryStats;
+  /** Save a snapshot of the current document state (returns inline result). */
+  onCreateSnapshot?: (input: SnapshotInput) => SnapshotCreateResult;
+  /** Request a restore — App owns the unsaved guard + confirmation. */
+  onRestoreSnapshot?: (revisionId: DocUUID) => void;
+  /** Request deletion of one snapshot — App owns the confirmation. */
+  onDeleteSnapshot?: (revisionId: DocUUID) => void;
 }
 
 export const LeftPanel: React.FC<LeftPanelProps> = ({
@@ -143,6 +159,11 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
   onViewModeChange,
   editorLabel,
   onEditorLabelChange,
+  savedRevisions,
+  snapshotHistory,
+  onCreateSnapshot,
+  onRestoreSnapshot,
+  onDeleteSnapshot,
 }) => {
   const [sections, setSections] = useState<SectionState>({
     documentInfo: true,
@@ -151,6 +172,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
     pageTypography: false,
     headerFooter: false,
     trackChanges: false,
+    savedRevisions: false,
     documentStatistics: true,
     documentActions: false,
   });
@@ -170,6 +192,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
       pageTypography: true,
       headerFooter: true,
       trackChanges: true,
+      savedRevisions: true,
       documentStatistics: true,
       documentActions: true,
     });
@@ -183,6 +206,7 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
       pageTypography: false,
       headerFooter: false,
       trackChanges: false,
+      savedRevisions: false,
       documentStatistics: false,
       documentActions: false,
     });
@@ -374,6 +398,37 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
           )}
         </CollapsibleSection>
 
+        {/* 4c. Saved Revisions (P07-M3, §12.2) */}
+        <CollapsibleSection
+          id="saved-revisions"
+          title="Saved Revisions"
+          icon="save"
+          isOpen={sections.savedRevisions}
+          onToggle={() => toggleSection('savedRevisions')}
+          badge="P07-M3"
+        >
+          {savedRevisions !== undefined &&
+          snapshotHistory !== undefined &&
+          onCreateSnapshot &&
+          onRestoreSnapshot &&
+          onDeleteSnapshot ? (
+            <SavedRevisionsPanel
+              revisions={savedRevisions}
+              history={snapshotHistory}
+              onCreate={onCreateSnapshot}
+              onRestore={onRestoreSnapshot}
+              onDelete={onDeleteSnapshot}
+            />
+          ) : (
+            <div className="placeholder-box">
+              <span className="placeholder-tag">Snapshot History</span>
+              <span className="placeholder-subtext">
+                Saved snapshots are unavailable because no active document was provided.
+              </span>
+            </div>
+          )}
+        </CollapsibleSection>
+
         {/* 5. Document Statistics */}
         <CollapsibleSection
           id="doc-statistics"
@@ -429,7 +484,8 @@ export const LeftPanel: React.FC<LeftPanelProps> = ({
               Reset Settings to Defaults
             </button>
             <span className="placeholder-subtext">
-              Revision restore arrives with Phase 07; additional statistics-driven actions with Phase 09.
+              Restore a saved snapshot from the Saved Revisions section above; additional
+              statistics-driven actions arrive with Phase 09.
             </span>
           </div>
         </CollapsibleSection>

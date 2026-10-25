@@ -10,6 +10,7 @@ export interface SectionState {
   pageTypography: boolean;
   headerFooter: boolean;
   trackChanges: boolean;
+  savedRevisions: boolean;
   documentStatistics: boolean;
   documentActions: boolean;
 }

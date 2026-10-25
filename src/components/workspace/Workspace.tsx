@@ -13,6 +13,7 @@ import type {
   HeaderFooterSettings,
   PageSetup,
   PageTypographySettings,
+  SavedRevision,
 } from '../../types/document';
 import type { BlockType } from '../../types/blocks';
 import type { LabProfile } from '../../types/lab-profile';
@@ -61,6 +62,11 @@ import type {
   TypographyPatch,
 } from '../../services/page-typography';
 import type { FrontPagePatch, FrontPageUpdateResult } from '../../services/front-page';
+import type {
+  SnapshotCreateResult,
+  SnapshotHistoryStats,
+  SnapshotInput,
+} from '../../services/snapshots';
 import type {
   BandKind,
   HeaderFooterPatch,
@@ -213,6 +219,17 @@ interface WorkspaceProps {
   /** Locally configured editor name stamped on new events. */
   editorLabel?: string;
   onEditorLabelChange?: (label: string) => void;
+  // ── P07-M3 Saved Revisions (§12.2) ─────────────────────────────────────────
+  /** Authoritative `document.savedRevisions` (chronological snapshot history). */
+  savedRevisions?: readonly SavedRevision[];
+  /** Measured snapshot-history size report (R-003, advisory only). */
+  snapshotHistory?: SnapshotHistoryStats;
+  /** Save a snapshot of the current document state (returns inline result). */
+  onCreateSnapshot?: (input: SnapshotInput) => SnapshotCreateResult;
+  /** Request a restore — App owns the unsaved guard + confirmation. */
+  onRestoreSnapshot?: (revisionId: DocUUID) => void;
+  /** Request deletion of one snapshot — App owns the confirmation. */
+  onDeleteSnapshot?: (revisionId: DocUUID) => void;
 }
 
 export const Workspace: React.FC<WorkspaceProps> = ({
@@ -270,6 +287,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
   onViewModeChange,
   editorLabel,
   onEditorLabelChange,
+  savedRevisions,
+  snapshotHistory,
+  onCreateSnapshot,
+  onRestoreSnapshot,
+  onDeleteSnapshot,
 }) => {
   return (
     <div className="workspace">
@@ -309,6 +331,11 @@ export const Workspace: React.FC<WorkspaceProps> = ({
         onViewModeChange={onViewModeChange}
         editorLabel={editorLabel}
         onEditorLabelChange={onEditorLabelChange}
+        savedRevisions={savedRevisions}
+        snapshotHistory={snapshotHistory}
+        onCreateSnapshot={onCreateSnapshot}
+        onRestoreSnapshot={onRestoreSnapshot}
+        onDeleteSnapshot={onDeleteSnapshot}
       />
       <EditorPanel
         blocks={blocks}

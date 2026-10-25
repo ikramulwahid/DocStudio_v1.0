@@ -127,7 +127,15 @@ import {
   type ChangeCaptureHint,
   type DocumentChangeView,
 } from './services/track-changes';
-import { nowISO } from './types/defaults';
+import {
+  createSnapshot,
+  deleteSnapshot,
+  restoreSnapshot,
+  snapshotHistoryStats,
+  type SnapshotCreateResult,
+  type SnapshotInput,
+} from './services/snapshots';
+import { newUUID, nowISO } from './types/defaults';
 import './styles/theme.css';
 import './styles/globals.css';
 import './App.css';
@@ -239,6 +247,15 @@ export const App: React.FC = () => {
   const fingerprint = sessionFingerprint(activeDocument);
   const dirty = isDirty(fingerprint, baselineFingerprint);
   const sessionStatus = deriveSessionStatus(fingerprint, baselineFingerprint, activeFilePath !== null);
+
+  // ── Snapshot history size report (P07-M3, R-003) ─────────────────────────
+  // Measured from the already-computed session fingerprint — no extra
+  // serialization — and purely advisory: it decides nothing and deletes
+  // nothing (see services/snapshots.ts, "File-size strategy").
+  const snapshotHistory = useMemo(
+    () => snapshotHistoryStats(activeDocument.savedRevisions, fingerprint),
+    [activeDocument.savedRevisions, fingerprint],
+  );
 
   // Reconcile the block selection with the authoritative document: after a
   // delete/clear/document-replacement the previously selected ID may no
@@ -902,6 +919,89 @@ export const App: React.FC = () => {
     writeEditorLabel(label); // session preference; survives restarts
   };
 
+  // ── Saved snapshots (P07-M3, §12.2) ─────────────────────────────────────
+  // Create / restore / delete go through the pure `snapshots` service and
+  // deliberately do NOT pass through `trackCommit`: a snapshot is a saved
+  // document STATE (§12.4), not a tracked authorship edit, so saving or
+  // restoring one must never fabricate a change event.  Failures surface
+  // through the established inline-result / dialog / banner surfaces.
+
+  const handleCreateSnapshot = (input: SnapshotInput): SnapshotCreateResult => {
+    const result = createSnapshot(activeDocument, input, { now: nowISO(), genId: newUUID });
+    if (result.ok) setActiveDocument(result.doc); // history append only; content untouched
+    return result;
+  };
+
+  const handleRestoreSnapshot = async (revisionId: DocUUID): Promise<void> => {
+    const source = activeDocument.savedRevisions.find((r) => r.id === revisionId) ?? null;
+    if (source === null) {
+      setFileError('That saved snapshot no longer exists in this document.');
+      return;
+    }
+
+    // Established unsaved-changes guard first (Save / Discard / Cancel),
+    // then the §13.2 destructive confirmation — restore replaces content.
+    if ((await guardUnsavedChanges()) === 'abort') return;
+    confirmAction(
+      'Restore this snapshot?',
+      `The document returns to the state saved as "${source.label}" ` +
+        `(${new Date(source.savedAt).toLocaleString()}). Content, settings, assets and the ` +
+        'Track Changes log all return to that state — tracked changes recorded after the ' +
+        `snapshot are part of the state being replaced. All ${activeDocument.savedRevisions.length} ` +
+        'snapshots are kept and a new "Restore of ..." revision records this restore. ' +
+        'This cannot be undone.',
+      'Restore Snapshot',
+      () => {
+        const result = restoreSnapshot(activeDocument, revisionId, {
+          now: nowISO(),
+          genId: newUUID,
+        });
+        if (!result.ok) {
+          setDialog({
+            title: 'Restore snapshot',
+            message: result.message,
+            actions: [{ label: 'OK', variant: 'primary', onClick: closeDialog }],
+          });
+          return;
+        }
+        setActiveDocument(result.doc);
+        setDialog({
+          title: 'Snapshot restored',
+          message:
+            `The document now shows the state saved as "${result.source.label}". ` +
+            `All ${result.doc.savedRevisions.length} snapshots are kept — the new revision ` +
+            `"${result.revision.label}" records this restore. Save to persist the change.`,
+          actions: [{ label: 'OK', variant: 'primary', onClick: closeDialog }],
+        });
+      },
+    );
+  };
+
+  const handleDeleteSnapshot = (revisionId: DocUUID): void => {
+    const source = activeDocument.savedRevisions.find((r) => r.id === revisionId) ?? null;
+    if (source === null) {
+      setFileError('That saved snapshot no longer exists in this document.');
+      return;
+    }
+    const others = activeDocument.savedRevisions.length - 1;
+    confirmAction(
+      'Delete this snapshot?',
+      `Only "${source.label}" is removed from the history. Your document content and the ` +
+        `other ${others} snapshot${others === 1 ? '' : 's'} are untouched. ` +
+        'Snapshots are never deleted automatically — this happens only because you asked. ' +
+        'This cannot be undone.',
+      'Delete Snapshot',
+      () => {
+        const result = deleteSnapshot(activeDocument, revisionId);
+        if (!result.ok) {
+          setFileError(result.message);
+          return;
+        }
+        setActiveDocument(result.doc);
+      },
+    );
+  };
+
   // ── Open (P02-M2, extended P02-M3) ───────────────────────────────────────
   const handleOpen = async (): Promise<void> => {
     if ((await guardUnsavedChanges()) === 'abort') return;
@@ -1018,6 +1118,11 @@ export const App: React.FC = () => {
         onViewModeChange={setChangeView}
         editorLabel={editorLabel}
         onEditorLabelChange={handleEditorLabelChange}
+        savedRevisions={activeDocument.savedRevisions}
+        snapshotHistory={snapshotHistory}
+        onCreateSnapshot={handleCreateSnapshot}
+        onRestoreSnapshot={handleRestoreSnapshot}
+        onDeleteSnapshot={handleDeleteSnapshot}
       />
       {chooserOpen && (
         <TemplateChooser

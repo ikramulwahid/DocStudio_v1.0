@@ -592,14 +592,22 @@ export interface ContentBlock {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Revision history (extensible design point for Phase 07)
+// Revision history — saved snapshots (§12.2, implemented by P07-M3)
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * A saved document snapshot (revision).
- * In Phase 07 this will include a full deep copy of the document body.
- * For now the structure is declared so the top-level document type is
- * extensible without a breaking schema change.
+ * A saved document snapshot (revision) — implemented by P07-M3 (§12.2).
+ *
+ * Encoding contract (authoritative semantics record:
+ * `src/services/snapshots.ts`):
+ * • `snapshotJson` is the FULL schema-v1 document state at save time with
+ *   `savedRevisions: []` — the non-recursive rule that keeps history
+ *   growth linear (R-003).  The containing document's `savedRevisions`
+ *   array is the single authoritative history and is preserved (never
+ *   replaced by nested payload history) across restore.
+ * • The envelope fields are validated at load (`document-file.ts`); the
+ *   embedded payload is parsed and validated with the real document
+ *   validator at inspection and restore.
  */
 export interface SavedRevision {
   /** Stable snapshot ID. */
@@ -682,8 +690,10 @@ export interface DocStudioDocument {
 
   // ── Revision history (Phase 07 extensibility) ────────────────────────────
   /**
-   * Saved named revision snapshots.
-   * Empty array until Phase 07 wires up the revision save action.
+   * Saved named/numbered revision snapshots, chronological (oldest first).
+   * Implemented by P07-M3: created/inspected/restored/deleted through
+   * `src/services/snapshots.ts`; still `[]` for documents that never saved
+   * one, so old schema-v1 documents open unchanged (no schema change).
    */
   savedRevisions: SavedRevision[];
 

@@ -40,6 +40,16 @@
  * explicit, user-readable `DocumentFileError`.  Unknown fields are never
  * silently stripped, and invalid/unsupported files are rejected whole.
  *
+ * Saved-snapshot entries (`savedRevisions`, P07-M3) are validated at the
+ * ENVELOPE level on load — object shape, string `id`/`label`/`savedAt`
+ * (plus optional string `summary`/`reason`) and a `snapshotJson` that
+ * parses as JSON — with per-index messages in the established style.  The
+ * embedded payload's full document structure is validated at INSPECTION
+ * and RESTORE through the real `validateDocument` service
+ * (src/services/snapshots.ts), so a parseable-but-damaged snapshot is
+ * reported precisely at point of use instead of making the whole project
+ * unopenable.  Load cost therefore stays linear in total payload bytes.
+ *
  * This module is intentionally free of Tauri/React/DOM imports so it can be
  * exercised by deterministic Node-based checks (see verify_p02_m2.mjs).
  *
@@ -174,7 +184,45 @@ function collectValidationErrors(data: Record<string, unknown>): ErrList {
   // ── Envelope ──────────────────────────────────────────────────────────────
   requireString(data, 'id', 'document', errs);
   requireBoolean(data, 'trackChangesEnabled', 'document', errs);
-  requireArray(data, 'savedRevisions', 'document', errs);
+
+  // ── Saved revision snapshots (P07-M3, envelope validation at load) ────────
+  // `savedRevisions` has been a required array since schema v1 (P02-M1);
+  // each entry's ENVELOPE is now checked here: object shape, string id /
+  // label / savedAt, optional string summary / reason, and a snapshotJson
+  // that parses as JSON.  Per-index messages mirror the changeEvents style.
+  // Full embedded-document validation runs at inspection/restore (see the
+  // module header and src/services/snapshots.ts) — never at load.
+  const savedRevisions = requireArray(data, 'savedRevisions', 'document', errs);
+  if (savedRevisions) {
+    savedRevisions.forEach((candidate, i) => {
+      const where = `savedRevisions[${i}]`;
+      if (!isRecord(candidate)) {
+        errs.push(`${where} must be an object.`);
+        return;
+      }
+      requireString(candidate, 'id', where, errs);
+      requireString(candidate, 'label', where, errs);
+      requireString(candidate, 'savedAt', where, errs);
+      if (candidate['summary'] !== undefined && typeof candidate['summary'] !== 'string') {
+        errs.push(`${where}.summary must be a string when present.`);
+      }
+      if (candidate['reason'] !== undefined && typeof candidate['reason'] !== 'string') {
+        errs.push(`${where}.reason must be a string when present.`);
+      }
+      const snapshotJson = candidate['snapshotJson'];
+      if (typeof snapshotJson !== 'string') {
+        errs.push(`${where}.snapshotJson must be a string.`);
+        return;
+      }
+      try {
+        JSON.parse(snapshotJson);
+      } catch (e) {
+        errs.push(
+          `${where}.snapshotJson is not valid JSON: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    });
+  }
 
   // ── Tracked-change event log (P07-M2, additive-optional) ──────────────────
   // An ABSENT key is the pre-P07-M2 state and means an empty log (old files
@@ -186,7 +234,11 @@ function collectValidationErrors(data: Record<string, unknown>): ErrList {
     if (changeEvents) {
       changeEvents.forEach((candidate, i) => {
         const result = validateChangeEvent(candidate);
-        if (!result.ok) {
+        // Explicit discriminant comparison: `!result.ok` does NOT narrow this
+        // union when a caller compiles this file without `--strict` (the
+        // legacy verify suites do), which broke their compile at P07-M2.
+        // Semantics are identical; the guard now works in both modes.
+        if (result.ok === false) {
           errs.push(`document.changeEvents[${i}]: ${result.message}`);
         }
       });
